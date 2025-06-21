@@ -36,6 +36,7 @@ import com.example.demo.config.AsyncConfig;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.CompletionException;
 
 @Service
 @RequiredArgsConstructor
@@ -74,69 +75,88 @@ public class JudgeService {
 
             messagingTemplate.convertAndSend(topic, new JudgeProgress("PENDING", "创建临时目录...", 0));
 
-            Path genExecutable, bfExecutable, userExecutable;
             try {
                 messagingTemplate.convertAndSend(topic, new JudgeProgress("COMPILING", "正在编译代码...", 5));
 
                 Path genSource = tempDir.resolve("generator.cpp");
                 Files.writeString(genSource, request.getGeneratorCode());
-                genExecutable = compile(genSource, "generator");
 
                 Path bfSource = tempDir.resolve("bruteforce.cpp");
                 Files.writeString(bfSource, request.getBruteForceCode());
-                bfExecutable = compile(bfSource, "bruteforce");
 
                 Path userSource = tempDir.resolve("user.cpp");
                 Files.writeString(userSource, request.getUserCode());
-                userExecutable = compile(userSource, "user");
+
+                CompletableFuture<Path> genFuture = CompletableFuture.supplyAsync(() -> compile(genSource, "generator"), testCaseExecutor);
+                CompletableFuture<Path> bfFuture = CompletableFuture.supplyAsync(() -> compile(bfSource, "bruteforce"), testCaseExecutor);
+                CompletableFuture<Path> userFuture = CompletableFuture.supplyAsync(() -> compile(userSource, "user"), testCaseExecutor);
+
+                CompletableFuture.allOf(genFuture, bfFuture, userFuture).join();
+
+                final Path genExecutable = genFuture.get();
+                final Path bfExecutable = bfFuture.get();
+                final Path userExecutable = userFuture.get();
 
                 messagingTemplate.convertAndSend(topic, new JudgeProgress("COMPILING", "编译成功", 15));
-            } catch (CompilationException e) {
-                messagingTemplate.convertAndSend(topic, new JudgeProgress("COMPILATION_ERROR", e.getMessage(), 100, null));
-                return;
-            }
 
-            List<TestCaseResult> results = new ArrayList<>();
-            AtomicInteger completedCases = new AtomicInteger(0);
-            AtomicReference<String> finalStatus = new AtomicReference<>("AC");
-            AtomicReference<String> finalMessage = new AtomicReference<>("全部通过！");
+                // Run test cases in parallel
+                List<TestCaseResult> results = new ArrayList<>();
+                AtomicInteger completedCases = new AtomicInteger(0);
+                AtomicReference<String> finalStatus = new AtomicReference<>("AC");
+                AtomicReference<String> finalMessage = new AtomicReference<>("全部通过！");
 
-            List<CompletableFuture<TestCaseResult>> futures = new ArrayList<>();
-            
-            final Path finalGenExecutable = genExecutable;
-            final Path finalBfExecutable = bfExecutable;
-            final Path finalUserExecutable = userExecutable;
+                List<CompletableFuture<TestCaseResult>> futures = new ArrayList<>();
+                
+                final int totalTestCases = request.getTestCases();
+                final int updateThreshold = Math.max(1, totalTestCases / 100); // Update every 1%
 
-            for (int i = 1; i <= request.getTestCases(); i++) {
-                final int caseNum = i;
-                Path finalTempDir = tempDir;
+                for (int i = 1; i <= request.getTestCases(); i++) {
+                    final int caseNum = i;
+                    Path finalTempDir = tempDir;
 
-                CompletableFuture<TestCaseResult> future = CompletableFuture.supplyAsync(() ->
-                        runTestCase(caseNum, request, finalTempDir, finalGenExecutable, finalUserExecutable, finalBfExecutable), testCaseExecutor
-                ).whenComplete((result, ex) -> {
-                    int done = completedCases.incrementAndGet();
-                    int progress = 15 + (int) ((double) done / request.getTestCases() * 85);
-                    messagingTemplate.convertAndSend(topic, new JudgeProgress("RUNNING", String.format("已完成 %d / %d", done, request.getTestCases()), progress));
-                });
-                futures.add(future);
-            }
-
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-
-            futures.stream()
-                .map(CompletableFuture::join)
-                .sorted(Comparator.comparingInt(TestCaseResult::getCaseNumber))
-                .forEach(results::add);
-
-            for (TestCaseResult result : results) {
-                if (!result.getStatus().equals("AC")) {
-                    finalStatus.set(result.getStatus());
-                    finalMessage.set(String.format("%s on Test Case #%d", result.getStatus(), result.getCaseNumber()));
-                    break; 
+                    CompletableFuture<TestCaseResult> future = CompletableFuture.supplyAsync(() ->
+                            runTestCase(caseNum, request, finalTempDir, genExecutable, userExecutable, bfExecutable), testCaseExecutor
+                    ).whenComplete((result, ex) -> {
+                        int done = completedCases.incrementAndGet();
+                        // Throttle progress updates to avoid flooding the UI
+                        if (done % updateThreshold == 0 || done == totalTestCases) {
+                            int progress = 15 + (int) ((double) done / totalTestCases * 85);
+                            messagingTemplate.convertAndSend(topic, new JudgeProgress("RUNNING", String.format("已完成 %d / %d", done, totalTestCases), progress));
+                        }
+                    });
+                    futures.add(future);
                 }
+
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+                futures.stream()
+                    .map(CompletableFuture::join)
+                    .sorted(Comparator.comparingInt(TestCaseResult::getCaseNumber))
+                    .forEach(results::add);
+
+                for (TestCaseResult result : results) {
+                    if (!result.getStatus().equals("AC")) {
+                        finalStatus.set(result.getStatus());
+                        finalMessage.set(String.format("%s on Test Case #%d", result.getStatus(), result.getCaseNumber()));
+                        break; 
+                    }
+                }
+                
+                messagingTemplate.convertAndSend(topic, new JudgeProgress(finalStatus.get(), finalMessage.get(), 100, results));
+
+            } catch (CompletionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof CompilationException) {
+                    messagingTemplate.convertAndSend(topic, new JudgeProgress("COMPILATION_ERROR", cause.getMessage(), 100, null));
+                } else {
+                    e.printStackTrace();
+                    messagingTemplate.convertAndSend(topic, new JudgeProgress("SYSTEM_ERROR", "An unexpected error occurred during compilation.", 100, null));
+                }
+                return;
+            } catch (Exception e) {
+                e.printStackTrace();
+                messagingTemplate.convertAndSend(topic, new JudgeProgress("SYSTEM_ERROR", e.getMessage(), 100, null));
             }
-            
-            messagingTemplate.convertAndSend(topic, new JudgeProgress(finalStatus.get(), finalMessage.get(), 100, results));
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -231,7 +251,7 @@ public class JudgeService {
         return true;
     }
 
-    private Path compile(Path sourceFile, String executableName) throws IOException, InterruptedException {
+    private Path compile(Path sourceFile, String executableName) {
         System.out.println("Compiling " + sourceFile.toString());
         Path executablePath = sourceFile.getParent().resolve(executableName);
         
@@ -246,25 +266,40 @@ public class JudgeService {
 
         processBuilder.directory(sourceFile.getParent().toFile());
 
-        File compileErrorFile = Files.createTempFile(sourceFile.getParent(), "compile_error_", ".log").toFile();
-        processBuilder.redirectError(compileErrorFile);
-
-        Process process = processBuilder.start();
-        int exitCode;
+        File compileErrorFile = null;
         try {
-            exitCode = process.waitFor();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("Compilation was interrupted", e);
-        }
+            compileErrorFile = Files.createTempFile(sourceFile.getParent(), "compile_error_", ".log").toFile();
+            processBuilder.redirectError(compileErrorFile);
 
-        if (exitCode != 0) {
-            String errorOutput = Files.readString(compileErrorFile.toPath());
-            Files.delete(compileErrorFile.toPath());
-            throw new CompilationException("Compilation failed for " + sourceFile.getFileName() + " with exit code " + exitCode + ":\n" + errorOutput);
+            Process process = processBuilder.start();
+
+            if (!process.waitFor(60, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                throw new CompilationException("Compilation timed out for " + sourceFile.getFileName());
+            }
+    
+            int exitCode = process.exitValue();
+    
+            if (exitCode != 0) {
+                String errorOutput = Files.readString(compileErrorFile.toPath());
+                throw new CompilationException("Compilation failed for " + sourceFile.getFileName() + " with exit code " + exitCode + ":\n" + errorOutput);
+            }
+
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new RuntimeException("System error during compilation for " + sourceFile.getFileName(), e);
+        } finally {
+            if (compileErrorFile != null) {
+                try {
+                    Files.deleteIfExists(compileErrorFile.toPath());
+                } catch (IOException e) {
+                    System.err.println("Failed to delete temporary compile error file: " + compileErrorFile.getAbsolutePath());
+                }
+            }
         }
         
-        Files.delete(compileErrorFile.toPath());
         System.out.println("Compilation successful for " + sourceFile.getFileName());
         return executablePath;
     }

@@ -239,9 +239,32 @@
         stompClient = Stomp.over(socket);
         stompClient.connect({}, function (frame) {
             stompClient.subscribe('/topic/progress/' + judgeId, function (message) {
-                handleProgress(JSON.parse(message.body));
+                throttledHandleProgress(JSON.parse(message.body));
             });
         });
+    }
+
+    function throttle(func, limit) {
+        let inThrottle;
+        let lastFunc;
+        let lastRan;
+        return function() {
+            const context = this;
+            const args = arguments;
+            if (!inThrottle) {
+                func.apply(context, args);
+                lastRan = Date.now();
+                inThrottle = true;
+            } else {
+                clearTimeout(lastFunc);
+                lastFunc = setTimeout(function() {
+                    if ((Date.now() - lastRan) >= limit) {
+                        func.apply(context, args);
+                        lastRan = Date.now();
+                    }
+                }, limit - (Date.now() - lastRan));
+            }
+        };
     }
 
     function handleProgress(progress) {
@@ -265,6 +288,8 @@
             }
         }
     }
+
+    const throttledHandleProgress = throttle(handleProgress, 100);
 
     function updateProgressBar(percent, text) {
         progressBar.style.width = percent + '%';
