@@ -34,6 +34,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import com.example.demo.config.AsyncConfig;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import java.util.concurrent.Semaphore;
 
 @Service
 @RequiredArgsConstructor
@@ -43,7 +45,7 @@ public class JudgeService {
     private final Map<String, Path> judgeIdToTempDir = new ConcurrentHashMap<>();
     
     @Qualifier(AsyncConfig.TEST_CASE_EXECUTOR)
-    private final TaskExecutor testCaseExecutor;
+    private final ThreadPoolTaskExecutor testCaseExecutor;
 
     private enum RunStatus {
         SUCCESS,
@@ -100,7 +102,7 @@ public class JudgeService {
             AtomicReference<String> finalMessage = new AtomicReference<>("全部通过！");
 
             List<CompletableFuture<TestCaseResult>> futures = new ArrayList<>();
-
+            
             final Path finalGenExecutable = genExecutable;
             final Path finalBfExecutable = bfExecutable;
             final Path finalUserExecutable = userExecutable;
@@ -108,8 +110,9 @@ public class JudgeService {
             for (int i = 1; i <= request.getTestCases(); i++) {
                 final int caseNum = i;
                 Path finalTempDir = tempDir;
+
                 CompletableFuture<TestCaseResult> future = CompletableFuture.supplyAsync(() ->
-                    runTestCase(caseNum, request, finalTempDir, finalGenExecutable, finalUserExecutable, finalBfExecutable), testCaseExecutor
+                        runTestCase(caseNum, request, finalTempDir, finalGenExecutable, finalUserExecutable, finalBfExecutable), testCaseExecutor
                 ).whenComplete((result, ex) -> {
                     int done = completedCases.incrementAndGet();
                     int progress = 15 + (int) ((double) done / request.getTestCases() * 85);

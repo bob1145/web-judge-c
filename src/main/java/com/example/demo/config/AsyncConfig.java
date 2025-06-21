@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Configuration
 @EnableAsync
@@ -26,13 +27,14 @@ public class AsyncConfig {
     }
 
     @Bean(name = TEST_CASE_EXECUTOR)
-    public TaskExecutor testCaseExecutor() {
+    public ThreadPoolTaskExecutor testCaseExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         int coreCount = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
         executor.setCorePoolSize(coreCount);
         executor.setMaxPoolSize(coreCount);
         executor.setQueueCapacity(1000);
         executor.setThreadNamePrefix("TestCase-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
         return executor;
     }
