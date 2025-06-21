@@ -7,6 +7,9 @@ import org.apache.commons.io.FileUtils;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.core.task.TaskExecutor;
+import java.util.concurrent.CompletableFuture;
+import java.util.Comparator;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -27,6 +30,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import com.example.demo.dto.TestCaseDetail;
 import com.example.demo.dto.TestCaseResult;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import com.example.demo.config.AsyncConfig;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +41,9 @@ public class JudgeService {
 
     private final SimpMessagingTemplate messagingTemplate;
     private final Map<String, Path> judgeIdToTempDir = new ConcurrentHashMap<>();
+    
+    @Qualifier(AsyncConfig.TEST_CASE_EXECUTOR)
+    private final TaskExecutor testCaseExecutor;
 
     private enum RunStatus {
         SUCCESS,
@@ -49,7 +59,7 @@ public class JudgeService {
         }
     }
 
-    @Async
+    @Async(AsyncConfig.JUDGE_REQUEST_EXECUTOR)
     public void judge(JudgeRequest request, String judgeId) {
         Path tempDir = null;
         String topic = "/topic/progress/" + judgeId;
@@ -85,56 +95,85 @@ public class JudgeService {
             }
 
             List<TestCaseResult> results = new ArrayList<>();
-            String finalStatus = "AC";
-            String finalMessage = "全部通过！";
+            AtomicInteger completedCases = new AtomicInteger(0);
+            AtomicReference<String> finalStatus = new AtomicReference<>("AC");
+            AtomicReference<String> finalMessage = new AtomicReference<>("全部通过！");
+
+            List<CompletableFuture<TestCaseResult>> futures = new ArrayList<>();
+
+            final Path finalGenExecutable = genExecutable;
+            final Path finalBfExecutable = bfExecutable;
+            final Path finalUserExecutable = userExecutable;
 
             for (int i = 1; i <= request.getTestCases(); i++) {
-                int progress = 15 + (int) ((double) i / request.getTestCases() * 85);
-                messagingTemplate.convertAndSend(topic, new JudgeProgress("RUNNING", "运行测试点 #" + i, progress));
+                final int caseNum = i;
+                Path finalTempDir = tempDir;
+                CompletableFuture<TestCaseResult> future = CompletableFuture.supplyAsync(() ->
+                    runTestCase(caseNum, request, finalTempDir, finalGenExecutable, finalUserExecutable, finalBfExecutable), testCaseExecutor
+                ).whenComplete((result, ex) -> {
+                    int done = completedCases.incrementAndGet();
+                    int progress = 15 + (int) ((double) done / request.getTestCases() * 85);
+                    messagingTemplate.convertAndSend(topic, new JudgeProgress("RUNNING", String.format("已完成 %d / %d", done, request.getTestCases()), progress));
+                });
+                futures.add(future);
+            }
 
-                Path inputFile = tempDir.resolve(i + ".in");
-                Path userOutputFile = tempDir.resolve(i + ".out");
-                Path bfOutputFile = tempDir.resolve(i + ".ans");
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
-                ProcessResult genResult = runProcess(genExecutable, null, inputFile, 5000);
-                if (genResult.status() != RunStatus.SUCCESS) {
-                    finalStatus = "SYSTEM_ERROR";
-                    finalMessage = "数据生成器运行失败于测试点 #" + i;
-                    results.add(new TestCaseResult(i, "System Error", 0, 0));
-                    break;
-                }
+            futures.stream()
+                .map(CompletableFuture::join)
+                .sorted(Comparator.comparingInt(TestCaseResult::getCaseNumber))
+                .forEach(results::add);
 
-                ProcessResult userResult = runProcess(userExecutable, inputFile, userOutputFile, request.getTimeLimit());
-                ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, request.getTimeLimit() * 5);
-
-                if (userResult.status() != RunStatus.SUCCESS) {
-                    String statusStr = userResult.status() == RunStatus.TIME_LIMIT_EXCEEDED ? "TLE" : "RE";
-                    results.add(new TestCaseResult(i, statusStr, userResult.executionTime(), 0));
-                    if (finalStatus.equals("AC")) {
-                        finalStatus = statusStr;
-                        finalMessage = String.format("%s on Test Case #%d", statusStr, i);
-                    }
-                    continue;
-                }
-                
-                String userOutput = Files.readString(userOutputFile);
-                String bfOutput = Files.readString(bfOutputFile);
-
-                if (outputsMatch(userOutput, bfOutput, request.getPrecision())) {
-                    results.add(new TestCaseResult(i, "AC", userResult.executionTime(), 0));
-                } else {
-                    results.add(new TestCaseResult(i, "WA", userResult.executionTime(), 0));
-                    if (finalStatus.equals("AC")) {
-                        finalStatus = "WA";
-                        finalMessage = "答案错误于测试点 #" + i;
-                    }
+            for (TestCaseResult result : results) {
+                if (!result.getStatus().equals("AC")) {
+                    finalStatus.set(result.getStatus());
+                    finalMessage.set(String.format("%s on Test Case #%d", result.getStatus(), result.getCaseNumber()));
+                    break; 
                 }
             }
-            messagingTemplate.convertAndSend(topic, new JudgeProgress(finalStatus, finalMessage, 100, results));
+            
+            messagingTemplate.convertAndSend(topic, new JudgeProgress(finalStatus.get(), finalMessage.get(), 100, results));
 
         } catch (Exception e) {
             e.printStackTrace();
             messagingTemplate.convertAndSend(topic, new JudgeProgress("SYSTEM_ERROR", e.getMessage(), 100, null));
+        }
+    }
+
+    private TestCaseResult runTestCase(int caseNumber, JudgeRequest request, Path tempDir, Path genExecutable, Path userExecutable, Path bfExecutable) {
+        try {
+            Path inputFile = tempDir.resolve(caseNumber + ".in");
+            Path userOutputFile = tempDir.resolve(caseNumber + ".out");
+            Path bfOutputFile = tempDir.resolve(caseNumber + ".ans");
+
+            ProcessResult genResult = runProcess(genExecutable, null, inputFile, 5000);
+            if (genResult.status() != RunStatus.SUCCESS) {
+                return new TestCaseResult(caseNumber, "System Error", 0, 0);
+            }
+
+            ProcessResult userResult = runProcess(userExecutable, inputFile, userOutputFile, request.getTimeLimit());
+            if (userResult.status() != RunStatus.SUCCESS) {
+                String statusStr = userResult.status() == RunStatus.TIME_LIMIT_EXCEEDED ? "TLE" : "RE";
+                return new TestCaseResult(caseNumber, statusStr, userResult.executionTime(), 0);
+            }
+
+            ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, request.getTimeLimit() * 5);
+             if (bfResult.status() != RunStatus.SUCCESS) {
+                return new TestCaseResult(caseNumber, "System Error", 0, 0);
+            }
+
+            String userOutput = Files.readString(userOutputFile);
+            String bfOutput = Files.readString(bfOutputFile);
+
+            if (outputsMatch(userOutput, bfOutput, request.getPrecision())) {
+                return new TestCaseResult(caseNumber, "AC", userResult.executionTime(), 0);
+            } else {
+                return new TestCaseResult(caseNumber, "WA", userResult.executionTime(), 0);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new TestCaseResult(caseNumber, "System Error", 0, 0);
         }
     }
     
@@ -249,7 +288,11 @@ public class JudgeService {
 
         if (!finished) {
             process.destroyForcibly();
-            process.waitFor();
+            // Wait a little bit for the process to die.
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                 // The process is stuck even after destroyForcibly.
+                 return new ProcessResult(RunStatus.TIME_LIMIT_EXCEEDED, null, "Process timed out and could not be terminated.", executionTime);
+            }
             return new ProcessResult(RunStatus.TIME_LIMIT_EXCEEDED, null, "Process exceeded time limit of " + timeLimit + "ms", executionTime);
         }
 
