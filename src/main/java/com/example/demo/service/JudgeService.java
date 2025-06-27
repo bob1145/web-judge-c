@@ -85,32 +85,37 @@ public class JudgeService {
                 Path genSource = tempDir.resolve("generator.cpp");
                 Files.writeString(genSource, request.getGeneratorCode());
 
-                Path bfSource = tempDir.resolve("bruteforce.cpp");
-                Files.writeString(bfSource, request.getBruteForceCode());
-
                 Path userSource = tempDir.resolve("user.cpp");
                 Files.writeString(userSource, request.getUserCode());
 
                 CompletableFuture<Path> genFuture = CompletableFuture.supplyAsync(() -> compile(genSource, "generator"), testCaseExecutor);
-                CompletableFuture<Path> bfFuture = CompletableFuture.supplyAsync(() -> compile(bfSource, "bruteforce"), testCaseExecutor);
                 CompletableFuture<Path> userFuture = CompletableFuture.supplyAsync(() -> compile(userSource, "user"), testCaseExecutor);
-                CompletableFuture<Path> spjFuture = null;
+                CompletableFuture<Path> bfFuture = CompletableFuture.completedFuture(null);
+                CompletableFuture<Path> spjFuture = CompletableFuture.completedFuture(null);
+
+                if (request.getBruteForceCode() != null && !request.getBruteForceCode().trim().isEmpty()) {
+                    Path bfSource = tempDir.resolve("bruteforce.cpp");
+                    Files.writeString(bfSource, request.getBruteForceCode());
+                    bfFuture = CompletableFuture.supplyAsync(() -> compile(bfSource, "bruteforce"), testCaseExecutor);
+                } else if (!request.isSpjEnabled()) {
+                    throw new CompilationException("Brute force code is required when SPJ is not enabled.");
+                }
+
                 if (request.isSpjEnabled()) {
+                    if (request.getSpjCode() == null || request.getSpjCode().trim().isEmpty()) {
+                        throw new CompilationException("SPJ code cannot be empty when SPJ mode is enabled.");
+                    }
                     Path spjSource = tempDir.resolve("spj.cpp");
                     Files.writeString(spjSource, request.getSpjCode());
                     spjFuture = CompletableFuture.supplyAsync(() -> compile(spjSource, "spj"), testCaseExecutor);
                 }
 
-                if (request.isSpjEnabled()) {
-                    CompletableFuture.allOf(genFuture, bfFuture, userFuture, spjFuture).join();
-                } else {
-                    CompletableFuture.allOf(genFuture, bfFuture, userFuture).join();
-                }
+                CompletableFuture.allOf(genFuture, userFuture, bfFuture, spjFuture).join();
 
                 final Path genExecutable = genFuture.get();
-                final Path bfExecutable = bfFuture.get();
                 final Path userExecutable = userFuture.get();
-                final Path spjExecutable = request.isSpjEnabled() ? spjFuture.get() : null;
+                final Path bfExecutable = bfFuture.get();
+                final Path spjExecutable = spjFuture.get();
 
                 messagingTemplate.convertAndSend(topic, new JudgeProgress("COMPILING", "编译成功", 15));
 
@@ -221,27 +226,36 @@ public class JudgeService {
                 return new TestCaseResult(caseNumber, statusStr, userResult.executionTime(), 0);
             }
 
-            ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, request.getTimeLimit() * 5);
-             if (bfResult.status() != RunStatus.SUCCESS) {
-                return new TestCaseResult(caseNumber, "System Error", 0, 0);
-            }
-
             if (spjExecutable != null) {
+                // SPJ mode. We may or may not have a brute-force solution to generate an answer file.
+                if (bfExecutable != null) {
+                    ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, request.getTimeLimit() * 5);
+                    if (bfResult.status() != RunStatus.SUCCESS) {
+                        return new TestCaseResult(caseNumber, "System Error", 0, 0);
+                    }
+                }
+                
                 SpjResult spjResult = runSpjProcess(spjExecutable, inputFile, userOutputFile, bfOutputFile);
                 switch (spjResult) {
                     case AC: return new TestCaseResult(caseNumber, "AC", userResult.executionTime(), 0);
                     case WA: return new TestCaseResult(caseNumber, "WA", userResult.executionTime(), 0);
                     default: return new TestCaseResult(caseNumber, "System Error", userResult.executionTime(), 0);
                 }
-            }
-
-            String userOutput = Files.readString(userOutputFile);
-            String bfOutput = Files.readString(bfOutputFile);
-
-            if (outputsMatch(userOutput, bfOutput, request.getPrecision())) {
-                return new TestCaseResult(caseNumber, "AC", userResult.executionTime(), 0);
             } else {
-                return new TestCaseResult(caseNumber, "WA", userResult.executionTime(), 0);
+                // Standard diff mode. bfExecutable is guaranteed to be non-null here.
+                ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, request.getTimeLimit() * 5);
+                if (bfResult.status() != RunStatus.SUCCESS) {
+                    return new TestCaseResult(caseNumber, "System Error", 0, 0);
+                }
+
+                String userOutput = Files.readString(userOutputFile);
+                String bfOutput = Files.readString(bfOutputFile);
+
+                if (outputsMatch(userOutput, bfOutput, request.getPrecision())) {
+                    return new TestCaseResult(caseNumber, "AC", userResult.executionTime(), 0);
+                } else {
+                    return new TestCaseResult(caseNumber, "WA", userResult.executionTime(), 0);
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
