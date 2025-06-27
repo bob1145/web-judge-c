@@ -52,6 +52,16 @@
                     <label for="precision" class="form-label">浮点数精度</label>
                     <input type="text" class="form-control" id="precision" value="1e-9">
                 </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="include-saved-cases">
+                    <label class="form-check-label" for="include-saved-cases">
+                        附加已保存的非 AC 测试点 (<span id="saved-case-count">0</span> 个)
+                    </label>
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" role="switch" id="enable-spj">
+                    <label class="form-check-label" for="enable-spj">启用 Special Judge</label>
+                </div>
                 <button type="submit" id="start-button" class="btn btn-primary w-100">开始对拍</button>
             </form>
             <hr/>
@@ -74,7 +84,7 @@
                     </div>
                     <textarea id="generator-code" class="form-control code-textarea"></textarea>
                 </div>
-                <div class="col-12 mb-3">
+                <div class="col-12 mb-3" id="brute-force-section">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <h5>暴力/正确代码 (Brute Force)</h5>
                         <input type="file" class="form-control form-control-sm d-none" id="brute-force-file" accept=".cpp,.c,.txt">
@@ -90,12 +100,23 @@
                     </div>
                     <textarea id="user-code" class="form-control code-textarea"></textarea>
                 </div>
+                <div id="spj-editor-container" class="col-12 mb-3" style="display: none;">
+                    <h5>Special Judge 代码 (SPJ)</h5>
+                    <div class="alert alert-info alert-sm">
+                        SPJ 会通过命令行参数接收三个文件路径: <code>input_file user_output_file correct_output_file</code>.
+                        程序退出码为 0 代表 AC, 其他代表 WA.
+                    </div>
+                    <textarea id="spj-code" class="form-control code-textarea"></textarea>
+                </div>
             </div>
         </div>
     </div>
 
     <hr/>
-    <h4>测试点详情</h4>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h4>测试点详情</h4>
+        <button id="save-non-ac-btn" class="btn btn-warning btn-sm" style="display: none;">保存非 AC 测试点</button>
+    </div>
     <div id="results-grid" class="results-grid">
         <!-- Test case results will be appended here -->
     </div>
@@ -146,9 +167,14 @@
     const modalBodyContent = document.getElementById('modal-body-content');
     const detailsModalLabel = document.getElementById('detailsModalLabel');
     const downloadInputBtn = document.getElementById('download-input-btn');
-
+    const saveNonAcBtn = document.getElementById('save-non-ac-btn');
+    const includeSavedCasesCheckbox = document.getElementById('include-saved-cases');
+    const savedCaseCountSpan = document.getElementById('saved-case-count');
+    const enableSpjCheckbox = document.getElementById('enable-spj');
+    
     let stompClient = null;
     let currentJudgeId = null;
+    let lastResults = [];
 
     // --- CodeMirror Setup ---
     const editorSettings = {
@@ -162,11 +188,13 @@
     const generatorEditor = CodeMirror.fromTextArea(document.getElementById('generator-code'), editorSettings);
     const bruteForceEditor = CodeMirror.fromTextArea(document.getElementById('brute-force-code'), editorSettings);
     const userEditor = CodeMirror.fromTextArea(document.getElementById('user-code'), editorSettings);
+    const spjEditor = CodeMirror.fromTextArea(document.getElementById('spj-code'), editorSettings);
     
     const editors = {
         'generator': generatorEditor,
         'brute-force': bruteForceEditor,
-        'user': userEditor
+        'user': userEditor,
+        'spj': spjEditor
     };
 
     // --- Local Storage ---
@@ -174,19 +202,66 @@
         localStorage.setItem('generatorCode', generatorEditor.getValue());
         localStorage.setItem('bruteForceCode', bruteForceEditor.getValue());
         localStorage.setItem('userCode', userEditor.getValue());
+        localStorage.setItem('spjCode', spjEditor.getValue());
     }
 
     function loadCode() {
         generatorEditor.setValue(localStorage.getItem('generatorCode') || '');
         bruteForceEditor.setValue(localStorage.getItem('bruteForceCode') || '');
         userEditor.setValue(localStorage.getItem('userCode') || '');
+        spjEditor.setValue(localStorage.getItem('spjCode') || '');
     }
     
     generatorEditor.on('change', saveCode);
     bruteForceEditor.on('change', saveCode);
     userEditor.on('change', saveCode);
+    spjEditor.on('change', saveCode);
     
-    window.addEventListener('load', loadCode);
+    window.addEventListener('load', () => {
+        loadCode();
+        loadResults();
+        updateSavedCaseCount();
+    });
+
+    function updateSavedCaseCount() {
+        const savedCases = JSON.parse(localStorage.getItem('savedNonAcCases') || '[]');
+        savedCaseCountSpan.textContent = savedCases.length;
+    }
+
+    function loadResults() {
+        const lastJudgeId = localStorage.getItem('lastJudgeId');
+        const lastResultsJSON = localStorage.getItem('lastResults');
+
+        if (lastResultsJSON && lastJudgeId) {
+            currentJudgeId = lastJudgeId;
+            lastResults = JSON.parse(lastResultsJSON);
+            renderResultGrid(lastResults);
+
+            let finalStatus = 'AC';
+            let firstFailure = null;
+            for (const result of lastResults) {
+                if (result.status !== 'AC' && firstFailure === null) {
+                    finalStatus = result.status;
+                    firstFailure = result;
+                    break;
+                }
+            }
+            
+            let finalMessage = "全部通过！";
+            if (firstFailure) {
+                finalMessage = `${firstFailure.status} on Test Case #${firstFailure.caseNumber}`;
+            }
+
+            progressContainer.style.display = 'block';
+            updateProgressBar(100, finalMessage);
+            progressBar.classList.remove('progress-bar-animated');
+            resultSummary.textContent = finalMessage;
+
+            if (lastResults.some(r => r.status !== 'AC')) {
+                saveNonAcBtn.style.display = 'block';
+            }
+        }
+    }
 
     // --- File Upload ---
     function setupFileUpload(fileInputId, editor) {
@@ -221,8 +296,16 @@
             bruteForceCode: bruteForceEditor.getValue(),
             timeLimit: parseInt(document.getElementById('time-limit').value, 10),
             precision: parseFloat(document.getElementById('precision').value),
-            testCases: parseInt(document.getElementById('test-cases').value, 10)
+            testCases: parseInt(document.getElementById('test-cases').value, 10),
+            customTestInputs: [],
+            spjEnabled: document.getElementById('enable-spj').checked,
+            spjCode: spjEditor.getValue()
         };
+
+        if (includeSavedCasesCheckbox.checked) {
+            const savedCases = JSON.parse(localStorage.getItem('savedNonAcCases') || '[]');
+            judgeRequest.customTestInputs = savedCases;
+        }
         
         const response = await fetch('/judge', {
             method: 'POST',
@@ -275,6 +358,16 @@
         resultSummary.textContent = message || status;
 
         if (results) { // Final result with all test cases
+            lastResults = results;
+            localStorage.setItem('lastJudgeId', currentJudgeId);
+            localStorage.setItem('lastResults', JSON.stringify(results));
+            
+            if (results.some(r => r.status !== 'AC')) {
+                saveNonAcBtn.style.display = 'block';
+            } else {
+                saveNonAcBtn.style.display = 'none';
+            }
+
             renderResultGrid(results);
             if (stompClient) {
                 stompClient.disconnect();
@@ -390,6 +483,66 @@
             modalBodyContent.innerHTML = `<div class="alert alert-danger">加载详情时发生网络错误。</div>`;
         }
     }
+
+    saveNonAcBtn.addEventListener('click', async () => {
+        saveNonAcBtn.disabled = true;
+        saveNonAcBtn.textContent = '保存中...';
+        
+        const nonAcCases = lastResults.filter(r => r.status !== 'AC');
+        const existingSavedCases = JSON.parse(localStorage.getItem('savedNonAcCases') || '[]');
+        const existingInputs = new Set(existingSavedCases);
+
+        let newCasesAdded = 0;
+        
+        for (const result of nonAcCases) {
+            try {
+                const response = await fetch(`/details/${currentJudgeId}/${result.caseNumber}`);
+                if (response.ok) {
+                    const details = await response.json();
+                    if (!existingInputs.has(details.input)) {
+                        existingInputs.add(details.input);
+                        newCasesAdded++;
+                    }
+                }
+            } catch (e) {
+                console.error(`Failed to fetch details for case #${result.caseNumber}`, e);
+            }
+        }
+
+        localStorage.setItem('savedNonAcCases', JSON.stringify(Array.from(existingInputs)));
+        updateSavedCaseCount();
+        
+        saveNonAcBtn.disabled = false;
+        saveNonAcBtn.textContent = `保存非 AC 测试点 (${newCasesAdded} 个新测试点已添加)`;
+        setTimeout(() => {
+            saveNonAcBtn.textContent = '保存非 AC 测试点';
+        }, 3000);
+    });
+
+    const spjSwitchEl = document.getElementById('enable-spj');
+    const bruteForceSectionEl = document.getElementById('brute-force-section');
+    const spjCodeSectionEl = document.getElementById('spj-editor-container');
+
+    function setSpjView(isSpjEnabled) {
+        if (isSpjEnabled) {
+            bruteForceSectionEl.style.display = 'none';
+            spjCodeSectionEl.style.display = 'block';
+        } else {
+            bruteForceSectionEl.style.display = 'block';
+            spjCodeSectionEl.style.display = 'none';
+        }
+    }
+
+    spjSwitchEl.addEventListener('change', (event) => {
+        const isChecked = event.target.checked;
+        localStorage.setItem('spjEnabled', isChecked);
+        setSpjView(isChecked);
+    });
+
+    // Initialize view on page load from localStorage
+    const savedSpjEnabled = localStorage.getItem('spjEnabled') === 'true';
+    spjSwitchEl.checked = savedSpjEnabled;
+    setSpjView(savedSpjEnabled);
 </script>
 
 </body>

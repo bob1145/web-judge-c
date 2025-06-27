@@ -54,6 +54,10 @@ public class JudgeService {
         RUNTIME_ERROR
     }
 
+    private enum SpjResult {
+        AC, WA, ERROR
+    }
+
     private record ProcessResult(RunStatus status, String output, String error, long executionTime) {}
 
     static class CompilationException extends RuntimeException {
@@ -90,12 +94,23 @@ public class JudgeService {
                 CompletableFuture<Path> genFuture = CompletableFuture.supplyAsync(() -> compile(genSource, "generator"), testCaseExecutor);
                 CompletableFuture<Path> bfFuture = CompletableFuture.supplyAsync(() -> compile(bfSource, "bruteforce"), testCaseExecutor);
                 CompletableFuture<Path> userFuture = CompletableFuture.supplyAsync(() -> compile(userSource, "user"), testCaseExecutor);
+                CompletableFuture<Path> spjFuture = null;
+                if (request.isSpjEnabled()) {
+                    Path spjSource = tempDir.resolve("spj.cpp");
+                    Files.writeString(spjSource, request.getSpjCode());
+                    spjFuture = CompletableFuture.supplyAsync(() -> compile(spjSource, "spj"), testCaseExecutor);
+                }
 
-                CompletableFuture.allOf(genFuture, bfFuture, userFuture).join();
+                if (request.isSpjEnabled()) {
+                    CompletableFuture.allOf(genFuture, bfFuture, userFuture, spjFuture).join();
+                } else {
+                    CompletableFuture.allOf(genFuture, bfFuture, userFuture).join();
+                }
 
                 final Path genExecutable = genFuture.get();
                 final Path bfExecutable = bfFuture.get();
                 final Path userExecutable = userFuture.get();
+                final Path spjExecutable = request.isSpjEnabled() ? spjFuture.get() : null;
 
                 messagingTemplate.convertAndSend(topic, new JudgeProgress("COMPILING", "编译成功", 15));
 
@@ -107,18 +122,39 @@ public class JudgeService {
 
                 List<CompletableFuture<TestCaseResult>> futures = new ArrayList<>();
                 
-                final int totalTestCases = request.getTestCases();
+                final List<String> customInputs = request.getCustomTestInputs() != null ? request.getCustomTestInputs() : List.of();
+                final int totalCustomCases = customInputs.size();
+                final int totalGeneratedCases = request.getTestCases();
+                final int totalTestCases = totalCustomCases + totalGeneratedCases;
                 final int updateThreshold = Math.max(1, totalTestCases / 100); // Update every 1%
 
-                for (int i = 1; i <= request.getTestCases(); i++) {
-                    final int caseNum = i;
+                // Phase 1: Run custom test cases
+                for (int i = 0; i < totalCustomCases; i++) {
+                    final int caseNum = i + 1;
+                    final String customInput = customInputs.get(i);
                     Path finalTempDir = tempDir;
 
                     CompletableFuture<TestCaseResult> future = CompletableFuture.supplyAsync(() ->
-                            runTestCase(caseNum, request, finalTempDir, genExecutable, userExecutable, bfExecutable), testCaseExecutor
+                            runTestCase(caseNum, request, finalTempDir, genExecutable, userExecutable, bfExecutable, spjExecutable, customInput), testCaseExecutor
                     ).whenComplete((result, ex) -> {
                         int done = completedCases.incrementAndGet();
-                        // Throttle progress updates to avoid flooding the UI
+                        if (done % updateThreshold == 0 || done == totalTestCases) {
+                            int progress = 15 + (int) ((double) done / totalTestCases * 85);
+                            messagingTemplate.convertAndSend(topic, new JudgeProgress("RUNNING", String.format("已完成 %d / %d", done, totalTestCases), progress));
+                        }
+                    });
+                    futures.add(future);
+                }
+
+                // Phase 2: Run generated test cases
+                for (int i = 0; i < totalGeneratedCases; i++) {
+                    final int caseNum = totalCustomCases + i + 1;
+                    Path finalTempDir = tempDir;
+
+                    CompletableFuture<TestCaseResult> future = CompletableFuture.supplyAsync(() ->
+                            runTestCase(caseNum, request, finalTempDir, genExecutable, userExecutable, bfExecutable, spjExecutable, null), testCaseExecutor
+                    ).whenComplete((result, ex) -> {
+                        int done = completedCases.incrementAndGet();
                         if (done % updateThreshold == 0 || done == totalTestCases) {
                             int progress = 15 + (int) ((double) done / totalTestCases * 85);
                             messagingTemplate.convertAndSend(topic, new JudgeProgress("RUNNING", String.format("已完成 %d / %d", done, totalTestCases), progress));
@@ -164,15 +200,19 @@ public class JudgeService {
         }
     }
 
-    private TestCaseResult runTestCase(int caseNumber, JudgeRequest request, Path tempDir, Path genExecutable, Path userExecutable, Path bfExecutable) {
+    private TestCaseResult runTestCase(int caseNumber, JudgeRequest request, Path tempDir, Path genExecutable, Path userExecutable, Path bfExecutable, Path spjExecutable, String customInput) {
         try {
             Path inputFile = tempDir.resolve(caseNumber + ".in");
             Path userOutputFile = tempDir.resolve(caseNumber + ".out");
             Path bfOutputFile = tempDir.resolve(caseNumber + ".ans");
 
-            ProcessResult genResult = runProcess(genExecutable, null, inputFile, 5000);
-            if (genResult.status() != RunStatus.SUCCESS) {
-                return new TestCaseResult(caseNumber, "System Error", 0, 0);
+            if (customInput != null) {
+                Files.writeString(inputFile, customInput);
+            } else {
+                ProcessResult genResult = runProcess(genExecutable, null, inputFile, 5000);
+                if (genResult.status() != RunStatus.SUCCESS) {
+                    return new TestCaseResult(caseNumber, "System Error", 0, 0);
+                }
             }
 
             ProcessResult userResult = runProcess(userExecutable, inputFile, userOutputFile, request.getTimeLimit());
@@ -184,6 +224,15 @@ public class JudgeService {
             ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, request.getTimeLimit() * 5);
              if (bfResult.status() != RunStatus.SUCCESS) {
                 return new TestCaseResult(caseNumber, "System Error", 0, 0);
+            }
+
+            if (spjExecutable != null) {
+                SpjResult spjResult = runSpjProcess(spjExecutable, inputFile, userOutputFile, bfOutputFile);
+                switch (spjResult) {
+                    case AC: return new TestCaseResult(caseNumber, "AC", userResult.executionTime(), 0);
+                    case WA: return new TestCaseResult(caseNumber, "WA", userResult.executionTime(), 0);
+                    default: return new TestCaseResult(caseNumber, "System Error", userResult.executionTime(), 0);
+                }
             }
 
             String userOutput = Files.readString(userOutputFile);
@@ -344,5 +393,30 @@ public class JudgeService {
 
         String output = outputFile != null && Files.exists(outputFile) ? Files.readString(outputFile) : "";
         return new ProcessResult(RunStatus.SUCCESS, output, null, executionTime);
+    }
+
+    private SpjResult runSpjProcess(Path spjExecutable, Path inputFile, Path userOutputFile, Path correctOutputFile) {
+        try {
+            ProcessBuilder processBuilder = new ProcessBuilder(
+                spjExecutable.toAbsolutePath().toString(),
+                inputFile.toAbsolutePath().toString(),
+                userOutputFile.toAbsolutePath().toString(),
+                correctOutputFile.toAbsolutePath().toString()
+            );
+            processBuilder.directory(spjExecutable.getParent().toFile());
+            
+            Process process = processBuilder.start();
+            if (!process.waitFor(10, TimeUnit.SECONDS)) { // 10-second timeout for SPJ
+                process.destroyForcibly();
+                return SpjResult.ERROR;
+            }
+            return process.exitValue() == 0 ? SpjResult.AC : SpjResult.WA;
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            e.printStackTrace();
+            return SpjResult.ERROR;
+        }
     }
 } 
