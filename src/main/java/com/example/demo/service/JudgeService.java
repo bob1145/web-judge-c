@@ -202,7 +202,19 @@ public class JudgeService {
         } catch (Exception e) {
             e.printStackTrace();
             messagingTemplate.convertAndSend(topic, new JudgeProgress("SYSTEM_ERROR", e.getMessage(), 100, null));
-        }
+        } finally {
+    // 判题结束后，删除临时目录
+    if (tempDir != null) {
+        try {
+            Files.walk(tempDir)
+                .sorted((a, b) -> b.compareTo(a)) // 先删文件再删目录
+                .forEach(path -> {
+                    try { Files.deleteIfExists(path); } catch (Exception ignore) {}
+                });
+        } catch (Exception ignore) {}
+        judgeIdToTempDir.remove(judgeId);
+    }
+}
     }
 
     private TestCaseResult runTestCase(int caseNumber, JudgeRequest request, Path tempDir, Path genExecutable, Path userExecutable, Path bfExecutable, Path spjExecutable, String customInput) {
