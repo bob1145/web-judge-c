@@ -66,7 +66,7 @@ A web-based tool for competitive programmers to test their C++ solutions against
 
 1.  **克隆仓库**
     ```bash
-    git clone https://github.com/bob1145/spring-boot-c-.git
+    git clone https://github.com/bob1145/web-judge-c.git
     cd demo18
     ```
 
