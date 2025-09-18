@@ -88,7 +88,7 @@
 
 3. **访问应用**
    ```
-   http://localhost:8080
+   http://localhost:1234
    ```
 
 ## 使用指南
