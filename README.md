@@ -74,7 +74,7 @@
 
 1. **克隆项目**
    ```bash
-   git clone [[<repository-url>]()](https://github.com/bob1145/web-judge-c.git)
+   git clone https://github.com/bob1145/web-judge-c.git
    cd demo18
    ```
 
