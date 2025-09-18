@@ -23,6 +23,7 @@
 
 ### ⚡ 高性能架构
 - **异步处理**：后台执行判题任务，不阻塞用户界面
+- 多线程测试数据点
 - **WebSocket通信**：实时推送测试进度和状态
 - **并发支持**：可同时处理多个判题请求
 
@@ -139,7 +140,7 @@ int main() {
 }
 ```
 
-**标准答案示例**
+**示例**
 ```cpp
 #include <iostream>
 #include <vector>
@@ -197,7 +198,7 @@ mvn clean package -Pprod
 
 # Docker部署（如果有Dockerfile）
 docker build -t cpp-checker .
-docker run -p 8080:8080 cpp-checker
+docker run -p 1234:1234 cpp-checker
 ```
 
 ## 常见问题
@@ -224,17 +225,11 @@ A: 点击失败的测试点，在弹窗中查看完整的输入输出对比。
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 开启Pull Request
 
-## 许可证
-
-本项目采用MIT许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
 ## 联系方式
 
 如有问题或建议，请通过以下方式联系：
 
-- 提交Issue：[GitHub Issues](https://github.com/your-repo/issues)
-- 邮箱：[your-email]
-- QQ群：[your-qq-group]
+- 提交Issue
 
 ---
 
