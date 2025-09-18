@@ -3,7 +3,7 @@
 > 一个专为算法竞赛设计的在线代码测试平台，帮助开发者快速验证C++解题方案的正确性
 
 ## 项目简介
-
+该项目只完成基本内容，剩余部分待完成，待完成清单在同级目录的TODO.MD下
 这是一个基于Spring Boot开发的Web应用，专门用于C++算法代码的自动化测试。通过对比用户代码与标准答案的输出结果，快速发现代码中的逻辑错误，提高算法竞赛和编程练习的效率。
 <img width="2514" height="1303" alt="image" src="https://github.com/user-attachments/assets/ac3bcec2-75b1-4a95-80f1-f0b010942db2" />
 <img width="2498" height="1312" alt="image" src="https://github.com/user-attachments/assets/bb63e69a-e896-46b5-ada2-a0b15c936c48" />
