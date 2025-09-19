@@ -21,12 +21,22 @@ public class AuthConfiguration {
     private String accessCode = "secure-access-code-2024";
     
     /**
-     * 会话超时时间
+     * 记住我会话超时时间（30天）
      */
     private Duration sessionTimeout = Duration.ofDays(30);
+    
+    /**
+     * 普通会话超时时间（24小时）
+     */
+    private Duration normalSessionTimeout = Duration.ofHours(24);
     
     /**
      * 最大尝试次数
      */
     private int maxAttempts = 5;
+    
+    /**
+     * 尝试次数重置时间（小时）
+     */
+    private int attemptResetHours = 1;
 }

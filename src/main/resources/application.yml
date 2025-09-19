@@ -15,7 +15,9 @@ judge:
   auth:
     access-code: "secure-access-code-2024"
     session-timeout: 30d
+    normal-session-timeout: 24h
     max-attempts: 5
+    attempt-reset-hours: 1
   
   memory:
     default-limit: 268435456  # 256MB in bytes
