@@ -37,7 +37,17 @@
    ```
    http://localhost:1234
    ```
-
+4. **输入访问码**
+   # 访问码修改在scr/resources/application.yml 里，默认是 123
+   ```
+   judge:
+     auth:
+       access-code: "123"
+       session-timeout: 30d
+       normal-session-timeout: 24h
+       max-attempts: 5
+       attempt-reset-hours: 1
+   ```
 ## 使用指南
 
 ### 基本流程
