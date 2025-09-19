@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: demo18
+  security:
+    user:
+      name: admin
+      password: admin
+      roles: ADMIN
+
+server:
+  address: 0.0.0.0
+  port: 1234
+
+judge:
+  auth:
+    access-code: "secure-access-code-2024"
+    session-timeout: 30d
+    max-attempts: 5
+  
+  memory:
+    default-limit: 268435456  # 256MB in bytes
+    max-limit: 1073741824     # 1GB in bytes
+    check-interval: 100       # milliseconds
+  
+  compiler:
+    default-standard: cpp17
+    default-optimization: O2
+    timeout: 60s
+  
+  sandbox:
+    enabled: true
+    base-directory: /tmp/judge-sandbox
+    network-disabled: true
+    max-processes: 10
+
+logging:
+  level:
+    com.example.demo: DEBUG
+    org.springframework.security: DEBUG
