@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>身份验证 - C++ 在线对拍工具</title>
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAABILAAASCwAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///wAAAAA">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary-color: #8b5cf6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --info-color: #06b6d4;
+            --dark-color: #1f2937;
+            --light-color: #f8fafc;
+            --border-color: #e2e8f0;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --gradient-primary: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .auth-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: var(--shadow-lg);
+            padding: 3rem;
+            width: 100%;
+            max-width: 450px;
+            margin: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .auth-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--gradient-primary);
+        }
+
+        .auth-header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .auth-header .logo {
+            width: 80px;
+            height: 80px;
+            background: var(--gradient-primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            box-shadow: var(--shadow-md);
+        }
+
+        .auth-header .logo i {
+            font-size: 2rem;
+            color: white;
+        }
+
+        .auth-header h1 {
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 700;
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .auth-header p {
+            color: #64748b;
+            font-size: 1rem;
+            margin: 0;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: var(--dark-color);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-control {
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+            background: white;
+        }
+
+        .form-check {
+            margin: 1.5rem 0;
+        }
+
+        .form-check-input {
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            width: 1.2em;
+            height: 1.2em;
+        }
+
+        .form-check-input:checked {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .form-check-label {
+            color: var(--dark-color);
+            font-weight: 500;
+            margin-left: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--gradient-primary);
+            border: none;
+            border-radius: 12px;
+            padding: 1rem 2rem;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-sm);
+            width: 100%;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--secondary-color) 100%);
+        }
+
+        .btn-primary:disabled {
+            transform: none;
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .alert {
+            border-radius: 12px;
+            border: none;
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 1.5rem;
+        }
+
+        .alert-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger-color);
+            border-left: 4px solid var(--danger-color);
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+            border-left: 4px solid var(--success-color);
+        }
+
+        .spinner-border {
+            width: 1.2rem;
+            height: 1.2rem;
+            margin-right: 0.5rem;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .shake {
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .footer-text {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+
+        @media (max-width: 576px) {
+            .auth-container {
+                margin: 1rem;
+                padding: 2rem;
+            }
+            
+            .auth-header h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="auth-container fade-in">
+        <div class="auth-header">
+            <div class="logo">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <h1>身份验证</h1>
+            <p>请输入访问码以继续使用系统</p>
+        </div>
+
+        <form id="auth-form">
+            <div id="alert-container"></div>
+            
+            <div class="mb-3">
+                <label for="access-code" class="form-label">
+                    <i class="fas fa-key"></i> 访问码
+                </label>
+                <input type="password" class="form-control" id="access-code" 
+                       placeholder="请输入访问码" required autocomplete="current-password">
+            </div>
+
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="remember-me">
+                <label class="form-check-label" for="remember-me">
+                    记住我30天
+                </label>
+            </div>
+
+            <button type="submit" id="submit-btn" class="btn btn-primary">
+                <i class="fas fa-sign-in-alt"></i> 验证并进入
+            </button>
+        </form>
+
+        <div class="footer-text">
+            <i class="fas fa-info-circle"></i> 
+            如需帮助，请联系系统管理员
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const form = document.getElementById('auth-form');
+        const submitBtn = document.getElementById('submit-btn');
+        const accessCodeInput = document.getElementById('access-code');
+        const rememberMeCheckbox = document.getElementById('remember-me');
+        const alertContainer = document.getElementById('alert-container');
+        const authContainer = document.querySelector('.auth-container');
+
+        // 自动聚焦到输入框
+        window.addEventListener('load', () => {
+            accessCodeInput.focus();
+        });
+
+        // 获取URL参数
+        function getUrlParameter(name) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(name);
+        }
+
+        // 处理表单提交
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            
+            const accessCode = accessCodeInput.value.trim();
+            
+            if (!accessCode) {
+                showAlert('请输入访问码', 'danger');
+                shakeContainer();
+                return;
+            }
+
+            // 禁用提交按钮并显示加载状态
+            setSubmitButtonLoading(true);
+            clearAlert();
+
+            // 构建请求URL，包含重定向参数
+            let requestUrl = '/auth/verify';
+            const redirectParam = getUrlParameter('redirect');
+            if (redirectParam) {
+                requestUrl += '?redirect=' + encodeURIComponent(redirectParam);
+            }
+
+            try {
+                const response = await fetch(requestUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        accessCode: accessCode,
+                        rememberMe: rememberMeCheckbox.checked
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('网络请求失败');
+                }
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showAlert('验证成功，正在跳转...', 'success');
+                    
+                    // 延迟跳转，让用户看到成功消息
+                    setTimeout(() => {
+                        window.location.href = result.redirectUrl || '/';
+                    }, 1000);
+                } else {
+                    showAlert(result.message || '验证失败', 'danger');
+                    shakeContainer();
+                    accessCodeInput.select();
+                }
+            } catch (error) {
+                console.error('认证请求失败:', error);
+                showAlert('网络连接失败，请检查网络后重试', 'danger');
+                shakeContainer();
+            } finally {
+                setSubmitButtonLoading(false);
+            }
+        });
+
+        // 设置提交按钮加载状态
+        function setSubmitButtonLoading(loading) {
+            if (loading) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border" role="status"></span>验证中...';
+            } else {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> 验证并进入';
+            }
+        }
+
+        // 显示警告消息
+        function showAlert(message, type) {
+            const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+            const iconClass = type === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle';
+            
+            alertContainer.innerHTML = `
+                <div class="alert ${alertClass} fade-in" role="alert">
+                    <i class="${iconClass}"></i> ${message}
+                </div>
+            `;
+        }
+
+        // 清除警告消息
+        function clearAlert() {
+            alertContainer.innerHTML = '';
+        }
+
+        // 震动效果
+        function shakeContainer() {
+            authContainer.classList.add('shake');
+            setTimeout(() => {
+                authContainer.classList.remove('shake');
+            }, 500);
+        }
+
+        // 回车键提交
+        accessCodeInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                form.dispatchEvent(new Event('submit'));
+            }
+        });
+
+        // 检查是否已经认证（可选功能）
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/auth/check');
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        window.location.href = '/';
+                    }
+                }
+            } catch (error) {
+                console.debug('认证状态检查失败:', error);
+            }
+        }
+
+        checkAuthStatus();
+    </script>
+</body>
+
+</html>
