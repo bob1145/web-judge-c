@@ -38,6 +38,7 @@
    http://localhost:1234
    ```
 4. **输入访问码**
+   
    访问码修改在scr/resources/application.yml 里，默认是 123
    ```
    judge:
