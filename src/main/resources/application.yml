@@ -13,16 +13,16 @@ server:
 
 judge:
   auth:
-    access-code: "secure-access-code-2024"
+    access-code: "123"
     session-timeout: 30d
     normal-session-timeout: 24h
     max-attempts: 5
     attempt-reset-hours: 1
   
   memory:
-    default-limit: 268435456  # 256MB in bytes
-    max-limit: 1073741824     # 1GB in bytes
-    check-interval: 100       # milliseconds
+    default-limit: 268435456  # 256MB
+    max-limit: 1073741824     # 1GB
+    check-interval: 100       # ms
   
   compiler:
     default-standard: cpp17
