@@ -35,8 +35,31 @@ public class JudgeController {
     @ResponseBody
     public String judge(@RequestBody JudgeRequest judgeRequest) {
         String judgeId = UUID.randomUUID().toString();
-        judgeService.judge(judgeRequest, judgeId);
+        // 创建判题任务
+        judgeService.createJudgeTask(judgeRequest, judgeId);
         return judgeId;
+    }
+
+    @PostMapping("/judge/start/{judgeId}")
+    @ResponseBody
+    public ResponseEntity<String> startJudge(@PathVariable String judgeId) {
+        try {
+            judgeService.startJudgeTask(judgeId);
+            return ResponseEntity.ok("Judge task started");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("/judge/status/{judgeId}")
+    @ResponseBody
+    public ResponseEntity<?> getJudgeStatus(@PathVariable String judgeId) {
+        try {
+            Object status = judgeService.getJudgeStatus(judgeId);
+            return ResponseEntity.ok(status);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @GetMapping("/details/{judgeId}/{caseNumber}")

@@ -32,7 +32,7 @@ public class AuthenticationController {
     private final SessionManagementService sessionManagementService;
     
     private static final String SESSION_COOKIE_NAME = "JUDGE_SESSION";
-    private static final int COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30天（秒）
+    private static final int COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30天
     
     /**
      * 显示认证页面
@@ -173,7 +173,7 @@ public class AuthenticationController {
     private void setSessionCookie(HttpServletResponse response, String sessionId, boolean rememberMe) {
         Cookie cookie = new Cookie(SESSION_COOKIE_NAME, sessionId);
         cookie.setHttpOnly(true);
-        cookie.setSecure(false); // 在生产环境中应该设置为true（需要HTTPS）
+        cookie.setSecure(false); // 建议true（需要HTTPS）
         cookie.setPath("/");
         
         if (rememberMe) {

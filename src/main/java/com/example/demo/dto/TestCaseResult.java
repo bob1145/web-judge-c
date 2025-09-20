@@ -6,8 +6,8 @@ import lombok.Data;
 public class TestCaseResult {
     private int caseNumber;
     private String status;
-    private long timeUsed;  // in milliseconds
-    private long memoryUsed; // in KB
+    private long timeUsed;  // ms
+    private long memoryUsed; // KB
 
     public TestCaseResult(int caseNumber, String status, long timeUsed, long memoryUsed) {
         this.caseNumber = caseNumber;

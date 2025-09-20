@@ -3,13 +3,17 @@ spring:
     name: demo18
   security:
     user:
-      name: admin
-      password: admin
+      name: admin_ed
+      password: admin_wx13
       roles: ADMIN
 
 server:
   address: 0.0.0.0
   port: 1234
+
+app:
+  websocket:
+    allowed-origins: "https://yourdomain.com,http://localhost:*,https://localhost:*"
 
 judge:
   auth:
@@ -39,3 +43,5 @@ logging:
   level:
     com.example.demo: DEBUG
     org.springframework.security: DEBUG
+    org.springframework.web.socket: DEBUG
+    org.springframework.messaging: DEBUG

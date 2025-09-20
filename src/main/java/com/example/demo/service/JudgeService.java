@@ -44,9 +44,42 @@ public class JudgeService {
 
     private final SimpMessagingTemplate messagingTemplate;
     private final Map<String, Path> judgeIdToTempDir = new ConcurrentHashMap<>();
+    private final Map<String, JudgeRequest> pendingJudgeTasks = new ConcurrentHashMap<>();
+    private final Map<String, JudgeProgress> judgeStatusMap = new ConcurrentHashMap<>();
     
     @Qualifier(AsyncConfig.TEST_CASE_EXECUTOR)
     private final ThreadPoolTaskExecutor testCaseExecutor;
+    
+    /**
+     * 安全地发送WebSocket消息，避免向已关闭的会话发送消息
+     * 同时保存状态用于轮询
+     */
+    private void safeSendMessage(String topic, JudgeProgress progress) {
+        // 提取judgeId用于状态保存
+        String judgeId = topic.substring(topic.lastIndexOf('/') + 1);
+        judgeStatusMap.put(judgeId, progress);
+        
+        try {
+            messagingTemplate.convertAndSend(topic, progress);
+        } catch (IllegalStateException e) {
+            // 会话已关闭
+            System.out.println("WebSocket会话已关闭，跳过消息发送: " + topic);
+        } catch (Exception e) {
+            // 记录其他异常但不中断执行
+            System.err.println("发送WebSocket消息失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取判题状态，用于轮询
+     */
+    public JudgeProgress getJudgeStatus(String judgeId) {
+        JudgeProgress status = judgeStatusMap.get(judgeId);
+        if (status == null) {
+            throw new IllegalArgumentException("Judge status not found: " + judgeId);
+        }
+        return status;
+    }
 
     private enum RunStatus {
         SUCCESS,
@@ -62,6 +95,24 @@ public class JudgeService {
         }
     }
 
+    /**
+     * 创建判题任务但不立即执行，等待WebSocket连接建立
+     */
+    public void createJudgeTask(JudgeRequest request, String judgeId) {
+        pendingJudgeTasks.put(judgeId, request);
+    }
+
+    /**
+     * 启动指定的判题任务
+     */
+    public void startJudgeTask(String judgeId) {
+        JudgeRequest request = pendingJudgeTasks.remove(judgeId);
+        if (request == null) {
+            throw new IllegalArgumentException("Judge task not found: " + judgeId);
+        }
+        judge(request, judgeId);
+    }
+
     @Async(AsyncConfig.JUDGE_REQUEST_EXECUTOR)
     public void judge(JudgeRequest request, String judgeId) {
         Path tempDir = null;
@@ -73,10 +124,10 @@ public class JudgeService {
             tempDir = Files.createDirectory(baseDir.resolve("judge-" + judgeId));
             judgeIdToTempDir.put(judgeId, tempDir);
 
-            messagingTemplate.convertAndSend(topic, new JudgeProgress("PENDING", "创建临时目录...", 0));
+            safeSendMessage(topic, new JudgeProgress("PENDING", "创建临时目录...", 0));
 
             try {
-                messagingTemplate.convertAndSend(topic, new JudgeProgress("COMPILING", "正在编译代码...", 5));
+                safeSendMessage(topic, new JudgeProgress("COMPILING", "正在编译代码...", 5));
 
                 Path genSource = tempDir.resolve("generator.cpp");
                 Files.writeString(genSource, request.getGeneratorCode());
@@ -97,9 +148,8 @@ public class JudgeService {
                 final Path bfExecutable = bfFuture.get();
                 final Path userExecutable = userFuture.get();
 
-                messagingTemplate.convertAndSend(topic, new JudgeProgress("COMPILING", "编译成功", 15));
+                safeSendMessage(topic, new JudgeProgress("COMPILING", "编译成功", 15));
 
-                // Run test cases in parallel
                 List<TestCaseResult> results = new ArrayList<>();
                 AtomicInteger completedCases = new AtomicInteger(0);
                 AtomicReference<String> finalStatus = new AtomicReference<>("AC");
@@ -118,10 +168,9 @@ public class JudgeService {
                             runTestCase(caseNum, request, finalTempDir, genExecutable, userExecutable, bfExecutable), testCaseExecutor
                     ).whenComplete((result, ex) -> {
                         int done = completedCases.incrementAndGet();
-                        // Throttle progress updates to avoid flooding the UI
                         if (done % updateThreshold == 0 || done == totalTestCases) {
                             int progress = 15 + (int) ((double) done / totalTestCases * 85);
-                            messagingTemplate.convertAndSend(topic, new JudgeProgress("RUNNING", String.format("已完成 %d / %d", done, totalTestCases), progress));
+                            safeSendMessage(topic, new JudgeProgress("RUNNING", String.format("已完成 %d / %d", done, totalTestCases), progress));
                         }
                     });
                     futures.add(future);
@@ -142,25 +191,25 @@ public class JudgeService {
                     }
                 }
                 
-                messagingTemplate.convertAndSend(topic, new JudgeProgress(finalStatus.get(), finalMessage.get(), 100, results));
+                safeSendMessage(topic, new JudgeProgress(finalStatus.get(), finalMessage.get(), 100, results));
 
             } catch (CompletionException e) {
                 Throwable cause = e.getCause();
                 if (cause instanceof CompilationException) {
-                    messagingTemplate.convertAndSend(topic, new JudgeProgress("COMPILATION_ERROR", cause.getMessage(), 100, null));
+                    safeSendMessage(topic, new JudgeProgress("COMPILATION_ERROR", cause.getMessage(), 100, null));
                 } else {
                     e.printStackTrace();
-                    messagingTemplate.convertAndSend(topic, new JudgeProgress("SYSTEM_ERROR", "An unexpected error occurred during compilation.", 100, null));
+                    safeSendMessage(topic, new JudgeProgress("SYSTEM_ERROR", "An unexpected error occurred during compilation.", 100, null));
                 }
                 return;
             } catch (Exception e) {
                 e.printStackTrace();
-                messagingTemplate.convertAndSend(topic, new JudgeProgress("SYSTEM_ERROR", e.getMessage(), 100, null));
+                safeSendMessage(topic, new JudgeProgress("SYSTEM_ERROR", e.getMessage(), 100, null));
             }
 
         } catch (Exception e) {
             e.printStackTrace();
-            messagingTemplate.convertAndSend(topic, new JudgeProgress("SYSTEM_ERROR", e.getMessage(), 100, null));
+            safeSendMessage(topic, new JudgeProgress("SYSTEM_ERROR", e.getMessage(), 100, null));
         }
     }
 
@@ -326,9 +375,7 @@ public class JudgeService {
 
         if (!finished) {
             process.destroyForcibly();
-            // Wait a little bit for the process to die.
             if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                 // The process is stuck even after destroyForcibly.
                  return new ProcessResult(RunStatus.TIME_LIMIT_EXCEEDED, null, "Process timed out and could not be terminated.", executionTime);
             }
             return new ProcessResult(RunStatus.TIME_LIMIT_EXCEEDED, null, "Process exceeded time limit of " + timeLimit + "ms", executionTime);
