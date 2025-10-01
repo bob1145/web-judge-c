@@ -138,16 +138,24 @@ public class JudgeService {
             // 标记WebSocket会话为非活跃
             markSessionInactive(judgeId);
             
-            // 删除临时目录
-            Path tempDir = judgeIdToTempDir.remove(judgeId);
-            if (tempDir != null && Files.exists(tempDir)) {
-                FileUtils.deleteDirectory(tempDir.toFile());
-            }
+            // 延迟清理临时目录，给用户时间查看测试点详情
+            CompletableFuture.delayedExecutor(30, TimeUnit.MINUTES).execute(() -> {
+                try {
+                    Path tempDir = judgeIdToTempDir.remove(judgeId);
+                    if (tempDir != null && Files.exists(tempDir)) {
+                        FileUtils.deleteDirectory(tempDir.toFile());
+                        log.debug("延迟清理临时目录: {}", tempDir);
+                    }
+                } catch (Exception e) {
+                    log.error("延迟清理临时目录失败: {} - {}", judgeId, e.getMessage());
+                }
+            });
             
-            // 清理状态信息（延迟清理，给客户端一些时间获取最终状态）
-            CompletableFuture.delayedExecutor(5, TimeUnit.MINUTES).execute(() -> {
+            // 延迟清理状态信息（给客户端更多时间获取最终状态）
+            CompletableFuture.delayedExecutor(60, TimeUnit.MINUTES).execute(() -> {
                 judgeStatusMap.remove(judgeId);
                 activeWebSocketSessions.remove(judgeId);
+                log.debug("延迟清理状态信息: {}", judgeId);
             });
             
         } catch (Exception e) {
@@ -342,12 +350,20 @@ public class JudgeService {
     public TestCaseDetail getTestCaseDetails(String judgeId, int caseNumber) throws IOException {
         Path tempDir = judgeIdToTempDir.get(judgeId);
         if (tempDir == null) {
-            throw new IOException("Judge ID not found or session has expired.");
+            log.warn("获取测试点详情失败 - judgeId不存在或已过期: {}", judgeId);
+            throw new IOException("Judge ID not found or session has expired: " + judgeId);
+        }
+
+        if (!Files.exists(tempDir)) {
+            log.warn("获取测试点详情失败 - 临时目录不存在: {}", tempDir);
+            throw new IOException("Temporary directory no longer exists: " + tempDir);
         }
 
         Path inputFile = tempDir.resolve(caseNumber + ".in");
         Path userOutputFile = tempDir.resolve(caseNumber + ".out");
         Path correctOutputFile = tempDir.resolve(caseNumber + ".ans");
+
+        log.debug("获取测试点详情: judgeId={}, caseNumber={}, tempDir={}", judgeId, caseNumber, tempDir);
 
         String input = Files.exists(inputFile) ? Files.readString(inputFile) : "Input data not found.";
         String userOutput = Files.exists(userOutputFile) ? Files.readString(userOutputFile) : "User output not found.";

@@ -64,14 +64,18 @@ public class JudgeController {
 
     @GetMapping("/details/{judgeId}/{caseNumber}")
     @ResponseBody
-    public ResponseEntity<TestCaseDetail> getDetails(
+    public ResponseEntity<?> getDetails(
             @PathVariable String judgeId,
             @PathVariable int caseNumber) {
         try {
             TestCaseDetail details = judgeService.getTestCaseDetails(judgeId, caseNumber);
             return ResponseEntity.ok(details);
         } catch (IOException e) {
+            // 返回详细的错误信息给前端
             return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            // 对于其他异常，返回500错误
+            return ResponseEntity.internalServerError().build();
         }
     }
 
@@ -89,6 +93,17 @@ public class JudgeController {
                     .body(resource);
         } catch (IOException e) {
             return ResponseEntity.notFound().build();
+        }
+    }
+
+    @PostMapping("/judge/cleanup/{judgeId}")
+    @ResponseBody
+    public ResponseEntity<String> cleanupJudge(@PathVariable String judgeId) {
+        try {
+            judgeService.cleanupJudgeTask(judgeId);
+            return ResponseEntity.ok("Cleanup initiated");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Cleanup failed: " + e.getMessage());
         }
     }
 } 
