@@ -2,6 +2,12 @@ package com.example.demo.service;
 
 import com.example.demo.dto.JudgeProgress;
 import com.example.demo.dto.JudgeRequest;
+import com.example.demo.service.MemoryMonitorService;
+import com.example.demo.service.SandboxService;
+import com.example.demo.config.MemoryConfiguration;
+import com.example.demo.config.SandboxConfiguration;
+import com.example.demo.exception.MemoryLimitExceededException;
+import com.example.demo.exception.SecurityViolationException;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FileUtils;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -43,12 +49,40 @@ import java.util.concurrent.CompletionException;
 public class JudgeService {
 
     private final SimpMessagingTemplate messagingTemplate;
+    private final MemoryMonitorService memoryMonitorService;
+    private final MemoryConfiguration memoryConfiguration;
+    private final SandboxService sandboxService;
+    private final SandboxConfiguration sandboxConfiguration;
     private final Map<String, Path> judgeIdToTempDir = new ConcurrentHashMap<>();
     private final Map<String, JudgeRequest> pendingJudgeTasks = new ConcurrentHashMap<>();
     private final Map<String, JudgeProgress> judgeStatusMap = new ConcurrentHashMap<>();
+    private final Map<String, Boolean> activeWebSocketSessions = new ConcurrentHashMap<>();
     
     @Qualifier(AsyncConfig.TEST_CASE_EXECUTOR)
     private final ThreadPoolTaskExecutor testCaseExecutor;
+    
+    /**
+     * 标记WebSocket会话为活跃状态
+     */
+    public void markSessionActive(String judgeId) {
+        activeWebSocketSessions.put(judgeId, true);
+        System.out.println("WebSocket会话激活: " + judgeId);
+    }
+    
+    /**
+     * 标记WebSocket会话为非活跃状态
+     */
+    public void markSessionInactive(String judgeId) {
+        activeWebSocketSessions.put(judgeId, false);
+        System.out.println("WebSocket会话停用: " + judgeId);
+    }
+    
+    /**
+     * 检查WebSocket会话是否活跃
+     */
+    private boolean isSessionActive(String judgeId) {
+        return activeWebSocketSessions.getOrDefault(judgeId, false);
+    }
     
     /**
      * 安全地发送WebSocket消息，避免向已关闭的会话发送消息
@@ -59,14 +93,27 @@ public class JudgeService {
         String judgeId = topic.substring(topic.lastIndexOf('/') + 1);
         judgeStatusMap.put(judgeId, progress);
         
+        // 检查会话是否仍然活跃
+        if (!isSessionActive(judgeId)) {
+            System.out.println("WebSocket会话已关闭，跳过消息发送: " + topic);
+            return;
+        }
+        
         try {
             messagingTemplate.convertAndSend(topic, progress);
         } catch (IllegalStateException e) {
-            // 会话已关闭
-            System.out.println("WebSocket会话已关闭，跳过消息发送: " + topic);
+            // 会话已关闭 - 这是最常见的情况
+            System.out.println("WebSocket会话已关闭，标记为非活跃: " + topic + " - " + e.getMessage());
+            markSessionInactive(judgeId);
+        } catch (org.springframework.messaging.MessageDeliveryException e) {
+            // 消息传递失败
+            System.out.println("WebSocket消息传递失败，标记为非活跃: " + topic + " - " + e.getMessage());
+            markSessionInactive(judgeId);
         } catch (Exception e) {
             // 记录其他异常但不中断执行
-            System.err.println("发送WebSocket消息失败: " + e.getMessage());
+            System.err.println("发送WebSocket消息失败: " + topic + " - " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            // 对于其他异常，也标记会话为非活跃，避免继续发送
+            markSessionInactive(judgeId);
         }
     }
 
@@ -80,14 +127,40 @@ public class JudgeService {
         }
         return status;
     }
+    
+    /**
+     * 清理已完成的判题任务
+     */
+    public void cleanupJudgeTask(String judgeId) {
+        try {
+            // 标记WebSocket会话为非活跃
+            markSessionInactive(judgeId);
+            
+            // 删除临时目录
+            Path tempDir = judgeIdToTempDir.remove(judgeId);
+            if (tempDir != null && Files.exists(tempDir)) {
+                FileUtils.deleteDirectory(tempDir.toFile());
+            }
+            
+            // 清理状态信息（延迟清理，给客户端一些时间获取最终状态）
+            CompletableFuture.delayedExecutor(5, TimeUnit.MINUTES).execute(() -> {
+                judgeStatusMap.remove(judgeId);
+                activeWebSocketSessions.remove(judgeId);
+            });
+            
+        } catch (Exception e) {
+            System.err.println("清理判题任务失败: " + judgeId + " - " + e.getMessage());
+        }
+    }
 
     private enum RunStatus {
         SUCCESS,
         TIME_LIMIT_EXCEEDED,
+        MEMORY_LIMIT_EXCEEDED,
         RUNTIME_ERROR
     }
 
-    private record ProcessResult(RunStatus status, String output, String error, long executionTime) {}
+    private record ProcessResult(RunStatus status, String output, String error, long executionTime, long memoryUsed) {}
 
     static class CompilationException extends RuntimeException {
         public CompilationException(String message) {
@@ -110,6 +183,8 @@ public class JudgeService {
         if (request == null) {
             throw new IllegalArgumentException("Judge task not found: " + judgeId);
         }
+        // 标记WebSocket会话为活跃
+        markSessionActive(judgeId);
         judge(request, judgeId);
     }
 
@@ -192,6 +267,9 @@ public class JudgeService {
                 }
                 
                 safeSendMessage(topic, new JudgeProgress(finalStatus.get(), finalMessage.get(), 100, results));
+                
+                // 判题完成后清理资源
+                cleanupJudgeTask(judgeId);
 
             } catch (CompletionException e) {
                 Throwable cause = e.getCause();
@@ -201,15 +279,18 @@ public class JudgeService {
                     e.printStackTrace();
                     safeSendMessage(topic, new JudgeProgress("SYSTEM_ERROR", "An unexpected error occurred during compilation.", 100, null));
                 }
+                cleanupJudgeTask(judgeId);
                 return;
             } catch (Exception e) {
                 e.printStackTrace();
                 safeSendMessage(topic, new JudgeProgress("SYSTEM_ERROR", e.getMessage(), 100, null));
+                cleanupJudgeTask(judgeId);
             }
 
         } catch (Exception e) {
             e.printStackTrace();
             safeSendMessage(topic, new JudgeProgress("SYSTEM_ERROR", e.getMessage(), 100, null));
+            cleanupJudgeTask(judgeId);
         }
     }
 
@@ -219,18 +300,25 @@ public class JudgeService {
             Path userOutputFile = tempDir.resolve(caseNumber + ".out");
             Path bfOutputFile = tempDir.resolve(caseNumber + ".ans");
 
-            ProcessResult genResult = runProcess(genExecutable, null, inputFile, 5000);
+            ProcessResult genResult = runProcess(genExecutable, null, inputFile, 5000, memoryConfiguration.getDefaultLimit());
             if (genResult.status() != RunStatus.SUCCESS) {
                 return new TestCaseResult(caseNumber, "System Error", 0, 0);
             }
 
-            ProcessResult userResult = runProcess(userExecutable, inputFile, userOutputFile, request.getTimeLimit());
+            // 使用请求中的内存限制，如果未设置则使用默认值
+            long userMemoryLimit = request.getMemoryLimit() > 0 ? request.getMemoryLimit() : memoryConfiguration.getDefaultLimit();
+            ProcessResult userResult = runProcess(userExecutable, inputFile, userOutputFile, request.getTimeLimit(), userMemoryLimit);
             if (userResult.status() != RunStatus.SUCCESS) {
-                String statusStr = userResult.status() == RunStatus.TIME_LIMIT_EXCEEDED ? "TLE" : "RE";
-                return new TestCaseResult(caseNumber, statusStr, userResult.executionTime(), 0);
+                String statusStr = switch (userResult.status()) {
+                    case TIME_LIMIT_EXCEEDED -> "TLE";
+                    case MEMORY_LIMIT_EXCEEDED -> "MLE";
+                    case RUNTIME_ERROR -> "RE";
+                    default -> "System Error";
+                };
+                return new TestCaseResult(caseNumber, statusStr, userResult.executionTime(), userResult.memoryUsed() / 1024); // Convert to KB
             }
 
-            ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, request.getTimeLimit() * 5);
+            ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, request.getTimeLimit() * 5, memoryConfiguration.getDefaultLimit() * 2);
              if (bfResult.status() != RunStatus.SUCCESS) {
                 return new TestCaseResult(caseNumber, "System Error", 0, 0);
             }
@@ -239,9 +327,9 @@ public class JudgeService {
             String bfOutput = Files.readString(bfOutputFile);
 
             if (outputsMatch(userOutput, bfOutput, request.getPrecision())) {
-                return new TestCaseResult(caseNumber, "AC", userResult.executionTime(), 0);
+                return new TestCaseResult(caseNumber, "AC", userResult.executionTime(), userResult.memoryUsed() / 1024); // Convert to KB
             } else {
-                return new TestCaseResult(caseNumber, "WA", userResult.executionTime(), 0);
+                return new TestCaseResult(caseNumber, "WA", userResult.executionTime(), userResult.memoryUsed() / 1024); // Convert to KB
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -353,7 +441,71 @@ public class JudgeService {
         return executablePath;
     }
 
-    private ProcessResult runProcess(Path executable, Path inputFile, Path outputFile, long timeLimit) throws IOException, InterruptedException {
+    private ProcessResult runProcess(Path executable, Path inputFile, Path outputFile, long timeLimit, long memoryLimit) throws IOException, InterruptedException {
+        // 检查文件系统访问权限
+        try {
+            sandboxService.checkFileSystemAccess(executable.getParent());
+            if (inputFile != null) {
+                sandboxService.checkFileSystemAccess(inputFile);
+            }
+            if (outputFile != null) {
+                sandboxService.checkFileSystemAccess(outputFile.getParent());
+            }
+        } catch (SecurityViolationException e) {
+            return new ProcessResult(RunStatus.RUNTIME_ERROR, null, "Security violation: " + e.getMessage(), 0, 0);
+        }
+
+        if (sandboxConfiguration.isEnabled()) {
+            // 使用沙箱执行
+            return runProcessInSandbox(executable, inputFile, outputFile, timeLimit, memoryLimit);
+        } else {
+            // 直接执行（保持原有逻辑作为备选）
+            return runProcessDirectly(executable, inputFile, outputFile, timeLimit, memoryLimit);
+        }
+    }
+    
+    private ProcessResult runProcessInSandbox(Path executable, Path inputFile, Path outputFile, long timeLimit, long memoryLimit) throws IOException, InterruptedException {
+        String[] command = { executable.toAbsolutePath().toString() };
+        
+        try {
+            SandboxService.SandboxResult result = sandboxService.executeInSandbox(
+                command, 
+                executable.getParent(), 
+                inputFile, 
+                outputFile, 
+                timeLimit, 
+                memoryLimit
+            );
+            
+            System.out.println("沙箱执行结果: exitCode=" + result.exitCode() + 
+                             ", securityViolation=" + result.securityViolation() + 
+                             ", executionTime=" + result.executionTime());
+            
+            if (result.securityViolation()) {
+                System.err.println("安全违规: " + result.violationReason());
+                return new ProcessResult(RunStatus.RUNTIME_ERROR, null, "Security violation: " + result.violationReason(), result.executionTime(), 0);
+            }
+            
+            if (result.exitCode() != 0) {
+                System.err.println("进程退出码非零: " + result.exitCode() + ", 错误信息: " + result.error());
+                return new ProcessResult(RunStatus.RUNTIME_ERROR, null, result.error(), result.executionTime(), 0);
+            }
+            
+            return new ProcessResult(RunStatus.SUCCESS, result.output(), null, result.executionTime(), 0);
+        } catch (Exception e) {
+            System.err.println("沙箱执行异常: " + e.getMessage());
+            e.printStackTrace();
+            return new ProcessResult(RunStatus.RUNTIME_ERROR, null, "Sandbox execution failed: " + e.getMessage(), 0, 0);
+        }
+    }
+    
+    private ProcessResult runProcessDirectly(Path executable, Path inputFile, Path outputFile, long timeLimit, long memoryLimit) throws IOException, InterruptedException {
+        System.out.println("直接执行进程: " + executable.toAbsolutePath());
+        System.out.println("输入文件: " + (inputFile != null ? inputFile.toAbsolutePath() : "null"));
+        System.out.println("输出文件: " + (outputFile != null ? outputFile.toAbsolutePath() : "null"));
+        System.out.println("时间限制: " + timeLimit + "ms");
+        System.out.println("内存限制: " + memoryLimit + " bytes");
+        
         ProcessBuilder processBuilder = new ProcessBuilder(executable.toAbsolutePath().toString());
         processBuilder.directory(executable.getParent().toFile());
 
@@ -370,26 +522,56 @@ public class JudgeService {
         long startTime = System.currentTimeMillis();
         Process process = processBuilder.start();
         
+        // 启动内存监控
+        CompletableFuture<MemoryMonitorService.MemoryUsage> memoryFuture = 
+            memoryMonitorService.monitorProcess(process, memoryLimit);
+        
         boolean finished = process.waitFor(timeLimit, TimeUnit.MILLISECONDS);
         long executionTime = System.currentTimeMillis() - startTime;
+        
+        System.out.println("进程执行完成: finished=" + finished + ", executionTime=" + executionTime + "ms");
+
+        // 获取内存使用情况
+        long memoryUsed = 0;
+        try {
+            if (memoryFuture.isDone()) {
+                MemoryMonitorService.MemoryUsage memoryUsage = memoryFuture.get();
+                memoryUsed = memoryUsage.peakMemory();
+                System.out.println("内存使用情况: " + memoryUsed + " bytes");
+            }
+        } catch (Exception e) {
+            if (e.getCause() instanceof MemoryLimitExceededException) {
+                // 进程因内存超限被终止
+                String errorOutput = Files.readString(errorFile.toPath());
+                Files.delete(errorFile.toPath());
+                MemoryLimitExceededException mle = (MemoryLimitExceededException) e.getCause();
+                System.err.println("内存超限: " + mle.getMessage());
+                return new ProcessResult(RunStatus.MEMORY_LIMIT_EXCEEDED, null, "Memory limit exceeded: " + mle.getMessage(), executionTime, mle.getCurrentUsage());
+            }
+        }
 
         if (!finished) {
             process.destroyForcibly();
             if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                 return new ProcessResult(RunStatus.TIME_LIMIT_EXCEEDED, null, "Process timed out and could not be terminated.", executionTime);
+                 return new ProcessResult(RunStatus.TIME_LIMIT_EXCEEDED, null, "Process timed out and could not be terminated.", executionTime, memoryUsed);
             }
-            return new ProcessResult(RunStatus.TIME_LIMIT_EXCEEDED, null, "Process exceeded time limit of " + timeLimit + "ms", executionTime);
+            return new ProcessResult(RunStatus.TIME_LIMIT_EXCEEDED, null, "Process exceeded time limit of " + timeLimit + "ms", executionTime, memoryUsed);
         }
 
         int exitCode = process.exitValue();
         String errorOutput = Files.readString(errorFile.toPath());
         Files.delete(errorFile.toPath());
+        
+        System.out.println("进程退出码: " + exitCode);
+        if (!errorOutput.trim().isEmpty()) {
+            System.err.println("错误输出: " + errorOutput);
+        }
 
         if (exitCode != 0) {
-            return new ProcessResult(RunStatus.RUNTIME_ERROR, null, errorOutput, executionTime);
+            return new ProcessResult(RunStatus.RUNTIME_ERROR, null, errorOutput, executionTime, memoryUsed);
         }
 
         String output = outputFile != null && Files.exists(outputFile) ? Files.readString(outputFile) : "";
-        return new ProcessResult(RunStatus.SUCCESS, output, null, executionTime);
+        return new ProcessResult(RunStatus.SUCCESS, output, null, executionTime, memoryUsed);
     }
 } 

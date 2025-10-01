@@ -342,6 +342,10 @@
             background: linear-gradient(135deg, var(--warning-color), #d97706);
         }
 
+        .status-mle {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+
         .status-re {
             background: linear-gradient(135deg, #8b5cf6, #7c3aed);
         }
@@ -535,6 +539,13 @@
                             </label>
                             <input type="number" class="form-control" id="time-limit" value="1000" min="100"
                                 max="10000">
+                        </div>
+                        <div class="mb-3">
+                            <label for="memory-limit" class="form-label">
+                                <i class="fas fa-memory"></i> 内存限制 (MB)
+                            </label>
+                            <input type="number" class="form-control" id="memory-limit" value="256" min="64"
+                                max="1024">
                         </div>
                         <div class="mb-3">
                             <label for="precision" class="form-label">
@@ -775,6 +786,7 @@
                     generatorCode: generatorEditor.getValue(),
                     bruteForceCode: bruteForceEditor.getValue(),
                     timeLimit: parseInt(document.getElementById('time-limit').value, 10),
+                    memoryLimit: parseInt(document.getElementById('memory-limit').value, 10) * 1024 * 1024, // 转换为字节
                     precision: parseFloat(document.getElementById('precision').value),
                     testCases: parseInt(document.getElementById('test-cases').value, 10)
                 };
@@ -1087,7 +1099,7 @@
 
             // 统计结果
             const stats = {
-                AC: 0, WA: 0, TLE: 0, RE: 0, CE: 0, SE: 0
+                AC: 0, WA: 0, TLE: 0, MLE: 0, RE: 0, CE: 0, SE: 0
             };
 
             results.forEach(result => {
@@ -1106,13 +1118,31 @@
                 switch (result.status) {
                     case 'AC':
                         detailsHtml = `<span class="case-details">${result.timeUsed} ms</span>`;
+                        if (result.memoryUsed > 0) {
+                            detailsHtml += `<br><span class="case-details">${result.memoryUsed} KB</span>`;
+                        }
                         statusIcon = '<i class="fas fa-check"></i>';
                         break;
                     case 'WA':
+                        if (result.timeUsed > 0) {
+                            detailsHtml = `<span class="case-details">${result.timeUsed} ms</span>`;
+                            if (result.memoryUsed > 0) {
+                                detailsHtml += `<br><span class="case-details">${result.memoryUsed} KB</span>`;
+                            }
+                        }
                         statusIcon = '<i class="fas fa-times"></i>';
                         break;
                     case 'TLE':
+                        if (result.timeUsed > 0) {
+                            detailsHtml = `<span class="case-details">${result.timeUsed} ms</span>`;
+                        }
                         statusIcon = '<i class="fas fa-clock"></i>';
+                        break;
+                    case 'MLE':
+                        if (result.memoryUsed > 0) {
+                            detailsHtml = `<span class="case-details">${result.memoryUsed} KB</span>`;
+                        }
+                        statusIcon = '<i class="fas fa-memory"></i>';
                         break;
                     case 'RE':
                         statusIcon = '<i class="fas fa-exclamation"></i>';
@@ -1151,10 +1181,18 @@
         }
 
         async function showDetailsModal(result) {
-            const { caseNumber, status, timeUsed } = result;
+            const { caseNumber, status, timeUsed, memoryUsed } = result;
 
             let title = `测试点 #${caseNumber} - ${status}`;
             if (status === 'AC') {
+                title += ` ( ${timeUsed} ms`;
+                if (memoryUsed > 0) {
+                    title += `, ${memoryUsed} KB`;
+                }
+                title += ' )';
+            } else if (status === 'MLE' && memoryUsed > 0) {
+                title += ` ( ${memoryUsed} KB )`;
+            } else if ((status === 'WA' || status === 'TLE') && timeUsed > 0) {
                 title += ` ( ${timeUsed} ms )`;
             }
             detailsModalLabel.textContent = title;

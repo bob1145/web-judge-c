@@ -34,8 +34,8 @@ judge:
     timeout: 60s
   
   sandbox:
-    enabled: true
-    base-directory: /tmp/judge-sandbox
+    enabled: false  # Windows系统下建议禁用沙箱，Linux系统可设为true
+    base-directory: C:/temp/judge-sandbox  # Windows路径格式
     network-disabled: true
     max-processes: 10
 
