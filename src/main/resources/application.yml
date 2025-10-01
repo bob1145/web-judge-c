@@ -41,7 +41,19 @@ judge:
 
 logging:
   level:
-    com.example.demo: DEBUG
-    org.springframework.security: DEBUG
-    org.springframework.web.socket: DEBUG
-    org.springframework.messaging: DEBUG
+    com.example.demo: INFO  # 改为INFO级别，减少debug输出
+    com.example.demo.service.JudgeService: WARN  # 判题服务只记录警告以上
+    com.example.demo.service.SandboxService: WARN  # 沙箱服务只记录警告以上
+    com.example.demo.service.MemoryMonitorService: WARN  # 内存监控只记录警告以上
+    org.springframework.security: WARN  # Spring Security只记录警告
+    org.springframework.web.socket: WARN  # WebSocket只记录警告
+    org.springframework.messaging: WARN  # 消息框架只记录警告
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
+  file:
+    name: logs/judge-system.log
+  logback:
+    rolling policy:
+      max-file-size: 10MB
+      max-history: 30

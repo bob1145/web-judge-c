@@ -3,9 +3,13 @@ package com.example.demo.service;
 import com.example.demo.config.SandboxConfiguration;
 import com.example.demo.exception.SecurityViolationException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.*;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -18,6 +22,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SandboxService {
     
     private final SandboxConfiguration sandboxConfig;
@@ -53,17 +58,17 @@ public class SandboxService {
             long timeLimit, 
             long memoryLimit) throws IOException, InterruptedException {
         
-        System.out.println("开始沙箱执行: " + String.join(" ", command));
-        System.out.println("工作目录: " + workingDir);
-        System.out.println("沙箱启用状态: " + sandboxConfig.isEnabled());
-        System.out.println("操作系统: " + System.getProperty("os.name"));
+        log.debug("开始沙箱执行: {}", String.join(" ", command));
+        log.debug("工作目录: {}", workingDir);
+        log.debug("沙箱启用状态: {}", sandboxConfig.isEnabled());
+        log.debug("操作系统: {}", System.getProperty("os.name"));
         
         // 检查操作系统
         boolean isWindows = System.getProperty("os.name").toLowerCase().contains("windows");
         
         if (!sandboxConfig.isEnabled() || isWindows) {
             // 如果沙箱未启用或在Windows系统下，直接执行命令
-            System.out.println(isWindows ? "Windows系统，直接执行命令" : "沙箱未启用，直接执行命令");
+            log.debug(isWindows ? "Windows系统，直接执行命令" : "沙箱未启用，直接执行命令");
             return executeDirectly(command, workingDir, inputFile, outputFile, timeLimit);
         }
         

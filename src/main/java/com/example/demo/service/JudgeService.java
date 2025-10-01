@@ -9,6 +9,7 @@ import com.example.demo.config.SandboxConfiguration;
 import com.example.demo.exception.MemoryLimitExceededException;
 import com.example.demo.exception.SecurityViolationException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
@@ -46,6 +47,7 @@ import java.util.concurrent.CompletionException;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class JudgeService {
 
     private final SimpMessagingTemplate messagingTemplate;
@@ -66,7 +68,7 @@ public class JudgeService {
      */
     public void markSessionActive(String judgeId) {
         activeWebSocketSessions.put(judgeId, true);
-        System.out.println("WebSocket会话激活: " + judgeId);
+        log.debug("WebSocket会话激活: {}", judgeId);
     }
     
     /**
@@ -74,7 +76,7 @@ public class JudgeService {
      */
     public void markSessionInactive(String judgeId) {
         activeWebSocketSessions.put(judgeId, false);
-        System.out.println("WebSocket会话停用: " + judgeId);
+        log.debug("WebSocket会话停用: {}", judgeId);
     }
     
     /**
@@ -95,7 +97,7 @@ public class JudgeService {
         
         // 检查会话是否仍然活跃
         if (!isSessionActive(judgeId)) {
-            System.out.println("WebSocket会话已关闭，跳过消息发送: " + topic);
+            log.debug("WebSocket会话已关闭，跳过消息发送: {}", topic);
             return;
         }
         
@@ -103,15 +105,15 @@ public class JudgeService {
             messagingTemplate.convertAndSend(topic, progress);
         } catch (IllegalStateException e) {
             // 会话已关闭 - 这是最常见的情况
-            System.out.println("WebSocket会话已关闭，标记为非活跃: " + topic + " - " + e.getMessage());
+            log.debug("WebSocket会话已关闭，标记为非活跃: {} - {}", topic, e.getMessage());
             markSessionInactive(judgeId);
         } catch (org.springframework.messaging.MessageDeliveryException e) {
             // 消息传递失败
-            System.out.println("WebSocket消息传递失败，标记为非活跃: " + topic + " - " + e.getMessage());
+            log.debug("WebSocket消息传递失败，标记为非活跃: {} - {}", topic, e.getMessage());
             markSessionInactive(judgeId);
         } catch (Exception e) {
             // 记录其他异常但不中断执行
-            System.err.println("发送WebSocket消息失败: " + topic + " - " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            log.warn("发送WebSocket消息失败: {} - {}: {}", topic, e.getClass().getSimpleName(), e.getMessage());
             // 对于其他异常，也标记会话为非活跃，避免继续发送
             markSessionInactive(judgeId);
         }
@@ -149,7 +151,7 @@ public class JudgeService {
             });
             
         } catch (Exception e) {
-            System.err.println("清理判题任务失败: " + judgeId + " - " + e.getMessage());
+            log.error("清理判题任务失败: {} - {}", judgeId, e.getMessage());
         }
     }
 
@@ -500,11 +502,12 @@ public class JudgeService {
     }
     
     private ProcessResult runProcessDirectly(Path executable, Path inputFile, Path outputFile, long timeLimit, long memoryLimit) throws IOException, InterruptedException {
-        System.out.println("直接执行进程: " + executable.toAbsolutePath());
-        System.out.println("输入文件: " + (inputFile != null ? inputFile.toAbsolutePath() : "null"));
-        System.out.println("输出文件: " + (outputFile != null ? outputFile.toAbsolutePath() : "null"));
-        System.out.println("时间限制: " + timeLimit + "ms");
-        System.out.println("内存限制: " + memoryLimit + " bytes");
+        if (log.isDebugEnabled()) {
+            log.debug("直接执行进程: {}", executable.toAbsolutePath());
+            log.debug("输入文件: {}", inputFile != null ? inputFile.toAbsolutePath() : "null");
+            log.debug("输出文件: {}", outputFile != null ? outputFile.toAbsolutePath() : "null");
+            log.debug("时间限制: {}ms, 内存限制: {} bytes", timeLimit, memoryLimit);
+        }
         
         ProcessBuilder processBuilder = new ProcessBuilder(executable.toAbsolutePath().toString());
         processBuilder.directory(executable.getParent().toFile());
@@ -529,7 +532,7 @@ public class JudgeService {
         boolean finished = process.waitFor(timeLimit, TimeUnit.MILLISECONDS);
         long executionTime = System.currentTimeMillis() - startTime;
         
-        System.out.println("进程执行完成: finished=" + finished + ", executionTime=" + executionTime + "ms");
+        log.debug("进程执行完成: finished={}, executionTime={}ms", finished, executionTime);
 
         // 获取内存使用情况
         long memoryUsed = 0;
@@ -537,7 +540,7 @@ public class JudgeService {
             if (memoryFuture.isDone()) {
                 MemoryMonitorService.MemoryUsage memoryUsage = memoryFuture.get();
                 memoryUsed = memoryUsage.peakMemory();
-                System.out.println("内存使用情况: " + memoryUsed + " bytes");
+                log.debug("内存使用情况: {} bytes", memoryUsed);
             }
         } catch (Exception e) {
             if (e.getCause() instanceof MemoryLimitExceededException) {
@@ -545,7 +548,7 @@ public class JudgeService {
                 String errorOutput = Files.readString(errorFile.toPath());
                 Files.delete(errorFile.toPath());
                 MemoryLimitExceededException mle = (MemoryLimitExceededException) e.getCause();
-                System.err.println("内存超限: " + mle.getMessage());
+                log.warn("内存超限: {}", mle.getMessage());
                 return new ProcessResult(RunStatus.MEMORY_LIMIT_EXCEEDED, null, "Memory limit exceeded: " + mle.getMessage(), executionTime, mle.getCurrentUsage());
             }
         }
@@ -562,9 +565,9 @@ public class JudgeService {
         String errorOutput = Files.readString(errorFile.toPath());
         Files.delete(errorFile.toPath());
         
-        System.out.println("进程退出码: " + exitCode);
+        log.debug("进程退出码: {}", exitCode);
         if (!errorOutput.trim().isEmpty()) {
-            System.err.println("错误输出: " + errorOutput);
+            log.debug("错误输出: {}", errorOutput);
         }
 
         if (exitCode != 0) {
