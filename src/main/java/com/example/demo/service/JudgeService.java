@@ -217,21 +217,31 @@ public class JudgeService {
                 Path genSource = tempDir.resolve("generator.cpp");
                 Files.writeString(genSource, request.getGeneratorCode());
 
-                Path bfSource = tempDir.resolve("bruteforce.cpp");
-                Files.writeString(bfSource, request.getBruteForceCode());
-
                 Path userSource = tempDir.resolve("user.cpp");
                 Files.writeString(userSource, request.getUserCode());
 
                 CompletableFuture<Path> genFuture = CompletableFuture.supplyAsync(() -> compile(genSource, "generator"), testCaseExecutor);
-                CompletableFuture<Path> bfFuture = CompletableFuture.supplyAsync(() -> compile(bfSource, "bruteforce"), testCaseExecutor);
                 CompletableFuture<Path> userFuture = CompletableFuture.supplyAsync(() -> compile(userSource, "user"), testCaseExecutor);
 
-                CompletableFuture.allOf(genFuture, bfFuture, userFuture).join();
+                // 根据是否启用Special Judge决定编译内容
+                CompletableFuture<Path> judgeExecutableFuture;
+                if (request.isUseSpecialJudge() && request.getSpecialJudgeCode() != null && !request.getSpecialJudgeCode().trim().isEmpty()) {
+                    // 编译Special Judge代码
+                    Path spjSource = tempDir.resolve("special_judge.cpp");
+                    Files.writeString(spjSource, request.getSpecialJudgeCode());
+                    judgeExecutableFuture = CompletableFuture.supplyAsync(() -> compile(spjSource, "special_judge"), testCaseExecutor);
+                } else {
+                    // 编译Brute Force代码
+                    Path bfSource = tempDir.resolve("bruteforce.cpp");
+                    Files.writeString(bfSource, request.getBruteForceCode());
+                    judgeExecutableFuture = CompletableFuture.supplyAsync(() -> compile(bfSource, "bruteforce"), testCaseExecutor);
+                }
+
+                CompletableFuture.allOf(genFuture, userFuture, judgeExecutableFuture).join();
 
                 final Path genExecutable = genFuture.get();
-                final Path bfExecutable = bfFuture.get();
                 final Path userExecutable = userFuture.get();
+                final Path judgeExecutable = judgeExecutableFuture.get();
 
                 safeSendMessage(topic, new JudgeProgress("COMPILING", "编译成功", 15));
 
@@ -250,7 +260,7 @@ public class JudgeService {
                     Path finalTempDir = tempDir;
 
                     CompletableFuture<TestCaseResult> future = CompletableFuture.supplyAsync(() ->
-                            runTestCase(caseNum, request, finalTempDir, genExecutable, userExecutable, bfExecutable), testCaseExecutor
+                            runTestCase(caseNum, request, finalTempDir, genExecutable, userExecutable, judgeExecutable), testCaseExecutor
                     ).whenComplete((result, ex) -> {
                         int done = completedCases.incrementAndGet();
                         if (done % updateThreshold == 0 || done == totalTestCases) {
@@ -304,11 +314,10 @@ public class JudgeService {
         }
     }
 
-    private TestCaseResult runTestCase(int caseNumber, JudgeRequest request, Path tempDir, Path genExecutable, Path userExecutable, Path bfExecutable) {
+    private TestCaseResult runTestCase(int caseNumber, JudgeRequest request, Path tempDir, Path genExecutable, Path userExecutable, Path judgeExecutable) {
         try {
             Path inputFile = tempDir.resolve(caseNumber + ".in");
             Path userOutputFile = tempDir.resolve(caseNumber + ".out");
-            Path bfOutputFile = tempDir.resolve(caseNumber + ".ans");
 
             ProcessResult genResult = runProcess(genExecutable, null, inputFile, 5000, memoryConfiguration.getDefaultLimit());
             if (genResult.status() != RunStatus.SUCCESS) {
@@ -328,22 +337,95 @@ public class JudgeService {
                 return new TestCaseResult(caseNumber, statusStr, userResult.executionTime(), userResult.memoryUsed() / 1024); // Convert to KB
             }
 
-            ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, request.getTimeLimit() * 5, memoryConfiguration.getDefaultLimit() * 2);
-             if (bfResult.status() != RunStatus.SUCCESS) {
-                return new TestCaseResult(caseNumber, "System Error", 0, 0);
-            }
-
-            String userOutput = Files.readString(userOutputFile);
-            String bfOutput = Files.readString(bfOutputFile);
-
-            if (outputsMatch(userOutput, bfOutput, request.getPrecision())) {
-                return new TestCaseResult(caseNumber, "AC", userResult.executionTime(), userResult.memoryUsed() / 1024); // Convert to KB
+            // 根据是否启用Special Judge选择不同的判题逻辑
+            if (request.isUseSpecialJudge() && request.getSpecialJudgeCode() != null && !request.getSpecialJudgeCode().trim().isEmpty()) {
+                // 使用Special Judge进行判题
+                return runSpecialJudge(caseNumber, request, tempDir, judgeExecutable, inputFile, userOutputFile, userResult);
             } else {
-                return new TestCaseResult(caseNumber, "WA", userResult.executionTime(), userResult.memoryUsed() / 1024); // Convert to KB
+                // 使用Brute Force进行判题
+                return runBruteForceJudge(caseNumber, request, tempDir, judgeExecutable, inputFile, userOutputFile, userResult);
             }
         } catch (Exception e) {
             e.printStackTrace();
             return new TestCaseResult(caseNumber, "System Error", 0, 0);
+        }
+    }
+    
+    /**
+     * 使用Special Judge进行判题
+     */
+    private TestCaseResult runSpecialJudge(int caseNumber, JudgeRequest request, Path tempDir, Path spjExecutable, 
+                                         Path inputFile, Path userOutputFile, ProcessResult userResult) throws IOException, InterruptedException {
+        // Special Judge通常接受三个参数：输入文件、用户输出文件、标准输出文件（可选）
+        // 这里我们只传递输入文件和用户输出文件，SPJ程序负责验证输出是否正确
+        // SPJ程序应该返回退出码：0表示AC，非0表示WA或其他错误
+        
+        ProcessResult spjResult = runProcess(spjExecutable, null, null, request.getTimeLimit() * 2, memoryConfiguration.getDefaultLimit());
+        
+        // 为SPJ创建参数文件，传递必要信息
+        Path spjArgsFile = tempDir.resolve(caseNumber + ".spj_args");
+        String args = String.format("%s\n%s\n", inputFile.toAbsolutePath(), userOutputFile.toAbsolutePath());
+        Files.writeString(spjArgsFile, args);
+        
+        // 重新运行SPJ，这次传递参数文件
+        ProcessBuilder spjBuilder = new ProcessBuilder(spjExecutable.toAbsolutePath().toString());
+        spjBuilder.directory(tempDir.toFile());
+        spjBuilder.redirectInput(spjArgsFile.toFile());
+        
+        File spjErrorFile = Files.createTempFile(tempDir, "spj_error_", ".log").toFile();
+        spjBuilder.redirectError(spjErrorFile);
+        
+        long startTime = System.currentTimeMillis();
+        Process spjProcess = spjBuilder.start();
+        
+        boolean finished = spjProcess.waitFor(request.getTimeLimit() * 2, TimeUnit.MILLISECONDS);
+        long spjExecutionTime = System.currentTimeMillis() - startTime;
+        
+        if (!finished) {
+            spjProcess.destroyForcibly();
+            spjProcess.waitFor(5, TimeUnit.SECONDS);
+            return new TestCaseResult(caseNumber, "System Error", userResult.executionTime(), userResult.memoryUsed() / 1024);
+        }
+        
+        int spjExitCode = spjProcess.exitValue();
+        String spjError = Files.readString(spjErrorFile.toPath());
+        Files.delete(spjErrorFile.toPath());
+        Files.delete(spjArgsFile);
+        
+        log.debug("SPJ执行结果: exitCode={}, executionTime={}ms", spjExitCode, spjExecutionTime);
+        
+        if (spjExitCode == 0) {
+            return new TestCaseResult(caseNumber, "AC", userResult.executionTime(), userResult.memoryUsed() / 1024);
+        } else {
+            // 根据SPJ的退出码决定结果，通常非0表示WA
+            String status = switch (spjExitCode) {
+                case 1 -> "WA";  // Wrong Answer
+                case 2 -> "PE";  // Presentation Error
+                default -> "WA"; // 默认为Wrong Answer
+            };
+            return new TestCaseResult(caseNumber, status, userResult.executionTime(), userResult.memoryUsed() / 1024);
+        }
+    }
+    
+    /**
+     * 使用Brute Force进行判题
+     */
+    private TestCaseResult runBruteForceJudge(int caseNumber, JudgeRequest request, Path tempDir, Path bfExecutable, 
+                                            Path inputFile, Path userOutputFile, ProcessResult userResult) throws IOException, InterruptedException {
+        Path bfOutputFile = tempDir.resolve(caseNumber + ".ans");
+        
+        ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, request.getTimeLimit() * 5, memoryConfiguration.getDefaultLimit() * 2);
+        if (bfResult.status() != RunStatus.SUCCESS) {
+            return new TestCaseResult(caseNumber, "System Error", 0, 0);
+        }
+
+        String userOutput = Files.readString(userOutputFile);
+        String bfOutput = Files.readString(bfOutputFile);
+
+        if (outputsMatch(userOutput, bfOutput, request.getPrecision())) {
+            return new TestCaseResult(caseNumber, "AC", userResult.executionTime(), userResult.memoryUsed() / 1024);
+        } else {
+            return new TestCaseResult(caseNumber, "WA", userResult.executionTime(), userResult.memoryUsed() / 1024);
         }
     }
     

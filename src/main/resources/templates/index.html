@@ -553,6 +553,15 @@
                             </label>
                             <input type="text" class="form-control" id="precision" value="1e-9" placeholder="例: 1e-9">
                         </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="use-special-judge">
+                                <label class="form-check-label" for="use-special-judge">
+                                    <i class="fas fa-gavel"></i> 启用Special Judge
+                                </label>
+                            </div>
+                            <small class="text-muted">启用后将使用自定义判题程序代替暴力代码</small>
+                        </div>
                         <button type="submit" id="start-button" class="btn btn-primary w-100 mb-2">
                             <i class="fas fa-play"></i> 开始对拍
                         </button>
@@ -598,6 +607,22 @@
                         </button>
                     </div>
                     <textarea id="brute-force-code" class="form-control code-textarea"></textarea>
+                </div>
+
+                <div class="code-section fade-in" id="special-judge-section" style="display: none;">
+                    <div class="code-header">
+                        <h5><i class="fas fa-gavel"></i> Special Judge 代码</h5>
+                        <input type="file" class="d-none" id="special-judge-file" accept=".cpp,.c,.txt">
+                        <button class="btn-upload" onclick="document.getElementById('special-judge-file').click();">
+                            <i class="fas fa-upload"></i> 上传文件
+                        </button>
+                    </div>
+                    <textarea id="special-judge-code" class="form-control code-textarea"></textarea>
+                    <small class="text-muted mt-2 d-block">
+                        <i class="fas fa-info-circle"></i> 
+                        SPJ程序从标准输入读取两行：第一行是输入文件路径，第二行是用户输出文件路径。
+                        返回退出码：0表示AC，1表示WA，2表示PE。
+                    </small>
                 </div>
 
                 <div class="code-section fade-in">
@@ -698,11 +723,13 @@
 
         const generatorEditor = CodeMirror.fromTextArea(document.getElementById('generator-code'), editorSettings);
         const bruteForceEditor = CodeMirror.fromTextArea(document.getElementById('brute-force-code'), editorSettings);
+        const specialJudgeEditor = CodeMirror.fromTextArea(document.getElementById('special-judge-code'), editorSettings);
         const userEditor = CodeMirror.fromTextArea(document.getElementById('user-code'), editorSettings);
 
         const editors = {
             'generator': generatorEditor,
             'brute-force': bruteForceEditor,
+            'special-judge': specialJudgeEditor,
             'user': userEditor
         };
 
@@ -710,18 +737,47 @@
         function saveCode() {
             localStorage.setItem('generatorCode', generatorEditor.getValue());
             localStorage.setItem('bruteForceCode', bruteForceEditor.getValue());
+            localStorage.setItem('specialJudgeCode', specialJudgeEditor.getValue());
             localStorage.setItem('userCode', userEditor.getValue());
+            localStorage.setItem('useSpecialJudge', document.getElementById('use-special-judge').checked);
         }
 
         function loadCode() {
             generatorEditor.setValue(localStorage.getItem('generatorCode') || '');
             bruteForceEditor.setValue(localStorage.getItem('bruteForceCode') || '');
+            specialJudgeEditor.setValue(localStorage.getItem('specialJudgeCode') || '');
             userEditor.setValue(localStorage.getItem('userCode') || '');
+            
+            const useSpj = localStorage.getItem('useSpecialJudge') === 'true';
+            document.getElementById('use-special-judge').checked = useSpj;
+            toggleSpecialJudgeSection(useSpj);
         }
 
         generatorEditor.on('change', saveCode);
         bruteForceEditor.on('change', saveCode);
+        specialJudgeEditor.on('change', saveCode);
         userEditor.on('change', saveCode);
+
+        // --- Special Judge Toggle ---
+        function toggleSpecialJudgeSection(enabled) {
+            const spjSection = document.getElementById('special-judge-section');
+            const bruteForceSection = document.querySelector('#brute-force-code').closest('.code-section');
+            
+            if (enabled) {
+                spjSection.style.display = 'block';
+                bruteForceSection.style.display = 'none';
+            } else {
+                spjSection.style.display = 'none';
+                bruteForceSection.style.display = 'block';
+            }
+        }
+
+        // Add event listener for SPJ checkbox
+        document.getElementById('use-special-judge').addEventListener('change', function(e) {
+            const enabled = e.target.checked;
+            toggleSpecialJudgeSection(enabled);
+            saveCode();
+        });
 
         window.addEventListener('load', () => {
             loadCode();
@@ -746,6 +802,7 @@
         }
         setupFileUpload('generator-file', generatorEditor);
         setupFileUpload('brute-force-file', bruteForceEditor);
+        setupFileUpload('special-judge-file', specialJudgeEditor);
         setupFileUpload('user-code-file', userEditor);
 
         form.addEventListener('submit', async function (event) {
@@ -756,10 +813,20 @@
                 showError('请输入生成器代码！');
                 return;
             }
-            if (!bruteForceEditor.getValue().trim()) {
-                showError('请输入暴力/正确代码！');
-                return;
+            
+            const useSpj = document.getElementById('use-special-judge').checked;
+            if (useSpj) {
+                if (!specialJudgeEditor.getValue().trim()) {
+                    showError('请输入Special Judge代码！');
+                    return;
+                }
+            } else {
+                if (!bruteForceEditor.getValue().trim()) {
+                    showError('请输入暴力/正确代码！');
+                    return;
+                }
             }
+            
             if (!userEditor.getValue().trim()) {
                 showError('请输入待测试代码！');
                 return;
@@ -781,14 +848,17 @@
             updateProgressBar(0, '准备中...');
 
             try {
+                const useSpj = document.getElementById('use-special-judge').checked;
                 const judgeRequest = {
                     userCode: userEditor.getValue(),
                     generatorCode: generatorEditor.getValue(),
-                    bruteForceCode: bruteForceEditor.getValue(),
+                    bruteForceCode: useSpj ? '' : bruteForceEditor.getValue(),
                     timeLimit: parseInt(document.getElementById('time-limit').value, 10),
                     memoryLimit: parseInt(document.getElementById('memory-limit').value, 10) * 1024 * 1024, // 转换为字节
                     precision: parseFloat(document.getElementById('precision').value),
-                    testCases: parseInt(document.getElementById('test-cases').value, 10)
+                    testCases: parseInt(document.getElementById('test-cases').value, 10),
+                    useSpecialJudge: useSpj,
+                    specialJudgeCode: useSpj ? specialJudgeEditor.getValue() : ''
                 };
 
                 const response = await fetch('/judge', {
