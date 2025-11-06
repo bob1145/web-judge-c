@@ -96,6 +96,19 @@ public class JudgeController {
         }
     }
 
+    @GetMapping("/download/{judgeId}/all")
+    public ResponseEntity<Resource> downloadAllTestCases(@PathVariable String judgeId) {
+        try {
+            Resource archive = judgeService.getAllTestCasesArchive(judgeId);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType("application/zip"))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + archive.getFilename() + "\"")
+                    .body(archive);
+        } catch (IOException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @PostMapping("/judge/cleanup/{judgeId}")
     @ResponseBody
     public ResponseEntity<String> cleanupJudge(@PathVariable String judgeId) {

@@ -1,26 +1,30 @@
 package com.example.demo.service;
 
-import com.example.demo.dto.JudgeProgress;
-import com.example.demo.dto.JudgeRequest;
-import com.example.demo.service.MemoryMonitorService;
-import com.example.demo.service.SandboxService;
+import com.example.demo.config.AsyncConfig;
 import com.example.demo.config.MemoryConfiguration;
 import com.example.demo.config.SandboxConfiguration;
+import com.example.demo.dto.JudgeProgress;
+import com.example.demo.dto.JudgeRequest;
+import com.example.demo.dto.TestCaseDetail;
+import com.example.demo.dto.TestCaseResult;
 import com.example.demo.exception.MemoryLimitExceededException;
 import com.example.demo.exception.SecurityViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
-import org.springframework.core.task.TaskExecutor;
-import java.util.concurrent.CompletableFuture;
-import java.util.Comparator;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,20 +34,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import com.example.demo.dto.TestCaseDetail;
-import com.example.demo.dto.TestCaseResult;
+import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import com.example.demo.config.AsyncConfig;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.CompletionException;
+import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -464,6 +468,84 @@ public class JudgeService {
             throw new IOException("Input file not found for test case " + caseNumber);
         }
         return inputFile.toFile();
+    }
+
+    public Resource getAllTestCasesArchive(String judgeId) throws IOException {
+        Path tempDir = judgeIdToTempDir.get(judgeId);
+        if (tempDir == null || !Files.exists(tempDir)) {
+            throw new IOException("Judge ID not found or session has expired.");
+        }
+
+        List<Path> inputFiles;
+        try (Stream<Path> stream = Files.list(tempDir)) {
+            inputFiles = stream
+                    .filter(path -> path.getFileName().toString().endsWith(".in"))
+                    .sorted(this::compareByCaseNumber)
+                    .collect(Collectors.toList());
+        }
+
+        if (inputFiles.isEmpty()) {
+            throw new IOException("No test case inputs available.");
+        }
+
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        try (ZipOutputStream zipStream = new ZipOutputStream(buffer)) {
+            for (Path inputFile : inputFiles) {
+                String baseName = stripExtension(inputFile.getFileName().toString(), ".in");
+                addFileToZip(zipStream, inputFile, baseName + ".in");
+
+                Path answerFile = tempDir.resolve(baseName + ".ans");
+                if (!Files.exists(answerFile)) {
+                    answerFile = tempDir.resolve(baseName + ".out");
+                }
+                if (Files.exists(answerFile)) {
+                    addFileToZip(zipStream, answerFile, baseName + ".out");
+                }
+            }
+        }
+
+        byte[] archiveBytes = buffer.toByteArray();
+        if (archiveBytes.length == 0) {
+            throw new IOException("Failed to create archive for judgeId " + judgeId);
+        }
+
+        return new ByteArrayResource(archiveBytes) {
+            @Override
+            public String getFilename() {
+                return "testcases-" + judgeId + ".zip";
+            }
+        };
+    }
+
+    private void addFileToZip(ZipOutputStream zipStream, Path file, String entryName) throws IOException {
+        ZipEntry entry = new ZipEntry(entryName);
+        zipStream.putNextEntry(entry);
+        try (InputStream inputStream = Files.newInputStream(file)) {
+            inputStream.transferTo(zipStream);
+        }
+        zipStream.closeEntry();
+    }
+
+    private int compareByCaseNumber(Path first, Path second) {
+        return Integer.compare(parseCaseNumber(first), parseCaseNumber(second));
+    }
+
+    private int parseCaseNumber(Path file) {
+        String name = file.getFileName().toString();
+        int dotIndex = name.indexOf('.');
+        String numberPart = dotIndex >= 0 ? name.substring(0, dotIndex) : name;
+        try {
+            return Integer.parseInt(numberPart);
+        } catch (NumberFormatException ex) {
+            return Integer.MAX_VALUE;
+        }
+    }
+
+    private String stripExtension(String filename, String extension) {
+        if (filename.endsWith(extension)) {
+            return filename.substring(0, filename.length() - extension.length());
+        }
+        return filename;
     }
 
     private boolean outputsMatch(String userOutput, String bfOutput, double precision) {
