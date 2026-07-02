@@ -307,7 +307,7 @@ public class JudgeService {
                             int done = completedCases.incrementAndGet();
                             if (!cancellationToken.isCancellationRequested()
                                     && (done % updateThreshold == 0 || done == totalTestCases)) {
-                                int progress = 15 + (int) ((double) done / totalTestCases * 85);
+                                int progress = Math.min(99, 15 + (int) ((double) done / totalTestCases * 85));
                                 safeSendMessage(topic, new JudgeProgress("RUNNING", String.format("已完成 %d / %d", done, totalTestCases), progress));
                             }
                         }
