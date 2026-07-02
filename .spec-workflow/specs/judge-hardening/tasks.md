@@ -120,7 +120,7 @@
     - Blocking failure: 不能用“前端不展示”替代“后端不传输大 payload”。
     - Evidence: 测试应断言样本集合大小和最终序列化 JSON 大小上限。
 
-- [ ] 6. 将 case 执行改为分批调度
+- [x] 6. 将 case 执行改为分批调度
   - Create: `src/main/java/com/example/demo/service/CaseBatchRunner.java`
   - Create: `src/main/java/com/example/demo/service/CancellationToken.java`
   - Modify: `src/main/java/com/example/demo/service/JudgeService.java`

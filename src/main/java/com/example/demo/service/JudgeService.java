@@ -35,17 +35,12 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -66,6 +61,7 @@ public class JudgeService {
     private final SandboxConfiguration sandboxConfiguration;
     private final TaskPolicyResolver taskPolicyResolver;
     private final TaskStore taskStore;
+    private final CaseBatchRunner caseBatchRunner;
     private final Map<String, Path> judgeIdToTempDir = new ConcurrentHashMap<>();
     private final Map<String, PendingJudgeTask> pendingJudgeTasks = new ConcurrentHashMap<>();
     private final Map<String, JudgeProgress> judgeStatusMap = new ConcurrentHashMap<>();
@@ -322,28 +318,29 @@ public class JudgeService {
                         executionProperties.getMaxFailureSamples(),
                         executionProperties.getMaxSlowSamples()
                 );
-                List<CompletableFuture<Void>> futures = new ArrayList<>();
-
-                for (int i = 1; i <= totalTestCases; i++) {
-                    final int caseNum = i;
-                    Path finalTempDir = tempDir;
-
-                    CompletableFuture<Void> future = CompletableFuture.supplyAsync(() ->
-                            runTestCase(caseNum, request, policy, finalTempDir, genExecutable, userExecutable, judgeExecutable), testCaseExecutor
-                    ).thenAccept(result -> {
-                        resultAggregator.accept(result);
-                        int done = completedCases.incrementAndGet();
-                        if (done % updateThreshold == 0 || done == totalTestCases) {
-                            int progress = 15 + (int) ((double) done / totalTestCases * 85);
-                            safeSendMessage(topic, new JudgeProgress("RUNNING", String.format("已完成 %d / %d", done, totalTestCases), progress));
+                CancellationToken cancellationToken = new CancellationToken();
+                Path finalTempDir = tempDir;
+                CaseBatchRunner.RunOutcome runOutcome = caseBatchRunner.run(
+                        totalTestCases,
+                        policy,
+                        cancellationToken,
+                        caseNumber -> runTestCase(caseNumber, request, policy, finalTempDir, genExecutable, userExecutable, judgeExecutable),
+                        result -> {
+                            resultAggregator.accept(result);
+                            int done = completedCases.incrementAndGet();
+                            if (done % updateThreshold == 0 || done == totalTestCases) {
+                                int progress = 15 + (int) ((double) done / totalTestCases * 85);
+                                safeSendMessage(topic, new JudgeProgress("RUNNING", String.format("已完成 %d / %d", done, totalTestCases), progress));
+                            }
                         }
-                    });
-                    futures.add(future);
+                );
+
+                if (runOutcome.isCancelled()) {
+                    int progress = 15 + (int) ((double) runOutcome.getCompletedCases() / totalTestCases * 85);
+                    safeSendMessage(topic, new JudgeProgress("CANCELLED", "任务已取消", progress, null, resultAggregator.toSummary()));
+                } else {
+                    safeSendMessage(topic, resultAggregator.toFinalProgress());
                 }
-
-                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-
-                safeSendMessage(topic, resultAggregator.toFinalProgress());
                 
                 // 判题完成后清理资源
                 cleanupJudgeTask(judgeId);
