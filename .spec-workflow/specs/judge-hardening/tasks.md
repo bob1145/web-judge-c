@@ -164,7 +164,7 @@
     - Blocking failure: 队列满不能退化成 CallerRunsPolicy 在请求线程里执行大任务。
     - Evidence: 测试记录 running count 峰值、queue size 峰值、取消后的 completed count。
 
-- [ ] 8. 统一进程执行和输出限制
+- [x] 8. 统一进程执行和输出限制
   - Create: `src/main/java/com/example/demo/service/ProcessRunner.java`
   - Create: `src/main/java/com/example/demo/service/DirectProcessRunner.java`
   - Create: `src/main/java/com/example/demo/service/SandboxProcessRunner.java`
@@ -188,7 +188,7 @@
     - Blocking failure: 子进程清理失败不能吞掉，必须进入日志和 result error。
     - Evidence: 测试应能在 Windows 环境稳定运行；Linux sandbox 专项可用 profile 条件跳过，但跳过原因必须明确。
 
-- [ ] 9. 加固详情和下载接口
+- [x] 9. 加固详情和下载接口
   - Modify: `src/main/java/com/example/demo/controller/JudgeController.java`
   - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
   - Create: `src/main/java/com/example/demo/service/JudgeFileService.java`
@@ -209,7 +209,7 @@
     - Blocking failure: zip entry name 不能包含路径穿越片段。
     - Evidence: 测试创建 storage base 外的 canary 文件，确认攻击请求无法读到。
 
-- [ ] 10. 改造 WebSocket 进度推送
+- [x] 10. 改造 WebSocket 进度推送
   - Create: `src/main/java/com/example/demo/service/ProgressPublisher.java`
   - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
   - Modify: `src/main/java/com/example/demo/dto/JudgeProgress.java`

@@ -3,38 +3,24 @@ package com.example.demo.service;
 import com.example.demo.config.AsyncConfig;
 import com.example.demo.config.ExecutionProperties;
 import com.example.demo.config.MemoryConfiguration;
-import com.example.demo.config.SandboxConfiguration;
 import com.example.demo.dto.CancelJudgeResponse;
 import com.example.demo.dto.JudgeCreateResponse;
 import com.example.demo.dto.JudgeProgress;
 import com.example.demo.dto.JudgeRequest;
 import com.example.demo.dto.JudgeSummary;
-import com.example.demo.dto.TestCaseDetail;
 import com.example.demo.dto.TestCaseResult;
-import com.example.demo.exception.MemoryLimitExceededException;
-import com.example.demo.exception.SecurityViolationException;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.Resource;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
-import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileAttribute;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -44,22 +30,16 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
-import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class JudgeService {
 
-    private final SimpMessagingTemplate messagingTemplate;
-    private final MemoryMonitorService memoryMonitorService;
     private final MemoryConfiguration memoryConfiguration;
     private final ExecutionProperties executionProperties;
-    private final SandboxService sandboxService;
-    private final SandboxConfiguration sandboxConfiguration;
+    private final SandboxProcessRunner processRunner;
+    private final ProgressPublisher progressPublisher;
     private final TaskPolicyResolver taskPolicyResolver;
     private final TaskStore taskStore;
     private final CaseBatchRunner caseBatchRunner;
@@ -67,7 +47,6 @@ public class JudgeService {
     private final Map<String, Path> judgeIdToTempDir = new ConcurrentHashMap<>();
     private final Map<String, PendingJudgeTask> pendingJudgeTasks = new ConcurrentHashMap<>();
     private final Map<String, JudgeProgress> judgeStatusMap = new ConcurrentHashMap<>();
-    private final Map<String, Boolean> activeWebSocketSessions = new ConcurrentHashMap<>();
     
     @Qualifier(AsyncConfig.TEST_CASE_EXECUTOR)
     private final ThreadPoolTaskExecutor testCaseExecutor;
@@ -76,37 +55,14 @@ public class JudgeService {
      * 标记WebSocket会话为活跃状态
      */
     public void markSessionActive(String judgeId) {
-        activeWebSocketSessions.put(judgeId, true);
         log.debug("WebSocket会话激活: {}", judgeId);
-    }
-
-    private void persistProgress(String judgeId, JudgeProgress progress) {
-        try {
-            Optional<JudgeStatus> status = JudgeStatus.fromProgressStatus(progress.getStatus());
-            if (status.isPresent()) {
-                taskStore.updateStatus(judgeId, status.get(), progress.getMessage());
-            }
-            taskStore.saveSummary(judgeId, progress);
-        } catch (IllegalStateException e) {
-            log.warn("Ignoring invalid persisted status transition for judgeId={}: {}", judgeId, e.getMessage());
-        } catch (Exception e) {
-            log.warn("Failed to persist judge progress for judgeId={}: {}", judgeId, e.getMessage());
-        }
     }
 
     /**
      * 标记WebSocket会话为非活跃状态
      */
     public void markSessionInactive(String judgeId) {
-        activeWebSocketSessions.put(judgeId, false);
         log.debug("WebSocket会话停用: {}", judgeId);
-    }
-    
-    /**
-     * 检查WebSocket会话是否活跃
-     */
-    private boolean isSessionActive(String judgeId) {
-        return activeWebSocketSessions.getOrDefault(judgeId, false);
     }
     
     /**
@@ -114,33 +70,9 @@ public class JudgeService {
      * 同时保存状态用于轮询
      */
     private void safeSendMessage(String topic, JudgeProgress progress) {
-        // 提取judgeId用于状态保存
         String judgeId = topic.substring(topic.lastIndexOf('/') + 1);
-        judgeStatusMap.put(judgeId, progress);
-        persistProgress(judgeId, progress);
-        
-        // 检查会话是否仍然活跃
-        if (!isSessionActive(judgeId)) {
-            log.debug("WebSocket会话已关闭，跳过消息发送: {}", topic);
-            return;
-        }
-        
-        try {
-            messagingTemplate.convertAndSend(topic, progress);
-        } catch (IllegalStateException e) {
-            // 会话已关闭 - 这是最常见的情况
-            log.debug("WebSocket会话已关闭，标记为非活跃: {} - {}", topic, e.getMessage());
-            markSessionInactive(judgeId);
-        } catch (org.springframework.messaging.MessageDeliveryException e) {
-            // 消息传递失败
-            log.debug("WebSocket消息传递失败，标记为非活跃: {} - {}", topic, e.getMessage());
-            markSessionInactive(judgeId);
-        } catch (Exception e) {
-            // 记录其他异常但不中断执行
-            log.warn("发送WebSocket消息失败: {} - {}: {}", topic, e.getClass().getSimpleName(), e.getMessage());
-            // 对于其他异常，也标记会话为非活跃，避免继续发送
-            markSessionInactive(judgeId);
-        }
+        JudgeProgress published = progressPublisher.publish(judgeId, progress);
+        judgeStatusMap.put(judgeId, published);
     }
 
     private void safeSendStoppedMessage(
@@ -160,7 +92,7 @@ public class JudgeService {
         } else {
             safeSendMessage(topic, new JudgeProgress(
                     "CANCELLED",
-                    "任务已取消",
+                    "Task cancelled",
                     progress,
                     null,
                     summary
@@ -241,7 +173,6 @@ public class JudgeService {
             // 延迟清理状态信息（给客户端更多时间获取最终状态）
             CompletableFuture.delayedExecutor(60, TimeUnit.MINUTES).execute(() -> {
                 judgeStatusMap.remove(judgeId);
-                activeWebSocketSessions.remove(judgeId);
                 log.debug("延迟清理状态信息: {}", judgeId);
             });
             
@@ -249,15 +180,6 @@ public class JudgeService {
             log.error("清理判题任务失败: {} - {}", judgeId, e.getMessage());
         }
     }
-
-    private enum RunStatus {
-        SUCCESS,
-        TIME_LIMIT_EXCEEDED,
-        MEMORY_LIMIT_EXCEEDED,
-        RUNTIME_ERROR
-    }
-
-    private record ProcessResult(RunStatus status, String output, String error, long executionTime, long memoryUsed) {}
 
     private record PendingJudgeTask(JudgeRequest request, ResolvedTaskPolicy policy) {}
 
@@ -346,8 +268,8 @@ public class JudgeService {
                 Path userSource = tempDir.resolve("user.cpp");
                 Files.writeString(userSource, request.getUserCode());
 
-                CompletableFuture<Path> genFuture = CompletableFuture.supplyAsync(() -> compile(genSource, "generator"), testCaseExecutor);
-                CompletableFuture<Path> userFuture = CompletableFuture.supplyAsync(() -> compile(userSource, "user"), testCaseExecutor);
+                CompletableFuture<Path> genFuture = CompletableFuture.supplyAsync(() -> compile(genSource, "generator", policy), testCaseExecutor);
+                CompletableFuture<Path> userFuture = CompletableFuture.supplyAsync(() -> compile(userSource, "user", policy), testCaseExecutor);
 
                 // 根据是否启用Special Judge决定编译内容
                 CompletableFuture<Path> judgeExecutableFuture;
@@ -355,12 +277,12 @@ public class JudgeService {
                     // 编译Special Judge代码
                     Path spjSource = tempDir.resolve("special_judge.cpp");
                     Files.writeString(spjSource, request.getSpecialJudgeCode());
-                    judgeExecutableFuture = CompletableFuture.supplyAsync(() -> compile(spjSource, "special_judge"), testCaseExecutor);
+                    judgeExecutableFuture = CompletableFuture.supplyAsync(() -> compile(spjSource, "special_judge", policy), testCaseExecutor);
                 } else {
                     // 编译Brute Force代码
                     Path bfSource = tempDir.resolve("bruteforce.cpp");
                     Files.writeString(bfSource, request.getBruteForceCode());
-                    judgeExecutableFuture = CompletableFuture.supplyAsync(() -> compile(bfSource, "bruteforce"), testCaseExecutor);
+                    judgeExecutableFuture = CompletableFuture.supplyAsync(() -> compile(bfSource, "bruteforce", policy), testCaseExecutor);
                 }
 
                 CompletableFuture.allOf(genFuture, userFuture, judgeExecutableFuture).join();
@@ -413,7 +335,7 @@ public class JudgeService {
                     JudgeSummary summary = resultAggregator.toSummary();
                     summary.setStoppedReason("Cancellation requested");
                     int progress = 15 + (int) ((double) runOutcome.getCompletedCases() / totalTestCases * 85);
-                    safeSendMessage(topic, new JudgeProgress("CANCELLED", "任务已取消", progress, null, summary));
+                    safeSendMessage(topic, new JudgeProgress("CANCELLED", "Task cancelled", progress, null, summary));
                 } else {
                     safeSendMessage(topic, resultAggregator.toFinalProgress());
                 }
@@ -449,19 +371,20 @@ public class JudgeService {
             Path inputFile = tempDir.resolve(caseNumber + ".in");
             Path userOutputFile = tempDir.resolve(caseNumber + ".out");
 
-            ProcessResult genResult = runProcess(genExecutable, null, inputFile, 5000, memoryConfiguration.getDefaultLimit());
-            if (genResult.status() != RunStatus.SUCCESS) {
+            ProcessResult genResult = runProcess(genExecutable, null, inputFile, 5000, memoryConfiguration.getDefaultLimit(), policy);
+            if (genResult.status() != ProcessResult.Status.SUCCESS) {
                 return new TestCaseResult(caseNumber, "System Error", 0, 0);
             }
 
             // 使用创建任务时解析出的策略快照，避免启动时被新配置覆盖。
             long userMemoryLimit = policy.memoryLimitBytes();
             long caseTimeLimit = policy.caseTimeLimit().toMillis();
-            ProcessResult userResult = runProcess(userExecutable, inputFile, userOutputFile, caseTimeLimit, userMemoryLimit);
-            if (userResult.status() != RunStatus.SUCCESS) {
+            ProcessResult userResult = runProcess(userExecutable, inputFile, userOutputFile, caseTimeLimit, userMemoryLimit, policy);
+            if (userResult.status() != ProcessResult.Status.SUCCESS) {
                 String statusStr = switch (userResult.status()) {
                     case TIME_LIMIT_EXCEEDED -> "TLE";
                     case MEMORY_LIMIT_EXCEEDED -> "MLE";
+                    case OUTPUT_LIMIT_EXCEEDED -> "OUTPUT_LIMIT_EXCEEDED";
                     case RUNTIME_ERROR -> "RE";
                     default -> "System Error";
                 };
@@ -492,45 +415,40 @@ public class JudgeService {
         // SPJ程序应该返回退出码：0表示AC，非0表示WA或其他错误
         
         long spjTimeLimit = policy.caseTimeLimit().toMillis() * 2;
-        ProcessResult spjResult = runProcess(spjExecutable, null, null, spjTimeLimit, memoryConfiguration.getDefaultLimit());
-        
         // 为SPJ创建参数文件，传递必要信息
         Path spjArgsFile = tempDir.resolve(caseNumber + ".spj_args");
         String args = String.format("%s\n%s\n", inputFile.toAbsolutePath(), userOutputFile.toAbsolutePath());
         Files.writeString(spjArgsFile, args);
         
         // 重新运行SPJ，这次传递参数文件
-        ProcessBuilder spjBuilder = new ProcessBuilder(spjExecutable.toAbsolutePath().toString());
-        spjBuilder.directory(tempDir.toFile());
-        spjBuilder.redirectInput(spjArgsFile.toFile());
-        
-        File spjErrorFile = Files.createTempFile(tempDir, "spj_error_", ".log").toFile();
-        spjBuilder.redirectError(spjErrorFile);
-        
-        long startTime = System.currentTimeMillis();
-        Process spjProcess = spjBuilder.start();
-        
-        boolean finished = spjProcess.waitFor(spjTimeLimit, TimeUnit.MILLISECONDS);
-        long spjExecutionTime = System.currentTimeMillis() - startTime;
-        
-        if (!finished) {
-            spjProcess.destroyForcibly();
-            spjProcess.waitFor(5, TimeUnit.SECONDS);
+        ProcessResult spjResult = runProcess(
+                spjExecutable,
+                spjArgsFile,
+                null,
+                spjTimeLimit,
+                memoryConfiguration.getDefaultLimit(),
+                policy
+        );
+        Files.deleteIfExists(spjArgsFile);
+
+        if (spjResult.status() == ProcessResult.Status.TIME_LIMIT_EXCEEDED
+                || spjResult.status() == ProcessResult.Status.MEMORY_LIMIT_EXCEEDED
+                || spjResult.status() == ProcessResult.Status.OUTPUT_LIMIT_EXCEEDED
+                || spjResult.status() == ProcessResult.Status.SECURITY_VIOLATION
+                || spjResult.status() == ProcessResult.Status.SANDBOX_UNAVAILABLE) {
             return new TestCaseResult(caseNumber, "System Error", userResult.executionTime(), userResult.memoryUsed() / 1024);
         }
-        
-        int spjExitCode = spjProcess.exitValue();
-        String spjError = Files.readString(spjErrorFile.toPath());
-        Files.delete(spjErrorFile.toPath());
-        Files.delete(spjArgsFile);
+
+        int spjExitCode = spjResult.exitCode();
+        long spjExecutionTime = spjResult.executionTime();
         
         log.debug("SPJ执行结果: exitCode={}, executionTime={}ms", spjExitCode, spjExecutionTime);
         
-        if (spjExitCode == 0) {
+        if (spjResult.exitCode() == 0) {
             return new TestCaseResult(caseNumber, "AC", userResult.executionTime(), userResult.memoryUsed() / 1024);
         } else {
             // 根据SPJ的退出码决定结果，通常非0表示WA
-            String status = switch (spjExitCode) {
+            String status = switch (spjResult.exitCode()) {
                 case 1 -> "WA";  // Wrong Answer
                 case 2 -> "PE";  // Presentation Error
                 default -> "WA"; // 默认为Wrong Answer
@@ -546,134 +464,19 @@ public class JudgeService {
                                             Path inputFile, Path userOutputFile, ProcessResult userResult) throws IOException, InterruptedException {
         Path bfOutputFile = tempDir.resolve(caseNumber + ".ans");
         
-        ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, policy.caseTimeLimit().toMillis() * 5, memoryConfiguration.getDefaultLimit() * 2);
-        if (bfResult.status() != RunStatus.SUCCESS) {
+        ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, policy.caseTimeLimit().toMillis() * 5, memoryConfiguration.getDefaultLimit() * 2, policy);
+        if (bfResult.status() != ProcessResult.Status.SUCCESS) {
             return new TestCaseResult(caseNumber, "System Error", 0, 0);
         }
 
-        String userOutput = Files.readString(userOutputFile);
-        String bfOutput = Files.readString(bfOutputFile);
+        String userOutput = readUtf8FileLimited(userOutputFile, policy.maxOutputBytesPerCase());
+        String bfOutput = readUtf8FileLimited(bfOutputFile, policy.maxOutputBytesPerCase());
 
         if (outputsMatch(userOutput, bfOutput, request.getPrecision())) {
             return new TestCaseResult(caseNumber, "AC", userResult.executionTime(), userResult.memoryUsed() / 1024);
         } else {
             return new TestCaseResult(caseNumber, "WA", userResult.executionTime(), userResult.memoryUsed() / 1024);
         }
-    }
-    
-    public TestCaseDetail getTestCaseDetails(String judgeId, int caseNumber) throws IOException {
-        Path tempDir = resolveExistingTaskWorkDir(judgeId);
-        if (tempDir == null) {
-            log.warn("获取测试点详情失败 - judgeId不存在或已过期: {}", judgeId);
-            throw new IOException("Judge ID not found or session has expired: " + judgeId);
-        }
-
-        if (!Files.exists(tempDir)) {
-            log.warn("获取测试点详情失败 - 临时目录不存在: {}", tempDir);
-            throw new IOException("Temporary directory no longer exists: " + tempDir);
-        }
-
-        Path inputFile = tempDir.resolve(caseNumber + ".in");
-        Path userOutputFile = tempDir.resolve(caseNumber + ".out");
-        Path correctOutputFile = tempDir.resolve(caseNumber + ".ans");
-
-        log.debug("获取测试点详情: judgeId={}, caseNumber={}, tempDir={}", judgeId, caseNumber, tempDir);
-
-        String input = Files.exists(inputFile) ? Files.readString(inputFile) : "Input data not found.";
-        String userOutput = Files.exists(userOutputFile) ? Files.readString(userOutputFile) : "User output not found.";
-        String correctOutput = Files.exists(correctOutputFile) ? Files.readString(correctOutputFile) : "Correct output not found.";
-
-        return new TestCaseDetail(input, userOutput, correctOutput);
-    }
-
-    public File getTestCaseInputFile(String judgeId, int caseNumber) throws IOException {
-        Path tempDir = resolveExistingTaskWorkDir(judgeId);
-        if (tempDir == null) {
-            throw new IOException("Judge ID not found or session has expired.");
-        }
-        Path inputFile = tempDir.resolve(caseNumber + ".in");
-        if (!Files.exists(inputFile)) {
-            throw new IOException("Input file not found for test case " + caseNumber);
-        }
-        return inputFile.toFile();
-    }
-
-    public Resource getAllTestCasesArchive(String judgeId) throws IOException {
-        Path tempDir = resolveExistingTaskWorkDir(judgeId);
-        if (tempDir == null || !Files.exists(tempDir)) {
-            throw new IOException("Judge ID not found or session has expired.");
-        }
-
-        List<Path> inputFiles;
-        try (Stream<Path> stream = Files.list(tempDir)) {
-            inputFiles = stream
-                    .filter(path -> path.getFileName().toString().endsWith(".in"))
-                    .sorted(this::compareByCaseNumber)
-                    .collect(Collectors.toList());
-        }
-
-        if (inputFiles.isEmpty()) {
-            throw new IOException("No test case inputs available.");
-        }
-
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        try (ZipOutputStream zipStream = new ZipOutputStream(buffer)) {
-            for (Path inputFile : inputFiles) {
-                String baseName = stripExtension(inputFile.getFileName().toString(), ".in");
-                addFileToZip(zipStream, inputFile, baseName + ".in");
-
-                Path answerFile = tempDir.resolve(baseName + ".ans");
-                if (!Files.exists(answerFile)) {
-                    answerFile = tempDir.resolve(baseName + ".out");
-                }
-                if (Files.exists(answerFile)) {
-                    addFileToZip(zipStream, answerFile, baseName + ".out");
-                }
-            }
-        }
-
-        byte[] archiveBytes = buffer.toByteArray();
-        if (archiveBytes.length == 0) {
-            throw new IOException("Failed to create archive for judgeId " + judgeId);
-        }
-
-        return new ByteArrayResource(archiveBytes) {
-            @Override
-            public String getFilename() {
-                return "testcases-" + judgeId + ".zip";
-            }
-        };
-    }
-
-    private void addFileToZip(ZipOutputStream zipStream, Path file, String entryName) throws IOException {
-        ZipEntry entry = new ZipEntry(entryName);
-        zipStream.putNextEntry(entry);
-        try (InputStream inputStream = Files.newInputStream(file)) {
-            inputStream.transferTo(zipStream);
-        }
-        zipStream.closeEntry();
-    }
-
-    private int compareByCaseNumber(Path first, Path second) {
-        return Integer.compare(parseCaseNumber(first), parseCaseNumber(second));
-    }
-
-    private int parseCaseNumber(Path file) {
-        String name = file.getFileName().toString();
-        int dotIndex = name.indexOf('.');
-        String numberPart = dotIndex >= 0 ? name.substring(0, dotIndex) : name;
-        try {
-            return Integer.parseInt(numberPart);
-        } catch (NumberFormatException ex) {
-            return Integer.MAX_VALUE;
-        }
-    }
-
-    private String stripExtension(String filename, String extension) {
-        if (filename.endsWith(extension)) {
-            return filename.substring(0, filename.length() - extension.length());
-        }
-        return filename;
     }
 
     private Path resolveTaskWorkDir(String judgeId) throws IOException {
@@ -682,20 +485,6 @@ public class JudgeService {
             return Path.of(task.get().getWorkDir()).toAbsolutePath().normalize();
         }
         return taskStore.taskDirectory(judgeId);
-    }
-
-    private Path resolveExistingTaskWorkDir(String judgeId) throws IOException {
-        Path tempDir = judgeIdToTempDir.get(judgeId);
-        if (tempDir != null) {
-            return tempDir;
-        }
-        Optional<JudgeTask> task = taskStore.find(judgeId);
-        if (task.isEmpty()) {
-            return null;
-        }
-        Path workDir = Path.of(task.get().getWorkDir()).toAbsolutePath().normalize();
-        judgeIdToTempDir.put(judgeId, workDir);
-        return workDir;
     }
 
     private boolean outputsMatch(String userOutput, String bfOutput, double precision) {
@@ -720,191 +509,78 @@ public class JudgeService {
         return true;
     }
 
-    private Path compile(Path sourceFile, String executableName) {
-        System.out.println("Compiling " + sourceFile.toString());
+    private Path compile(Path sourceFile, String executableName, ResolvedTaskPolicy policy) {
         Path executablePath = sourceFile.getParent().resolve(executableName);
-        
-        ProcessBuilder processBuilder = new ProcessBuilder(
-                "g++",
-                sourceFile.toAbsolutePath().toString(),
-                "-o",
-                executablePath.toAbsolutePath().toString(),
-                "-O2",
-                "-std=c++14"
-        );
+        ProcessRunner.Request request = ProcessRunner.Request.builder()
+                .command(List.of(
+                        "g++",
+                        sourceFile.toAbsolutePath().toString(),
+                        "-o",
+                        executablePath.toAbsolutePath().toString(),
+                        "-O2",
+                        "-std=c++14"
+                ))
+                .workingDirectory(sourceFile.getParent())
+                .timeout(java.time.Duration.ofSeconds(60))
+                .killGrace(java.time.Duration.ofSeconds(5))
+                .memoryLimitBytes(memoryConfiguration.getDefaultLimit())
+                .maxOutputBytes(executionProperties.getMaxOutputBytesPerCase())
+                .maxErrorBytes(executionProperties.getMaxOutputBytesPerCase())
+                .profile(policy.profile())
+                .requireSandbox(policy.sandboxRequired())
+                .build();
 
-        processBuilder.directory(sourceFile.getParent().toFile());
-
-        File compileErrorFile = null;
         try {
-            compileErrorFile = Files.createTempFile(sourceFile.getParent(), "compile_error_", ".log").toFile();
-            processBuilder.redirectError(compileErrorFile);
-
-            Process process = processBuilder.start();
-
-            if (!process.waitFor(60, TimeUnit.SECONDS)) {
-                process.destroyForcibly();
+            ProcessResult result = processRunner.run(request);
+            if (result.status() == ProcessResult.Status.SUCCESS) {
+                return executablePath;
+            }
+            if (result.status() == ProcessResult.Status.TIME_LIMIT_EXCEEDED) {
                 throw new CompilationException("Compilation timed out for " + sourceFile.getFileName());
             }
-    
-            int exitCode = process.exitValue();
-    
-            if (exitCode != 0) {
-                String errorOutput = Files.readString(compileErrorFile.toPath());
-                throw new CompilationException("Compilation failed for " + sourceFile.getFileName() + " with exit code " + exitCode + ":\n" + errorOutput);
-            }
-
+            throw new CompilationException("Compilation failed for " + sourceFile.getFileName()
+                    + " with status " + result.status()
+                    + " and exit code " + result.exitCode()
+                    + ":\n" + result.error());
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
             throw new RuntimeException("System error during compilation for " + sourceFile.getFileName(), e);
-        } finally {
-            if (compileErrorFile != null) {
-                try {
-                    Files.deleteIfExists(compileErrorFile.toPath());
-                } catch (IOException e) {
-                    System.err.println("Failed to delete temporary compile error file: " + compileErrorFile.getAbsolutePath());
-                }
-            }
-        }
-        
-        System.out.println("Compilation successful for " + sourceFile.getFileName());
-        return executablePath;
-    }
-
-    private ProcessResult runProcess(Path executable, Path inputFile, Path outputFile, long timeLimit, long memoryLimit) throws IOException, InterruptedException {
-        // 检查文件系统访问权限
-        try {
-            sandboxService.checkFileSystemAccess(executable.getParent());
-            if (inputFile != null) {
-                sandboxService.checkFileSystemAccess(inputFile);
-            }
-            if (outputFile != null) {
-                sandboxService.checkFileSystemAccess(outputFile.getParent());
-            }
-        } catch (SecurityViolationException e) {
-            return new ProcessResult(RunStatus.RUNTIME_ERROR, null, "Security violation: " + e.getMessage(), 0, 0);
-        }
-
-        if (sandboxConfiguration.isEnabled()) {
-            // 使用沙箱执行
-            return runProcessInSandbox(executable, inputFile, outputFile, timeLimit, memoryLimit);
-        } else {
-            // 直接执行（保持原有逻辑作为备选）
-            return runProcessDirectly(executable, inputFile, outputFile, timeLimit, memoryLimit);
         }
     }
-    
-    private ProcessResult runProcessInSandbox(Path executable, Path inputFile, Path outputFile, long timeLimit, long memoryLimit) throws IOException, InterruptedException {
-        String[] command = { executable.toAbsolutePath().toString() };
-        
-        try {
-            SandboxService.SandboxResult result = sandboxService.executeInSandbox(
-                command, 
-                executable.getParent(), 
-                inputFile, 
-                outputFile, 
-                timeLimit, 
-                memoryLimit
-            );
-            
-            System.out.println("沙箱执行结果: exitCode=" + result.exitCode() + 
-                             ", securityViolation=" + result.securityViolation() + 
-                             ", executionTime=" + result.executionTime());
-            
-            if (result.securityViolation()) {
-                System.err.println("安全违规: " + result.violationReason());
-                return new ProcessResult(RunStatus.RUNTIME_ERROR, null, "Security violation: " + result.violationReason(), result.executionTime(), 0);
-            }
-            
-            if (result.exitCode() != 0) {
-                System.err.println("进程退出码非零: " + result.exitCode() + ", 错误信息: " + result.error());
-                return new ProcessResult(RunStatus.RUNTIME_ERROR, null, result.error(), result.executionTime(), 0);
-            }
-            
-            return new ProcessResult(RunStatus.SUCCESS, result.output(), null, result.executionTime(), 0);
-        } catch (Exception e) {
-            System.err.println("沙箱执行异常: " + e.getMessage());
-            e.printStackTrace();
-            return new ProcessResult(RunStatus.RUNTIME_ERROR, null, "Sandbox execution failed: " + e.getMessage(), 0, 0);
-        }
+
+    private ProcessResult runProcess(
+            Path executable,
+            Path inputFile,
+            Path outputFile,
+            long timeLimit,
+            long memoryLimit,
+            ResolvedTaskPolicy policy
+    ) throws IOException, InterruptedException {
+        ProcessRunner.Request request = ProcessRunner.Request.builder()
+                .command(List.of(executable.toAbsolutePath().toString()))
+                .workingDirectory(executable.getParent())
+                .inputFile(inputFile)
+                .outputFile(outputFile)
+                .timeout(java.time.Duration.ofMillis(timeLimit))
+                .killGrace(java.time.Duration.ofSeconds(5))
+                .memoryLimitBytes(memoryLimit)
+                .maxOutputBytes(policy.maxOutputBytesPerCase())
+                .maxErrorBytes(policy.maxOutputBytesPerCase())
+                .profile(policy.profile())
+                .requireSandbox(policy.sandboxRequired())
+                .build();
+        return processRunner.run(request);
     }
-    
-    private ProcessResult runProcessDirectly(Path executable, Path inputFile, Path outputFile, long timeLimit, long memoryLimit) throws IOException, InterruptedException {
-        if (log.isDebugEnabled()) {
-            log.debug("直接执行进程: {}", executable.toAbsolutePath());
-            log.debug("输入文件: {}", inputFile != null ? inputFile.toAbsolutePath() : "null");
-            log.debug("输出文件: {}", outputFile != null ? outputFile.toAbsolutePath() : "null");
-            log.debug("时间限制: {}ms, 内存限制: {} bytes", timeLimit, memoryLimit);
+
+    private String readUtf8FileLimited(Path file, long maxBytes) throws IOException {
+        if (!Files.exists(file)) {
+            return "";
         }
-        
-        ProcessBuilder processBuilder = new ProcessBuilder(executable.toAbsolutePath().toString());
-        processBuilder.directory(executable.getParent().toFile());
-
-        if (inputFile != null) {
-            processBuilder.redirectInput(inputFile.toFile());
+        if (Files.size(file) > maxBytes) {
+            throw new IOException("File exceeds configured output byte limit");
         }
-        if (outputFile != null) {
-            processBuilder.redirectOutput(outputFile.toFile());
-        }
-
-        File errorFile = Files.createTempFile(executable.getParent(), "error_", ".log").toFile();
-        processBuilder.redirectError(errorFile);
-
-        long startTime = System.currentTimeMillis();
-        Process process = processBuilder.start();
-        
-        // 启动内存监控
-        CompletableFuture<MemoryMonitorService.MemoryUsage> memoryFuture = 
-            memoryMonitorService.monitorProcess(process, memoryLimit);
-        
-        boolean finished = process.waitFor(timeLimit, TimeUnit.MILLISECONDS);
-        long executionTime = System.currentTimeMillis() - startTime;
-        
-        log.debug("进程执行完成: finished={}, executionTime={}ms", finished, executionTime);
-
-        // 获取内存使用情况
-        long memoryUsed = 0;
-        try {
-            if (memoryFuture.isDone()) {
-                MemoryMonitorService.MemoryUsage memoryUsage = memoryFuture.get();
-                memoryUsed = memoryUsage.peakMemory();
-                log.debug("内存使用情况: {} bytes", memoryUsed);
-            }
-        } catch (Exception e) {
-            if (e.getCause() instanceof MemoryLimitExceededException) {
-                // 进程因内存超限被终止
-                String errorOutput = Files.readString(errorFile.toPath());
-                Files.delete(errorFile.toPath());
-                MemoryLimitExceededException mle = (MemoryLimitExceededException) e.getCause();
-                log.warn("内存超限: {}", mle.getMessage());
-                return new ProcessResult(RunStatus.MEMORY_LIMIT_EXCEEDED, null, "Memory limit exceeded: " + mle.getMessage(), executionTime, mle.getCurrentUsage());
-            }
-        }
-
-        if (!finished) {
-            process.destroyForcibly();
-            if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                 return new ProcessResult(RunStatus.TIME_LIMIT_EXCEEDED, null, "Process timed out and could not be terminated.", executionTime, memoryUsed);
-            }
-            return new ProcessResult(RunStatus.TIME_LIMIT_EXCEEDED, null, "Process exceeded time limit of " + timeLimit + "ms", executionTime, memoryUsed);
-        }
-
-        int exitCode = process.exitValue();
-        String errorOutput = Files.readString(errorFile.toPath());
-        Files.delete(errorFile.toPath());
-        
-        log.debug("进程退出码: {}", exitCode);
-        if (!errorOutput.trim().isEmpty()) {
-            log.debug("错误输出: {}", errorOutput);
-        }
-
-        if (exitCode != 0) {
-            return new ProcessResult(RunStatus.RUNTIME_ERROR, null, errorOutput, executionTime, memoryUsed);
-        }
-
-        String output = outputFile != null && Files.exists(outputFile) ? Files.readString(outputFile) : "";
-        return new ProcessResult(RunStatus.SUCCESS, output, null, executionTime, memoryUsed);
+        return Files.readString(file);
     }
-} 
+}

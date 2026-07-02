@@ -75,6 +75,11 @@ public class SandboxService {
         // Linux系统下的沙箱执行
         return executeLinuxSandbox(command, workingDir, inputFile, outputFile, timeLimit, memoryLimit);
     }
+
+    public boolean isSandboxAvailable() {
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("windows");
+        return sandboxConfig.isEnabled() && !isWindows && isFirejailAvailable();
+    }
     
     /**
      * Linux系统下的沙箱执行

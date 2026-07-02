@@ -4,10 +4,10 @@ import com.example.demo.dto.JudgeCreateResponse;
 import com.example.demo.dto.JudgeRequest;
 import com.example.demo.dto.CancelJudgeResponse;
 import com.example.demo.dto.TestCaseDetail;
+import com.example.demo.service.JudgeFileService;
 import com.example.demo.service.JudgeScheduler;
 import com.example.demo.service.JudgeService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.InvalidMediaTypeException;
@@ -20,8 +20,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
@@ -31,6 +31,7 @@ import java.util.UUID;
 public class JudgeController {
 
     private final JudgeService judgeService;
+    private final JudgeFileService judgeFileService;
 
     @GetMapping("/")
     public String index() {
@@ -115,7 +116,7 @@ public class JudgeController {
             @PathVariable String judgeId,
             @PathVariable int caseNumber) {
         try {
-            TestCaseDetail details = judgeService.getTestCaseDetails(judgeId, caseNumber);
+            TestCaseDetail details = judgeFileService.getTestCaseDetails(judgeId, caseNumber);
             return ResponseEntity.ok(details);
         } catch (IOException e) {
             // 返回详细的错误信息给前端
@@ -131,8 +132,8 @@ public class JudgeController {
             @PathVariable String judgeId,
             @PathVariable int caseNumber) {
         try {
-            File inputFile = judgeService.getTestCaseInputFile(judgeId, caseNumber);
-            Resource resource = new FileSystemResource(inputFile);
+            Resource resource = new org.springframework.core.io.PathResource(
+                    judgeFileService.getTestCaseInputFile(judgeId, caseNumber));
 
             return ResponseEntity.ok()
                     .contentType(MediaType.TEXT_PLAIN)
@@ -144,12 +145,12 @@ public class JudgeController {
     }
 
     @GetMapping("/download/{judgeId}/all")
-    public ResponseEntity<Resource> downloadAllTestCases(@PathVariable String judgeId) {
+    public ResponseEntity<StreamingResponseBody> downloadAllTestCases(@PathVariable String judgeId) {
         try {
-            Resource archive = judgeService.getAllTestCasesArchive(judgeId);
+            StreamingResponseBody archive = judgeFileService.streamAllTestCasesArchive(judgeId);
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType("application/zip"))
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + archive.getFilename() + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + judgeFileService.archiveFilename(judgeId) + "\"")
                     .body(archive);
         } catch (IOException e) {
             return ResponseEntity.notFound().build();

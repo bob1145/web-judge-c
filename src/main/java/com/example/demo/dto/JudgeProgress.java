@@ -34,4 +34,8 @@ public class JudgeProgress {
         this.summary = summary;
     }
 
+    public JudgeProgress withoutResults() {
+        return new JudgeProgress(status, message, progress, null, summary);
+    }
+
 }

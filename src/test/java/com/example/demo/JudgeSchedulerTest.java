@@ -7,6 +7,7 @@ import com.example.demo.dto.JudgeProgress;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
 import com.example.demo.service.FileTaskStore;
+import com.example.demo.service.JudgeFileService;
 import com.example.demo.service.JudgeScheduler;
 import com.example.demo.service.JudgeService;
 import com.example.demo.service.ResolvedTaskPolicy;
@@ -270,7 +271,7 @@ class JudgeSchedulerTest {
         JudgeService judgeService = mock(JudgeService.class);
         when(judgeService.cancelJudgeTask("abc"))
                 .thenReturn(new CancelJudgeResponse("abc", true, "CANCELLED", "Cancellation requested", true, false, 7));
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new JudgeController(judgeService)).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new JudgeController(judgeService, mock(JudgeFileService.class))).build();
 
         mockMvc.perform(post("/judge/cancel/{judgeId}", "abc"))
                 .andExpect(status().isOk())
@@ -286,7 +287,7 @@ class JudgeSchedulerTest {
         JudgeService judgeService = mock(JudgeService.class);
         doThrow(new JudgeScheduler.QueueFullException(3, 3))
                 .when(judgeService).startJudgeTask("full");
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new JudgeController(judgeService)).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new JudgeController(judgeService, mock(JudgeFileService.class))).build();
 
         mockMvc.perform(post("/judge/start/{judgeId}", "full"))
                 .andExpect(status().isTooManyRequests())
