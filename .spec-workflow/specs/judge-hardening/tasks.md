@@ -291,7 +291,7 @@
     - Blocking failure: 不能同时保留旧 delayed cleanup 和新 cleanup 造成重复删除竞态。
     - Evidence: 测试必须使用临时目录和 canary 文件证明不会越界删除。
 
-- [ ] 14. 补齐高容量模式验收测试和本地运行说明
+- [x] 14. 补齐高容量模式验收测试和本地运行说明
   - Create: `src/test/java/com/example/demo/HighVolumeJudgeIntegrationTest.java`
   - Create: `docs/judge-hardening-runbook.md`
   - Modify: `README.md`
