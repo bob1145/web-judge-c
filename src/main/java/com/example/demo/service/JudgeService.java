@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.config.AsyncConfig;
 import com.example.demo.config.ExecutionProperties;
 import com.example.demo.config.MemoryConfiguration;
+import com.example.demo.config.SecurityModeStartupValidator;
 import com.example.demo.dto.CancelJudgeResponse;
 import com.example.demo.dto.JudgeCreateResponse;
 import com.example.demo.dto.JudgeProgress;
@@ -44,6 +45,7 @@ public class JudgeService {
     private final TaskStore taskStore;
     private final CaseBatchRunner caseBatchRunner;
     private final JudgeScheduler judgeScheduler;
+    private final SecurityModeStartupValidator securityModeStartupValidator;
     private final Map<String, Path> judgeIdToTempDir = new ConcurrentHashMap<>();
     private final Map<String, PendingJudgeTask> pendingJudgeTasks = new ConcurrentHashMap<>();
     private final Map<String, JudgeProgress> judgeStatusMap = new ConcurrentHashMap<>();
@@ -193,6 +195,7 @@ public class JudgeService {
      * 创建判题任务但不立即执行，等待WebSocket连接建立
      */
     public JudgeCreateResponse createJudgeTask(JudgeRequest request, String judgeId) {
+        securityModeStartupValidator.assertJudgeCreationAllowed();
         ResolvedTaskPolicy policy = taskPolicyResolver.resolve(request);
         Path workDir = taskStore.taskDirectory(judgeId);
         JudgeTask task = JudgeTask.builder()

@@ -248,7 +248,7 @@
     - Blocking failure: 任何错误消息不得通过 `innerHTML` 注入未转义的后端内容。
     - Evidence: 保存手动验收截图或记录关键 DOM 计数；如无浏览器自动化，必须在 runbook 中写明人工步骤。
 
-- [ ] 12. 加固鉴权、WebSocket Origin 和启动风险提示
+- [x] 12. 加固鉴权、WebSocket Origin 和启动风险提示
   - Modify: `src/main/java/com/example/demo/config/AuthConfiguration.java`
   - Modify: `src/main/java/com/example/demo/config/WebSocketConfig.java`
   - Create: `src/main/java/com/example/demo/config/SecurityModeStartupValidator.java`

@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.SecurityModeStartupValidator;
 import com.example.demo.dto.JudgeCreateResponse;
 import com.example.demo.dto.JudgeRequest;
 import com.example.demo.dto.CancelJudgeResponse;
@@ -45,7 +46,15 @@ public class JudgeController {
             @RequestHeader(value = HttpHeaders.ACCEPT, required = false) String acceptHeader) {
         String judgeId = UUID.randomUUID().toString();
         // 创建判题任务
-        JudgeCreateResponse response = judgeService.createJudgeTask(judgeRequest, judgeId);
+        JudgeCreateResponse response;
+        try {
+            response = judgeService.createJudgeTask(judgeRequest, judgeId);
+        } catch (SecurityModeStartupValidator.PublicJudgeDisabledException e) {
+            return ResponseEntity.status(503).body(Map.of(
+                    "code", "JUDGE_DISABLED",
+                    "message", e.getMessage()
+            ));
+        }
         if (wantsStructuredJson(acceptHeader)) {
             return ResponseEntity.ok()
                     .contentType(MediaType.APPLICATION_JSON)
