@@ -74,7 +74,7 @@
     - Blocking failure: 旧纯字符串响应如果暂时保留，必须有兼容测试；否则前端迁移 task 必须同步处理。
     - Evidence: Controller 测试必须使用 MockMvc 或等价 HTTP 层测试，而不是只测 service。
 
-- [ ] 4. 引入可恢复的任务存储
+- [x] 4. 引入可恢复的任务存储
   - Create: `src/main/java/com/example/demo/model/JudgeTask.java`
   - Create: `src/main/java/com/example/demo/model/JudgeStatus.java`
   - Create: `src/main/java/com/example/demo/service/TaskStore.java`

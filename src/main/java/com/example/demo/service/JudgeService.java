@@ -10,6 +10,8 @@ import com.example.demo.dto.TestCaseDetail;
 import com.example.demo.dto.TestCaseResult;
 import com.example.demo.exception.MemoryLimitExceededException;
 import com.example.demo.exception.SecurityViolationException;
+import com.example.demo.model.JudgeStatus;
+import com.example.demo.model.JudgeTask;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
@@ -31,9 +33,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -61,6 +65,7 @@ public class JudgeService {
     private final SandboxService sandboxService;
     private final SandboxConfiguration sandboxConfiguration;
     private final TaskPolicyResolver taskPolicyResolver;
+    private final TaskStore taskStore;
     private final Map<String, Path> judgeIdToTempDir = new ConcurrentHashMap<>();
     private final Map<String, PendingJudgeTask> pendingJudgeTasks = new ConcurrentHashMap<>();
     private final Map<String, JudgeProgress> judgeStatusMap = new ConcurrentHashMap<>();
@@ -76,7 +81,21 @@ public class JudgeService {
         activeWebSocketSessions.put(judgeId, true);
         log.debug("WebSocket会话激活: {}", judgeId);
     }
-    
+
+    private void persistProgress(String judgeId, JudgeProgress progress) {
+        try {
+            Optional<JudgeStatus> status = JudgeStatus.fromProgressStatus(progress.getStatus());
+            if (status.isPresent()) {
+                taskStore.updateStatus(judgeId, status.get(), progress.getMessage());
+            }
+            taskStore.saveSummary(judgeId, progress);
+        } catch (IllegalStateException e) {
+            log.warn("Ignoring invalid persisted status transition for judgeId={}: {}", judgeId, e.getMessage());
+        } catch (Exception e) {
+            log.warn("Failed to persist judge progress for judgeId={}: {}", judgeId, e.getMessage());
+        }
+    }
+
     /**
      * 标记WebSocket会话为非活跃状态
      */
@@ -100,6 +119,7 @@ public class JudgeService {
         // 提取judgeId用于状态保存
         String judgeId = topic.substring(topic.lastIndexOf('/') + 1);
         judgeStatusMap.put(judgeId, progress);
+        persistProgress(judgeId, progress);
         
         // 检查会话是否仍然活跃
         if (!isSessionActive(judgeId)) {
@@ -131,6 +151,23 @@ public class JudgeService {
     public JudgeProgress getJudgeStatus(String judgeId) {
         JudgeProgress status = judgeStatusMap.get(judgeId);
         if (status == null) {
+            try {
+                Optional<JudgeProgress> summary = taskStore.findSummary(judgeId);
+                if (summary.isPresent()) {
+                    return summary.get();
+                }
+                Optional<JudgeTask> task = taskStore.find(judgeId);
+                if (task.isPresent()) {
+                    JudgeTask judgeTask = task.get();
+                    int progress = judgeTask.getStatus().isTerminal() ? 100 : 0;
+                    String message = judgeTask.getMessage() != null
+                            ? judgeTask.getMessage()
+                            : judgeTask.getStatus().name();
+                    return new JudgeProgress(judgeTask.getStatus().name(), message, progress);
+                }
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Judge status not found: " + judgeId, e);
+            }
             throw new IllegalArgumentException("Judge status not found: " + judgeId);
         }
         return status;
@@ -191,6 +228,21 @@ public class JudgeService {
      */
     public JudgeCreateResponse createJudgeTask(JudgeRequest request, String judgeId) {
         ResolvedTaskPolicy policy = taskPolicyResolver.resolve(request);
+        Path workDir = taskStore.taskDirectory(judgeId);
+        JudgeTask task = JudgeTask.builder()
+                .judgeId(judgeId)
+                .status(JudgeStatus.CREATED)
+                .requestedCases(policy.requestedCases())
+                .mode(policy.profile())
+                .policy(policy)
+                .workDir(workDir.toString())
+                .createdAt(Instant.now())
+                .build();
+        try {
+            taskStore.create(task);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to create judge task", e);
+        }
         pendingJudgeTasks.put(judgeId, new PendingJudgeTask(request, policy));
         return JudgeCreateResponse.created(judgeId, policy);
     }
@@ -199,10 +251,16 @@ public class JudgeService {
      * 启动指定的判题任务
      */
     public void startJudgeTask(String judgeId) {
-        PendingJudgeTask pendingTask = pendingJudgeTasks.remove(judgeId);
+        PendingJudgeTask pendingTask = pendingJudgeTasks.get(judgeId);
         if (pendingTask == null) {
             throw new IllegalArgumentException("Judge task not found: " + judgeId);
         }
+        try {
+            taskStore.updateStatus(judgeId, JudgeStatus.QUEUED, "Judge task queued for execution");
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to update judge task status", e);
+        }
+        pendingJudgeTasks.remove(judgeId);
         // 标记WebSocket会话为活跃
         markSessionActive(judgeId);
         judge(pendingTask.request(), judgeId, pendingTask.policy());
@@ -214,9 +272,8 @@ public class JudgeService {
         String topic = "/topic/progress/" + judgeId;
 
         try {
-            Path baseDir = Path.of(System.getProperty("java.io.tmpdir"), "online-judge");
-            Files.createDirectories(baseDir);
-            tempDir = Files.createDirectory(baseDir.resolve("judge-" + judgeId));
+            tempDir = resolveTaskWorkDir(judgeId);
+            Files.createDirectories(tempDir);
             judgeIdToTempDir.put(judgeId, tempDir);
 
             safeSendMessage(topic, new JudgeProgress("PENDING", "创建临时目录...", 0));
@@ -442,7 +499,7 @@ public class JudgeService {
     }
     
     public TestCaseDetail getTestCaseDetails(String judgeId, int caseNumber) throws IOException {
-        Path tempDir = judgeIdToTempDir.get(judgeId);
+        Path tempDir = resolveExistingTaskWorkDir(judgeId);
         if (tempDir == null) {
             log.warn("获取测试点详情失败 - judgeId不存在或已过期: {}", judgeId);
             throw new IOException("Judge ID not found or session has expired: " + judgeId);
@@ -467,7 +524,7 @@ public class JudgeService {
     }
 
     public File getTestCaseInputFile(String judgeId, int caseNumber) throws IOException {
-        Path tempDir = judgeIdToTempDir.get(judgeId);
+        Path tempDir = resolveExistingTaskWorkDir(judgeId);
         if (tempDir == null) {
             throw new IOException("Judge ID not found or session has expired.");
         }
@@ -479,7 +536,7 @@ public class JudgeService {
     }
 
     public Resource getAllTestCasesArchive(String judgeId) throws IOException {
-        Path tempDir = judgeIdToTempDir.get(judgeId);
+        Path tempDir = resolveExistingTaskWorkDir(judgeId);
         if (tempDir == null || !Files.exists(tempDir)) {
             throw new IOException("Judge ID not found or session has expired.");
         }
@@ -554,6 +611,28 @@ public class JudgeService {
             return filename.substring(0, filename.length() - extension.length());
         }
         return filename;
+    }
+
+    private Path resolveTaskWorkDir(String judgeId) throws IOException {
+        Optional<JudgeTask> task = taskStore.find(judgeId);
+        if (task.isPresent()) {
+            return Path.of(task.get().getWorkDir()).toAbsolutePath().normalize();
+        }
+        return taskStore.taskDirectory(judgeId);
+    }
+
+    private Path resolveExistingTaskWorkDir(String judgeId) throws IOException {
+        Path tempDir = judgeIdToTempDir.get(judgeId);
+        if (tempDir != null) {
+            return tempDir;
+        }
+        Optional<JudgeTask> task = taskStore.find(judgeId);
+        if (task.isEmpty()) {
+            return null;
+        }
+        Path workDir = Path.of(task.get().getWorkDir()).toAbsolutePath().normalize();
+        judgeIdToTempDir.put(judgeId, workDir);
+        return workDir;
     }
 
     private boolean outputsMatch(String userOutput, String bfOutput, double precision) {
