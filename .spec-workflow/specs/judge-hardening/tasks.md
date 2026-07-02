@@ -32,7 +32,7 @@
     - Blocking failure: 本任务不得修改生产代码；`git diff -- src/main/java src/main/resources/templates` 应无生产实现变更。
     - Evidence: 保存 `target/surefire-reports/*JudgeBaselineTest*`。
 
-- [ ] 2. 新增后端执行策略配置
+- [x] 2. 新增后端执行策略配置
   - Create: `src/main/java/com/example/demo/config/ExecutionProperties.java`
   - Create: `src/main/java/com/example/demo/service/ResolvedTaskPolicy.java`
   - Create: `src/main/java/com/example/demo/service/TaskPolicyResolver.java`

@@ -27,6 +27,22 @@ judge:
     default-limit: 268435456  # 256MB
     max-limit: 1073741824     # 1GB
     check-interval: 100       # ms
+
+  execution:
+    profile: trusted-local
+    max-cases-per-task: 10000
+    large-mode-threshold: 5000
+    task-queue-capacity: 10
+    max-concurrent-tasks: 1
+    max-concurrent-cases-per-task: 4
+    batch-size: 100
+    default-time-limit: 2s
+    min-time-limit: 100ms
+    max-time-limit: 30s
+    max-task-runtime: 30m
+    min-memory-limit-bytes: 16777216
+    max-output-bytes-per-case: 1048576
+    require-sandbox: false
   
   compiler:
     default-standard: cpp17
@@ -57,3 +73,39 @@ logging:
     rolling policy:
       max-file-size: 10MB
       max-history: 30
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local-large
+
+judge:
+  execution:
+    profile: local-large
+    max-cases-per-task: 100000
+    large-mode-threshold: 5000
+    task-queue-capacity: 3
+    max-concurrent-tasks: 1
+    max-concurrent-cases-per-task: 4
+    batch-size: 100
+    max-task-runtime: 2h
+    require-sandbox: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: intranet-large
+
+judge:
+  execution:
+    profile: intranet-large
+    max-cases-per-task: 100000
+    large-mode-threshold: 5000
+    task-queue-capacity: 20
+    max-concurrent-tasks: 2
+    max-concurrent-cases-per-task: 4
+    batch-size: 100
+    max-task-runtime: 2h
+    require-sandbox: true
