@@ -142,7 +142,7 @@
     - Blocking failure: 不能通过把线程池 queueCapacity 调大到 100000 来“支持大任务”。
     - Evidence: 测试应记录并断言 peak in-flight 数。
 
-- [ ] 7. 新增任务队列、取消和预算控制
+- [x] 7. 新增任务队列、取消和预算控制
   - Create: `src/main/java/com/example/demo/service/JudgeScheduler.java`
   - Create: `src/main/java/com/example/demo/dto/CancelJudgeResponse.java`
   - Modify: `src/main/java/com/example/demo/controller/JudgeController.java`

@@ -96,7 +96,8 @@ public class ResultAggregator {
                 outputLimitExceeded,
                 firstFailure == null ? null : firstFailure.getCaseNumber(),
                 sortedFailureSamples(),
-                sortedSlowSamples()
+                sortedSlowSamples(),
+                null
         );
     }
 

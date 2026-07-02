@@ -15,12 +15,14 @@ public class AsyncConfig {
     public static final String TEST_CASE_EXECUTOR = "testCaseExecutor";
 
     @Bean(name = JUDGE_REQUEST_EXECUTOR)
-    public Executor judgeRequestExecutor() {
+    public Executor judgeRequestExecutor(ExecutionProperties executionProperties) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(1);
-        executor.setMaxPoolSize(1);
-        executor.setQueueCapacity(50);
+        int taskConcurrency = Math.max(1, executionProperties.getMaxConcurrentTasks());
+        executor.setCorePoolSize(taskConcurrency);
+        executor.setMaxPoolSize(taskConcurrency);
+        executor.setQueueCapacity(0);
         executor.setThreadNamePrefix("JudgeReq-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         executor.initialize();
         return executor;
     }

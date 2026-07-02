@@ -1,16 +1,34 @@
 package com.example.demo.service;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class CancellationToken {
 
-    private final AtomicBoolean cancellationRequested = new AtomicBoolean(false);
+    private final AtomicReference<Reason> reason = new AtomicReference<>(Reason.NONE);
 
     public void cancel() {
-        cancellationRequested.set(true);
+        reason.compareAndSet(Reason.NONE, Reason.USER_REQUESTED);
+    }
+
+    public boolean cancelForBudgetExceeded() {
+        return reason.compareAndSet(Reason.NONE, Reason.BUDGET_EXCEEDED);
     }
 
     public boolean isCancellationRequested() {
-        return cancellationRequested.get();
+        return reason.get() != Reason.NONE;
+    }
+
+    public boolean isBudgetExceeded() {
+        return reason.get() == Reason.BUDGET_EXCEEDED;
+    }
+
+    public Reason reason() {
+        return reason.get();
+    }
+
+    public enum Reason {
+        NONE,
+        USER_REQUESTED,
+        BUDGET_EXCEEDED
     }
 }

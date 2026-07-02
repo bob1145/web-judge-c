@@ -80,11 +80,13 @@ public class FileTaskStore implements TaskStore {
     @Override
     public Optional<JudgeTask> find(String judgeId) throws IOException {
         validateJudgeId(judgeId);
-        Path metadata = metadataFile(taskDirectory(judgeId));
-        if (!Files.exists(metadata)) {
-            return Optional.empty();
+        synchronized (lock(judgeId)) {
+            Path metadata = metadataFile(taskDirectory(judgeId));
+            if (!Files.exists(metadata)) {
+                return Optional.empty();
+            }
+            return Optional.of(objectMapper.readValue(metadata.toFile(), JudgeTask.class));
         }
-        return Optional.of(objectMapper.readValue(metadata.toFile(), JudgeTask.class));
     }
 
     @Override
@@ -129,22 +131,24 @@ public class FileTaskStore implements TaskStore {
     @Override
     public Optional<JudgeProgress> findSummary(String judgeId) throws IOException {
         validateJudgeId(judgeId);
-        Path summaryPath = summaryFile(taskDirectory(judgeId));
-        if (!Files.exists(summaryPath)) {
-            return Optional.empty();
-        }
+        synchronized (lock(judgeId)) {
+            Path summaryPath = summaryFile(taskDirectory(judgeId));
+            if (!Files.exists(summaryPath)) {
+                return Optional.empty();
+            }
 
-        JsonNode json = objectMapper.readTree(summaryPath.toFile());
-        String status = json.path("status").asText();
-        String message = json.path("message").asText();
-        int progress = json.path("progress").asInt();
-        List<TestCaseResult> results = readResults(json.path("results"));
-        JudgeSummary judgeSummary = null;
-        JsonNode summaryNode = json.path("summary");
-        if (summaryNode != null && summaryNode.isObject()) {
-            judgeSummary = objectMapper.treeToValue(summaryNode, JudgeSummary.class);
+            JsonNode json = objectMapper.readTree(summaryPath.toFile());
+            String status = json.path("status").asText();
+            String message = json.path("message").asText();
+            int progress = json.path("progress").asInt();
+            List<TestCaseResult> results = readResults(json.path("results"));
+            JudgeSummary judgeSummary = null;
+            JsonNode summaryNode = json.path("summary");
+            if (summaryNode != null && summaryNode.isObject()) {
+                judgeSummary = objectMapper.treeToValue(summaryNode, JudgeSummary.class);
+            }
+            return Optional.of(new JudgeProgress(status, message, progress, results, judgeSummary));
         }
-        return Optional.of(new JudgeProgress(status, message, progress, results, judgeSummary));
     }
 
     @Override

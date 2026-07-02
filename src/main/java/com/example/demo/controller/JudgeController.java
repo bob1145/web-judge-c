@@ -2,7 +2,9 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.JudgeCreateResponse;
 import com.example.demo.dto.JudgeRequest;
+import com.example.demo.dto.CancelJudgeResponse;
 import com.example.demo.dto.TestCaseDetail;
+import com.example.demo.service.JudgeScheduler;
 import com.example.demo.service.JudgeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.FileSystemResource;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 import java.util.UUID;
 
 @Controller
@@ -68,13 +71,31 @@ public class JudgeController {
 
     @PostMapping("/judge/start/{judgeId}")
     @ResponseBody
-    public ResponseEntity<String> startJudge(@PathVariable String judgeId) {
+    public ResponseEntity<?> startJudge(@PathVariable String judgeId) {
         try {
             judgeService.startJudgeTask(judgeId);
             return ResponseEntity.ok("Judge task started");
+        } catch (JudgeScheduler.QueueFullException e) {
+            return ResponseEntity.status(429).body(Map.of(
+                    "code", "JUDGE_QUEUE_FULL",
+                    "message", e.getMessage(),
+                    "queueCapacity", e.getQueueCapacity(),
+                    "currentQueueSize", e.getCurrentQueueSize(),
+                    "retryAfter", "Please retry later"
+            ));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    @PostMapping("/judge/cancel/{judgeId}")
+    @ResponseBody
+    public ResponseEntity<CancelJudgeResponse> cancelJudge(@PathVariable String judgeId) {
+        CancelJudgeResponse response = judgeService.cancelJudgeTask(judgeId);
+        if (!response.accepted() && "NOT_FOUND".equals(response.status())) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/judge/status/{judgeId}")

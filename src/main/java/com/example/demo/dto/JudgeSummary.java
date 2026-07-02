@@ -23,4 +23,5 @@ public class JudgeSummary {
     private Integer firstFailedCase;
     private List<JudgeProgressEvent> failureSamples;
     private List<JudgeProgressEvent> slowSamples;
+    private String stoppedReason;
 }

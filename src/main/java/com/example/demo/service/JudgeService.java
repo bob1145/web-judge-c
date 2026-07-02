@@ -4,9 +4,11 @@ import com.example.demo.config.AsyncConfig;
 import com.example.demo.config.ExecutionProperties;
 import com.example.demo.config.MemoryConfiguration;
 import com.example.demo.config.SandboxConfiguration;
+import com.example.demo.dto.CancelJudgeResponse;
 import com.example.demo.dto.JudgeCreateResponse;
 import com.example.demo.dto.JudgeProgress;
 import com.example.demo.dto.JudgeRequest;
+import com.example.demo.dto.JudgeSummary;
 import com.example.demo.dto.TestCaseDetail;
 import com.example.demo.dto.TestCaseResult;
 import com.example.demo.exception.MemoryLimitExceededException;
@@ -20,7 +22,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
@@ -62,6 +63,7 @@ public class JudgeService {
     private final TaskPolicyResolver taskPolicyResolver;
     private final TaskStore taskStore;
     private final CaseBatchRunner caseBatchRunner;
+    private final JudgeScheduler judgeScheduler;
     private final Map<String, Path> judgeIdToTempDir = new ConcurrentHashMap<>();
     private final Map<String, PendingJudgeTask> pendingJudgeTasks = new ConcurrentHashMap<>();
     private final Map<String, JudgeProgress> judgeStatusMap = new ConcurrentHashMap<>();
@@ -139,6 +141,52 @@ public class JudgeService {
             // 对于其他异常，也标记会话为非活跃，避免继续发送
             markSessionInactive(judgeId);
         }
+    }
+
+    private void safeSendStoppedMessage(
+            String topic,
+            CancellationToken cancellationToken,
+            int progress,
+            JudgeSummary summary
+    ) {
+        if (cancellationToken.isBudgetExceeded()) {
+            safeSendMessage(topic, new JudgeProgress(
+                    "BUDGET_EXCEEDED",
+                    "Task runtime budget exceeded",
+                    progress,
+                    null,
+                    summary
+            ));
+        } else {
+            safeSendMessage(topic, new JudgeProgress(
+                    "CANCELLED",
+                    "任务已取消",
+                    progress,
+                    null,
+                    summary
+            ));
+        }
+    }
+
+    private JudgeSummary emptyStoppedSummary(int totalCases, int completedCases, CancellationToken cancellationToken) {
+        String stoppedReason = cancellationToken.isBudgetExceeded()
+                ? "Task runtime budget exceeded"
+                : "Cancellation requested";
+        return new JudgeSummary(
+                totalCases,
+                completedCases,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                null,
+                List.of(),
+                List.of(),
+                stoppedReason
+        );
     }
 
     /**
@@ -251,21 +299,31 @@ public class JudgeService {
         if (pendingTask == null) {
             throw new IllegalArgumentException("Judge task not found: " + judgeId);
         }
-        try {
-            taskStore.updateStatus(judgeId, JudgeStatus.QUEUED, "Judge task queued for execution");
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to update judge task status", e);
-        }
-        pendingJudgeTasks.remove(judgeId);
         // 标记WebSocket会话为活跃
         markSessionActive(judgeId);
-        judge(pendingTask.request(), judgeId, pendingTask.policy());
+        judgeScheduler.enqueue(judgeId, context -> judge(pendingTask.request(), judgeId, pendingTask.policy(), context));
+        pendingJudgeTasks.remove(judgeId);
     }
 
-    @Async(AsyncConfig.JUDGE_REQUEST_EXECUTOR)
-    public void judge(JudgeRequest request, String judgeId, ResolvedTaskPolicy policy) {
+    public CancelJudgeResponse cancelJudgeTask(String judgeId) {
+        CancelJudgeResponse response = judgeScheduler.cancel(judgeId);
+        if (response.accepted()) {
+            pendingJudgeTasks.remove(judgeId);
+            markSessionInactive(judgeId);
+            judgeStatusMap.put(judgeId, new JudgeProgress(response.status(), response.message(), 100));
+        }
+        return response;
+    }
+
+    public void judge(
+            JudgeRequest request,
+            String judgeId,
+            ResolvedTaskPolicy policy,
+            JudgeScheduler.TaskContext schedulerContext
+    ) {
         Path tempDir = null;
         String topic = "/topic/progress/" + judgeId;
+        CancellationToken cancellationToken = schedulerContext.cancellationToken();
 
         try {
             tempDir = resolveTaskWorkDir(judgeId);
@@ -273,6 +331,11 @@ public class JudgeService {
             judgeIdToTempDir.put(judgeId, tempDir);
 
             safeSendMessage(topic, new JudgeProgress("PENDING", "创建临时目录...", 0));
+            if (cancellationToken.isCancellationRequested()) {
+                safeSendStoppedMessage(topic, cancellationToken, 0, emptyStoppedSummary(policy.requestedCases(), schedulerContext.completedCases(), cancellationToken));
+                cleanupJudgeTask(judgeId);
+                return;
+            }
 
             try {
                 safeSendMessage(topic, new JudgeProgress("COMPILING", "正在编译代码...", 5));
@@ -307,6 +370,11 @@ public class JudgeService {
                 final Path judgeExecutable = judgeExecutableFuture.get();
 
                 safeSendMessage(topic, new JudgeProgress("COMPILING", "编译成功", 15));
+                if (cancellationToken.isCancellationRequested()) {
+                    safeSendStoppedMessage(topic, cancellationToken, 15, emptyStoppedSummary(policy.requestedCases(), schedulerContext.completedCases(), cancellationToken));
+                    cleanupJudgeTask(judgeId);
+                    return;
+                }
 
                 AtomicInteger completedCases = new AtomicInteger(0);
 
@@ -318,7 +386,6 @@ public class JudgeService {
                         executionProperties.getMaxFailureSamples(),
                         executionProperties.getMaxSlowSamples()
                 );
-                CancellationToken cancellationToken = new CancellationToken();
                 Path finalTempDir = tempDir;
                 CaseBatchRunner.RunOutcome runOutcome = caseBatchRunner.run(
                         totalTestCases,
@@ -327,17 +394,26 @@ public class JudgeService {
                         caseNumber -> runTestCase(caseNumber, request, policy, finalTempDir, genExecutable, userExecutable, judgeExecutable),
                         result -> {
                             resultAggregator.accept(result);
+                            schedulerContext.recordCompletedCase();
                             int done = completedCases.incrementAndGet();
-                            if (done % updateThreshold == 0 || done == totalTestCases) {
+                            if (!cancellationToken.isCancellationRequested()
+                                    && (done % updateThreshold == 0 || done == totalTestCases)) {
                                 int progress = 15 + (int) ((double) done / totalTestCases * 85);
                                 safeSendMessage(topic, new JudgeProgress("RUNNING", String.format("已完成 %d / %d", done, totalTestCases), progress));
                             }
                         }
                 );
 
-                if (runOutcome.isCancelled()) {
+                if (cancellationToken.isBudgetExceeded()) {
+                    JudgeSummary summary = resultAggregator.toSummary();
+                    summary.setStoppedReason("Task runtime budget exceeded");
                     int progress = 15 + (int) ((double) runOutcome.getCompletedCases() / totalTestCases * 85);
-                    safeSendMessage(topic, new JudgeProgress("CANCELLED", "任务已取消", progress, null, resultAggregator.toSummary()));
+                    safeSendMessage(topic, new JudgeProgress("BUDGET_EXCEEDED", "Task runtime budget exceeded", progress, null, summary));
+                } else if (runOutcome.isCancelled()) {
+                    JudgeSummary summary = resultAggregator.toSummary();
+                    summary.setStoppedReason("Cancellation requested");
+                    int progress = 15 + (int) ((double) runOutcome.getCompletedCases() / totalTestCases * 85);
+                    safeSendMessage(topic, new JudgeProgress("CANCELLED", "任务已取消", progress, null, summary));
                 } else {
                     safeSendMessage(topic, resultAggregator.toFinalProgress());
                 }
