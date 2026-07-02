@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.dto.JudgeProgress;
+import com.example.demo.dto.JudgeSummary;
 import com.example.demo.dto.TestCaseResult;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
@@ -128,17 +129,22 @@ public class FileTaskStore implements TaskStore {
     @Override
     public Optional<JudgeProgress> findSummary(String judgeId) throws IOException {
         validateJudgeId(judgeId);
-        Path summary = summaryFile(taskDirectory(judgeId));
-        if (!Files.exists(summary)) {
+        Path summaryPath = summaryFile(taskDirectory(judgeId));
+        if (!Files.exists(summaryPath)) {
             return Optional.empty();
         }
 
-        JsonNode json = objectMapper.readTree(summary.toFile());
+        JsonNode json = objectMapper.readTree(summaryPath.toFile());
         String status = json.path("status").asText();
         String message = json.path("message").asText();
         int progress = json.path("progress").asInt();
         List<TestCaseResult> results = readResults(json.path("results"));
-        return Optional.of(new JudgeProgress(status, message, progress, results));
+        JudgeSummary judgeSummary = null;
+        JsonNode summaryNode = json.path("summary");
+        if (summaryNode != null && summaryNode.isObject()) {
+            judgeSummary = objectMapper.treeToValue(summaryNode, JudgeSummary.class);
+        }
+        return Optional.of(new JudgeProgress(status, message, progress, results, judgeSummary));
     }
 
     @Override

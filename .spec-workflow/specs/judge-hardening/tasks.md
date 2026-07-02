@@ -97,7 +97,7 @@
     - Blocking failure: `TaskStore` 不得允许解析到 storage base 目录之外。
     - Evidence: 测试必须使用 JUnit 临时目录，不污染真实 `java.io.tmpdir/online-judge`。
 
-- [ ] 5. 拆分结果聚合，支持大任务摘要
+- [x] 5. 拆分结果聚合，支持大任务摘要
   - Create: `src/main/java/com/example/demo/dto/JudgeSummary.java`
   - Create: `src/main/java/com/example/demo/dto/JudgeProgressEvent.java`
   - Create: `src/main/java/com/example/demo/service/ResultAggregator.java`

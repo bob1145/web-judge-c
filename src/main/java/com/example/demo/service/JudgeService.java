@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.config.AsyncConfig;
+import com.example.demo.config.ExecutionProperties;
 import com.example.demo.config.MemoryConfiguration;
 import com.example.demo.config.SandboxConfiguration;
 import com.example.demo.dto.JudgeCreateResponse;
@@ -46,9 +47,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -62,6 +61,7 @@ public class JudgeService {
     private final SimpMessagingTemplate messagingTemplate;
     private final MemoryMonitorService memoryMonitorService;
     private final MemoryConfiguration memoryConfiguration;
+    private final ExecutionProperties executionProperties;
     private final SandboxService sandboxService;
     private final SandboxConfiguration sandboxConfiguration;
     private final TaskPolicyResolver taskPolicyResolver;
@@ -312,23 +312,26 @@ public class JudgeService {
 
                 safeSendMessage(topic, new JudgeProgress("COMPILING", "编译成功", 15));
 
-                List<TestCaseResult> results = new ArrayList<>();
                 AtomicInteger completedCases = new AtomicInteger(0);
-                AtomicReference<String> finalStatus = new AtomicReference<>("AC");
-                AtomicReference<String> finalMessage = new AtomicReference<>("全部通过！");
 
-                List<CompletableFuture<TestCaseResult>> futures = new ArrayList<>();
-                
                 final int totalTestCases = policy.requestedCases();
                 final int updateThreshold = Math.max(1, totalTestCases / 100); // Update every 1%
+                ResultAggregator resultAggregator = new ResultAggregator(
+                        policy.highVolume(),
+                        totalTestCases,
+                        executionProperties.getMaxFailureSamples(),
+                        executionProperties.getMaxSlowSamples()
+                );
+                List<CompletableFuture<Void>> futures = new ArrayList<>();
 
                 for (int i = 1; i <= totalTestCases; i++) {
                     final int caseNum = i;
                     Path finalTempDir = tempDir;
 
-                    CompletableFuture<TestCaseResult> future = CompletableFuture.supplyAsync(() ->
+                    CompletableFuture<Void> future = CompletableFuture.supplyAsync(() ->
                             runTestCase(caseNum, request, policy, finalTempDir, genExecutable, userExecutable, judgeExecutable), testCaseExecutor
-                    ).whenComplete((result, ex) -> {
+                    ).thenAccept(result -> {
+                        resultAggregator.accept(result);
                         int done = completedCases.incrementAndGet();
                         if (done % updateThreshold == 0 || done == totalTestCases) {
                             int progress = 15 + (int) ((double) done / totalTestCases * 85);
@@ -340,20 +343,7 @@ public class JudgeService {
 
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
-                futures.stream()
-                    .map(CompletableFuture::join)
-                    .sorted(Comparator.comparingInt(TestCaseResult::getCaseNumber))
-                    .forEach(results::add);
-
-                for (TestCaseResult result : results) {
-                    if (!result.getStatus().equals("AC")) {
-                        finalStatus.set(result.getStatus());
-                        finalMessage.set(String.format("%s on Test Case #%d", result.getStatus(), result.getCaseNumber()));
-                        break; 
-                    }
-                }
-                
-                safeSendMessage(topic, new JudgeProgress(finalStatus.get(), finalMessage.get(), 100, results));
+                safeSendMessage(topic, resultAggregator.toFinalProgress());
                 
                 // 判题完成后清理资源
                 cleanupJudgeTask(judgeId);

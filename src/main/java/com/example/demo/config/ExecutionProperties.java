@@ -16,6 +16,8 @@ public class ExecutionProperties {
     private int maxConcurrentTasks = 1;
     private int maxConcurrentCasesPerTask = 4;
     private int batchSize = 100;
+    private int maxFailureSamples = 100;
+    private int maxSlowSamples = 20;
     private Duration defaultTimeLimit = Duration.ofSeconds(2);
     private Duration minTimeLimit = Duration.ofMillis(100);
     private Duration maxTimeLimit = Duration.ofSeconds(30);
