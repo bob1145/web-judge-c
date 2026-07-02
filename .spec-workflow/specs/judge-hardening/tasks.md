@@ -270,7 +270,7 @@
     - Blocking failure: sandbox required 的 profile 不允许静默降级直跑。
     - Evidence: 启动失败测试应断言失败原因文本，不只断言抛异常。
 
-- [ ] 13. 增加临时目录清理和启动补偿
+- [x] 13. 增加临时目录清理和启动补偿
   - Create: `src/main/java/com/example/demo/service/TaskCleanupService.java`
   - Modify: `src/main/java/com/example/demo/service/FileTaskStore.java`
   - Modify: `src/main/resources/application.yml`

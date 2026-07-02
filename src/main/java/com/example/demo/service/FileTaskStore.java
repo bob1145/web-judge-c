@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -55,6 +56,54 @@ public class FileTaskStore implements TaskStore {
         Path directory = storageBase.resolve("judge-" + judgeId).toAbsolutePath().normalize();
         ensureInsideStorageBase(directory);
         return directory;
+    }
+
+    public Path storageBase() {
+        return storageBase;
+    }
+
+    public String relativeTaskPath(String judgeId) {
+        return storageBase.relativize(taskDirectory(judgeId)).toString();
+    }
+
+    public List<JudgeTask> findAll() throws IOException {
+        return loadAllTasks();
+    }
+
+    public boolean deleteTaskDirectory(String judgeId) throws IOException {
+        validateJudgeId(judgeId);
+        synchronized (lock(judgeId)) {
+            Path directory = taskDirectory(judgeId);
+            if (!Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
+                return false;
+            }
+
+            validateSafeDeleteTree(directory);
+            List<Path> paths;
+            try (Stream<Path> stream = Files.walk(directory)) {
+                paths = stream
+                        .sorted(Comparator.reverseOrder())
+                        .toList();
+            }
+
+            IOException failure = null;
+            for (Path path : paths) {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ex) {
+                    if (failure == null) {
+                        failure = ex;
+                    } else {
+                        failure.addSuppressed(ex);
+                    }
+                }
+            }
+            if (failure != null) {
+                throw failure;
+            }
+            locks.remove(judgeId);
+            return true;
+        }
     }
 
     @Override
@@ -192,7 +241,7 @@ public class FileTaskStore implements TaskStore {
         }
         try (Stream<Path> stream = Files.list(storageBase)) {
             List<Path> metadataFiles = stream
-                    .filter(Files::isDirectory)
+                    .filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
                     .map(this::metadataFile)
                     .filter(Files::exists)
                     .sorted(Comparator.comparing(Path::toString))
@@ -202,6 +251,27 @@ public class FileTaskStore implements TaskStore {
                 tasks.add(objectMapper.readValue(metadata.toFile(), JudgeTask.class));
             }
             return tasks;
+        }
+    }
+
+    private void validateSafeDeleteTree(Path directory) throws IOException {
+        ensureInsideStorageBase(directory);
+        if (Files.isSymbolicLink(directory)) {
+            throw new SecurityException("Refusing to delete symbolic link task directory");
+        }
+        try (Stream<Path> stream = Files.walk(directory)) {
+            for (Path path : stream.toList()) {
+                ensureInsideStorageBase(path);
+                if (Files.isSymbolicLink(path)) {
+                    Path target = path.getParent()
+                            .resolve(Files.readSymbolicLink(path))
+                            .toAbsolutePath()
+                            .normalize();
+                    if (!target.startsWith(storageBase)) {
+                        throw new SecurityException("Refusing to delete symlink outside storage base");
+                    }
+                }
+            }
         }
     }
 

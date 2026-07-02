@@ -14,7 +14,6 @@ import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
@@ -46,7 +45,6 @@ public class JudgeService {
     private final CaseBatchRunner caseBatchRunner;
     private final JudgeScheduler judgeScheduler;
     private final SecurityModeStartupValidator securityModeStartupValidator;
-    private final Map<String, Path> judgeIdToTempDir = new ConcurrentHashMap<>();
     private final Map<String, PendingJudgeTask> pendingJudgeTasks = new ConcurrentHashMap<>();
     private final Map<String, JudgeProgress> judgeStatusMap = new ConcurrentHashMap<>();
     
@@ -159,19 +157,6 @@ public class JudgeService {
             // 标记WebSocket会话为非活跃
             markSessionInactive(judgeId);
             
-            // 延迟清理临时目录，给用户时间查看测试点详情
-            CompletableFuture.delayedExecutor(30, TimeUnit.MINUTES).execute(() -> {
-                try {
-                    Path tempDir = judgeIdToTempDir.remove(judgeId);
-                    if (tempDir != null && Files.exists(tempDir)) {
-                        FileUtils.deleteDirectory(tempDir.toFile());
-                        log.debug("延迟清理临时目录: {}", tempDir);
-                    }
-                } catch (Exception e) {
-                    log.error("延迟清理临时目录失败: {} - {}", judgeId, e.getMessage());
-                }
-            });
-            
             // 延迟清理状态信息（给客户端更多时间获取最终状态）
             CompletableFuture.delayedExecutor(60, TimeUnit.MINUTES).execute(() -> {
                 judgeStatusMap.remove(judgeId);
@@ -253,7 +238,6 @@ public class JudgeService {
         try {
             tempDir = resolveTaskWorkDir(judgeId);
             Files.createDirectories(tempDir);
-            judgeIdToTempDir.put(judgeId, tempDir);
 
             safeSendMessage(topic, new JudgeProgress("PENDING", "创建临时目录...", 0));
             if (cancellationToken.isCancellationRequested()) {
