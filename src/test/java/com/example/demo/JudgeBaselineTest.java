@@ -192,7 +192,16 @@ class JudgeBaselineTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andReturn();
-        String judgeId = result.getResponse().getContentAsString();
+        String responseBody = result.getResponse().getContentAsString();
+        String judgeId;
+        if (responseBody.trim().startsWith("{")) {
+            JsonNode responseJson = objectMapper.readTree(responseBody);
+            judgeId = responseJson.path("judgeId").asText();
+            assertThat(responseJson.path("status").asText()).isEqualTo("CREATED");
+            assertThat(responseJson.path("requestedCases").asInt()).isEqualTo((Integer) request.get("testCases"));
+        } else {
+            judgeId = responseBody;
+        }
         assertThat(judgeId).isNotBlank();
         UUID.fromString(judgeId);
         return judgeId;

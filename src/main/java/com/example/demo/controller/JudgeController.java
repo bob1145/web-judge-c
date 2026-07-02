@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.JudgeCreateResponse;
 import com.example.demo.dto.JudgeRequest;
 import com.example.demo.dto.TestCaseDetail;
 import com.example.demo.service.JudgeService;
@@ -7,12 +8,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
 
@@ -31,13 +34,36 @@ public class JudgeController {
         return "index";
     }
 
-    @PostMapping("/judge")
+    @PostMapping(value = "/judge", consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public String judge(@RequestBody JudgeRequest judgeRequest) {
+    public ResponseEntity<?> judge(
+            @RequestBody JudgeRequest judgeRequest,
+            @RequestHeader(value = HttpHeaders.ACCEPT, required = false) String acceptHeader) {
         String judgeId = UUID.randomUUID().toString();
         // 创建判题任务
-        judgeService.createJudgeTask(judgeRequest, judgeId);
-        return judgeId;
+        JudgeCreateResponse response = judgeService.createJudgeTask(judgeRequest, judgeId);
+        if (wantsStructuredJson(acceptHeader)) {
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(response);
+        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(response.judgeId());
+    }
+
+    private boolean wantsStructuredJson(String acceptHeader) {
+        if (acceptHeader == null || acceptHeader.isBlank()) {
+            return false;
+        }
+        try {
+            return MediaType.parseMediaTypes(acceptHeader).stream()
+                    .filter(mediaType -> !mediaType.isWildcardType() && !mediaType.isWildcardSubtype())
+                    .anyMatch(mediaType -> MediaType.APPLICATION_JSON.isCompatibleWith(mediaType)
+                            || mediaType.getSubtype().endsWith("+json"));
+        } catch (InvalidMediaTypeException ex) {
+            return false;
+        }
     }
 
     @PostMapping("/judge/start/{judgeId}")

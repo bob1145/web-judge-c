@@ -1,6 +1,8 @@
 package com.example.demo.exception;
 
 import com.example.demo.dto.ErrorResponse;
+import com.example.demo.dto.JudgeErrorResponse;
+import com.example.demo.service.TaskPolicyResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +17,23 @@ import org.springframework.web.context.request.WebRequest;
 @ControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(TaskPolicyResolver.PolicyValidationException.class)
+    public ResponseEntity<JudgeErrorResponse> handlePolicyValidationException(
+            TaskPolicyResolver.PolicyValidationException e) {
+        log.warn("Judge policy rejected request: submitted={}, max={}, profile={}",
+                e.getSubmittedCases(), e.getMaxCasesPerTask(), e.getProfile());
+
+        JudgeErrorResponse errorResponse = new JudgeErrorResponse(
+                "JUDGE_POLICY_REJECTED",
+                e.getMessage(),
+                e.getSubmittedCases(),
+                e.getMaxCasesPerTask(),
+                e.getProfile()
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
     
     /**
      * 处理认证相关异常

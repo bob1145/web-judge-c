@@ -53,7 +53,7 @@
     - Blocking failure: 前端 `input max` 修改不能作为验收依据。
     - Evidence: 单测覆盖率应覆盖 `TaskPolicyResolver` 的主要分支，至少包含接受、拒绝、默认值、高容量四类路径。
 
-- [ ] 3. 改造任务创建接口为策略快照模式
+- [x] 3. 改造任务创建接口为策略快照模式
   - Modify: `src/main/java/com/example/demo/controller/JudgeController.java`
   - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
   - Create: `src/main/java/com/example/demo/dto/JudgeCreateResponse.java`

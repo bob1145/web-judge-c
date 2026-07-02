@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.config.AsyncConfig;
 import com.example.demo.config.MemoryConfiguration;
 import com.example.demo.config.SandboxConfiguration;
+import com.example.demo.dto.JudgeCreateResponse;
 import com.example.demo.dto.JudgeProgress;
 import com.example.demo.dto.JudgeRequest;
 import com.example.demo.dto.TestCaseDetail;
@@ -59,8 +60,9 @@ public class JudgeService {
     private final MemoryConfiguration memoryConfiguration;
     private final SandboxService sandboxService;
     private final SandboxConfiguration sandboxConfiguration;
+    private final TaskPolicyResolver taskPolicyResolver;
     private final Map<String, Path> judgeIdToTempDir = new ConcurrentHashMap<>();
-    private final Map<String, JudgeRequest> pendingJudgeTasks = new ConcurrentHashMap<>();
+    private final Map<String, PendingJudgeTask> pendingJudgeTasks = new ConcurrentHashMap<>();
     private final Map<String, JudgeProgress> judgeStatusMap = new ConcurrentHashMap<>();
     private final Map<String, Boolean> activeWebSocketSessions = new ConcurrentHashMap<>();
     
@@ -176,6 +178,8 @@ public class JudgeService {
 
     private record ProcessResult(RunStatus status, String output, String error, long executionTime, long memoryUsed) {}
 
+    private record PendingJudgeTask(JudgeRequest request, ResolvedTaskPolicy policy) {}
+
     static class CompilationException extends RuntimeException {
         public CompilationException(String message) {
             super(message);
@@ -185,25 +189,27 @@ public class JudgeService {
     /**
      * 创建判题任务但不立即执行，等待WebSocket连接建立
      */
-    public void createJudgeTask(JudgeRequest request, String judgeId) {
-        pendingJudgeTasks.put(judgeId, request);
+    public JudgeCreateResponse createJudgeTask(JudgeRequest request, String judgeId) {
+        ResolvedTaskPolicy policy = taskPolicyResolver.resolve(request);
+        pendingJudgeTasks.put(judgeId, new PendingJudgeTask(request, policy));
+        return JudgeCreateResponse.created(judgeId, policy);
     }
 
     /**
      * 启动指定的判题任务
      */
     public void startJudgeTask(String judgeId) {
-        JudgeRequest request = pendingJudgeTasks.remove(judgeId);
-        if (request == null) {
+        PendingJudgeTask pendingTask = pendingJudgeTasks.remove(judgeId);
+        if (pendingTask == null) {
             throw new IllegalArgumentException("Judge task not found: " + judgeId);
         }
         // 标记WebSocket会话为活跃
         markSessionActive(judgeId);
-        judge(request, judgeId);
+        judge(pendingTask.request(), judgeId, pendingTask.policy());
     }
 
     @Async(AsyncConfig.JUDGE_REQUEST_EXECUTOR)
-    public void judge(JudgeRequest request, String judgeId) {
+    public void judge(JudgeRequest request, String judgeId, ResolvedTaskPolicy policy) {
         Path tempDir = null;
         String topic = "/topic/progress/" + judgeId;
 
@@ -256,15 +262,15 @@ public class JudgeService {
 
                 List<CompletableFuture<TestCaseResult>> futures = new ArrayList<>();
                 
-                final int totalTestCases = request.getTestCases();
+                final int totalTestCases = policy.requestedCases();
                 final int updateThreshold = Math.max(1, totalTestCases / 100); // Update every 1%
 
-                for (int i = 1; i <= request.getTestCases(); i++) {
+                for (int i = 1; i <= totalTestCases; i++) {
                     final int caseNum = i;
                     Path finalTempDir = tempDir;
 
                     CompletableFuture<TestCaseResult> future = CompletableFuture.supplyAsync(() ->
-                            runTestCase(caseNum, request, finalTempDir, genExecutable, userExecutable, judgeExecutable), testCaseExecutor
+                            runTestCase(caseNum, request, policy, finalTempDir, genExecutable, userExecutable, judgeExecutable), testCaseExecutor
                     ).whenComplete((result, ex) -> {
                         int done = completedCases.incrementAndGet();
                         if (done % updateThreshold == 0 || done == totalTestCases) {
@@ -318,7 +324,7 @@ public class JudgeService {
         }
     }
 
-    private TestCaseResult runTestCase(int caseNumber, JudgeRequest request, Path tempDir, Path genExecutable, Path userExecutable, Path judgeExecutable) {
+    private TestCaseResult runTestCase(int caseNumber, JudgeRequest request, ResolvedTaskPolicy policy, Path tempDir, Path genExecutable, Path userExecutable, Path judgeExecutable) {
         try {
             Path inputFile = tempDir.resolve(caseNumber + ".in");
             Path userOutputFile = tempDir.resolve(caseNumber + ".out");
@@ -328,9 +334,10 @@ public class JudgeService {
                 return new TestCaseResult(caseNumber, "System Error", 0, 0);
             }
 
-            // 使用请求中的内存限制，如果未设置则使用默认值
-            long userMemoryLimit = request.getMemoryLimit() > 0 ? request.getMemoryLimit() : memoryConfiguration.getDefaultLimit();
-            ProcessResult userResult = runProcess(userExecutable, inputFile, userOutputFile, request.getTimeLimit(), userMemoryLimit);
+            // 使用创建任务时解析出的策略快照，避免启动时被新配置覆盖。
+            long userMemoryLimit = policy.memoryLimitBytes();
+            long caseTimeLimit = policy.caseTimeLimit().toMillis();
+            ProcessResult userResult = runProcess(userExecutable, inputFile, userOutputFile, caseTimeLimit, userMemoryLimit);
             if (userResult.status() != RunStatus.SUCCESS) {
                 String statusStr = switch (userResult.status()) {
                     case TIME_LIMIT_EXCEEDED -> "TLE";
@@ -344,10 +351,10 @@ public class JudgeService {
             // 根据是否启用Special Judge选择不同的判题逻辑
             if (request.isUseSpecialJudge() && request.getSpecialJudgeCode() != null && !request.getSpecialJudgeCode().trim().isEmpty()) {
                 // 使用Special Judge进行判题
-                return runSpecialJudge(caseNumber, request, tempDir, judgeExecutable, inputFile, userOutputFile, userResult);
+                return runSpecialJudge(caseNumber, request, policy, tempDir, judgeExecutable, inputFile, userOutputFile, userResult);
             } else {
                 // 使用Brute Force进行判题
-                return runBruteForceJudge(caseNumber, request, tempDir, judgeExecutable, inputFile, userOutputFile, userResult);
+                return runBruteForceJudge(caseNumber, request, policy, tempDir, judgeExecutable, inputFile, userOutputFile, userResult);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -358,13 +365,14 @@ public class JudgeService {
     /**
      * 使用Special Judge进行判题
      */
-    private TestCaseResult runSpecialJudge(int caseNumber, JudgeRequest request, Path tempDir, Path spjExecutable, 
+    private TestCaseResult runSpecialJudge(int caseNumber, JudgeRequest request, ResolvedTaskPolicy policy, Path tempDir, Path spjExecutable,
                                          Path inputFile, Path userOutputFile, ProcessResult userResult) throws IOException, InterruptedException {
         // Special Judge通常接受三个参数：输入文件、用户输出文件、标准输出文件（可选）
         // 这里我们只传递输入文件和用户输出文件，SPJ程序负责验证输出是否正确
         // SPJ程序应该返回退出码：0表示AC，非0表示WA或其他错误
         
-        ProcessResult spjResult = runProcess(spjExecutable, null, null, request.getTimeLimit() * 2, memoryConfiguration.getDefaultLimit());
+        long spjTimeLimit = policy.caseTimeLimit().toMillis() * 2;
+        ProcessResult spjResult = runProcess(spjExecutable, null, null, spjTimeLimit, memoryConfiguration.getDefaultLimit());
         
         // 为SPJ创建参数文件，传递必要信息
         Path spjArgsFile = tempDir.resolve(caseNumber + ".spj_args");
@@ -382,7 +390,7 @@ public class JudgeService {
         long startTime = System.currentTimeMillis();
         Process spjProcess = spjBuilder.start();
         
-        boolean finished = spjProcess.waitFor(request.getTimeLimit() * 2, TimeUnit.MILLISECONDS);
+        boolean finished = spjProcess.waitFor(spjTimeLimit, TimeUnit.MILLISECONDS);
         long spjExecutionTime = System.currentTimeMillis() - startTime;
         
         if (!finished) {
@@ -414,11 +422,11 @@ public class JudgeService {
     /**
      * 使用Brute Force进行判题
      */
-    private TestCaseResult runBruteForceJudge(int caseNumber, JudgeRequest request, Path tempDir, Path bfExecutable, 
+    private TestCaseResult runBruteForceJudge(int caseNumber, JudgeRequest request, ResolvedTaskPolicy policy, Path tempDir, Path bfExecutable,
                                             Path inputFile, Path userOutputFile, ProcessResult userResult) throws IOException, InterruptedException {
         Path bfOutputFile = tempDir.resolve(caseNumber + ".ans");
         
-        ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, request.getTimeLimit() * 5, memoryConfiguration.getDefaultLimit() * 2);
+        ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, policy.caseTimeLimit().toMillis() * 5, memoryConfiguration.getDefaultLimit() * 2);
         if (bfResult.status() != RunStatus.SUCCESS) {
             return new TestCaseResult(caseNumber, "System Error", 0, 0);
         }
