@@ -229,7 +229,7 @@
     - Blocking failure: 不能靠前端 throttle 解决后端消息风暴，后端必须节流。
     - Evidence: 测试记录发送次数、最后一次 payload 结构和大小。
 
-- [ ] 11. 更新前端为普通/大任务双模式
+- [x] 11. 更新前端为普通/大任务双模式
   - Modify: `src/main/resources/templates/index.html`
   - Test: `src/test/java/com/example/demo/FrontendTemplateContractTest.java`
   - Purpose: 普通任务显示结果网格，大任务显示摘要、失败样本、按需详情和下载入口。
