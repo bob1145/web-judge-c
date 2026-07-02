@@ -1,0 +1,314 @@
+# Tasks Document
+
+## Global Acceptance Rules
+
+这些规则适用于下面每一个 task。任何一条不满足，都不能把该 task 标为完成。
+
+- 每个 task 必须先补测试，再改实现；新增测试在实现前应能失败，除非该 task 只是文档或基线测试。
+- 每个 task 必须运行自己的 `Run:` 命令，并保留 Surefire 报告或命令输出摘要。
+- 每个 task 必须运行已完成 task 的相关回归测试；不得为了通过新测试而跳过、删除、放宽旧测试。
+- 每个后端 task 必须包含正向、负向、边界三类用例；安全相关 task 必须包含攻击或滥用用例。
+- 任何涉及 100000 测试点的 task，都必须证明“没有一次性创建 100000 个 future、结果对象、DOM 节点或 WebSocket payload”。
+- 任何涉及文件、进程、下载、沙箱、鉴权的 task，必须证明不会泄漏服务器路径、不会读写任务目录外文件、不会静默降级安全策略。
+- 除基线 task 外，最终验收至少运行一次 `mvn test`；如果因环境原因不能运行，必须记录具体原因和替代验证，不得口头通过。
+
+- [x] 1. 锁定当前行为基线
+  - File: `src/main/java/com/example/demo/controller/JudgeController.java`
+  - File: `src/main/java/com/example/demo/service/JudgeService.java`
+  - File: `src/main/java/com/example/demo/config/AsyncConfig.java`
+  - File: `src/main/resources/templates/index.html`
+  - Test: `src/test/java/com/example/demo/JudgeBaselineTest.java`
+  - Purpose: 在重构前用测试固定小任务 AC、WA、编译失败、状态轮询、详情下载的当前行为。
+  - _Leverage: existing `/judge`, `/judge/start/{judgeId}`, `/judge/status/{judgeId}`, `/details/{judgeId}/{caseNumber}`_
+  - _Requirements: 10.2, 10.3_
+  - _Prompt: Role: Java Spring Boot QA engineer | Task: Add characterization tests for the existing judge flow using the current controller and service paths. Cover a 3-case AC flow, one WA flow, compilation error, status polling, and single-case details lookup. Restrictions: Do not refactor production code in this task, keep tests deterministic with tiny C++ programs or mocked process execution where needed. Success: Tests document current behavior and pass before refactoring._
+  - Strict Validation:
+    - Run: `mvn -Dtest=JudgeBaselineTest test`
+    - Required scenarios: 3-case AC、首个 WA、编译失败、运行时错误、轮询状态、单 case 详情读取、单 case 下载。
+    - Expected: 每个场景都断言 HTTP status、最终业务状态、`caseNumber/status/timeUsed/memoryUsed`、详情字段存在性。
+    - Expected: AC 场景必须真实走 `/judge -> /judge/start/{judgeId} -> /judge/status/{judgeId}`，不能只测内部方法。
+    - Expected: WA 场景必须能读取失败 case 的 input、user output、expected output。
+    - Blocking failure: 如果测试依赖随机时序导致偶发失败，不能验收；必须改成可重复、可等待、有超时的测试。
+    - Blocking failure: 本任务不得修改生产代码；`git diff -- src/main/java src/main/resources/templates` 应无生产实现变更。
+    - Evidence: 保存 `target/surefire-reports/*JudgeBaselineTest*`。
+
+- [ ] 2. 新增后端执行策略配置
+  - Create: `src/main/java/com/example/demo/config/ExecutionProperties.java`
+  - Create: `src/main/java/com/example/demo/service/ResolvedTaskPolicy.java`
+  - Create: `src/main/java/com/example/demo/service/TaskPolicyResolver.java`
+  - Modify: `src/main/resources/application.yml`
+  - Test: `src/test/java/com/example/demo/TaskPolicyResolverTest.java`
+  - Purpose: 让后端决定 `testCases` 上限，并支持 `local-large`/`intranet-large` 允许 100000。
+  - _Leverage: `MemoryConfiguration`, `JudgeRequest`_
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1_
+  - _Prompt: Role: Spring Boot backend engineer | Task: Implement `judge.execution` configuration binding and a resolver that validates `JudgeRequest.testCases`, `timeLimit`, and `memoryLimit`. Configure profiles so ordinary mode has a backend-owned limit, while `local-large` can allow 100000. Restrictions: The frontend value must never be trusted directly; do not hard-code 1000/5000 as final business limits; return user-readable validation errors. Success: Unit tests prove ordinary over-limit rejection, high-volume 100000 acceptance, zero/negative rejection, and memory limit capping._
+  - Strict Validation:
+    - Run: `mvn -Dtest=TaskPolicyResolverTest,JudgeBaselineTest test`
+    - Boundary cases: `testCases=-1`、`0`、`1`、`normalMax`、`normalMax+1`、`99999`、`100000`、`100001`。
+    - Expected: ordinary profile 中 `normalMax+1` 被拒绝；`local-large` 中 `100000` 被接受；`100001` 必须被拒绝，除非配置显式调高上限。
+    - Expected: 所有拒绝错误必须包含 `submittedCases`、`maxCasesPerTask`、`profile`、用户可读 message。
+    - Expected: `highVolume=true` 只由后端根据策略产生，不能来自前端请求字段。
+    - Expected: `timeLimit` 和 `memoryLimit` 同时校验最小值、最大值和缺省值；超过 `judge.memory.max-limit` 不得静默放行。
+    - Blocking failure: 代码中不得出现把 1000/5000 写死为最终业务上限的逻辑。
+    - Blocking failure: 前端 `input max` 修改不能作为验收依据。
+    - Evidence: 单测覆盖率应覆盖 `TaskPolicyResolver` 的主要分支，至少包含接受、拒绝、默认值、高容量四类路径。
+
+- [ ] 3. 改造任务创建接口为策略快照模式
+  - Modify: `src/main/java/com/example/demo/controller/JudgeController.java`
+  - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
+  - Create: `src/main/java/com/example/demo/dto/JudgeCreateResponse.java`
+  - Create: `src/main/java/com/example/demo/dto/JudgeErrorResponse.java`
+  - Test: `src/test/java/com/example/demo/JudgeControllerPolicyTest.java`
+  - Purpose: `/judge` 创建任务时返回 `judgeId`、模式、允许上限、是否 high-volume，而不是只返回字符串。
+  - _Leverage: `TaskPolicyResolver`, `GlobalExceptionHandler`_
+  - _Requirements: 1.1, 1.2, 2.1, 7.5_
+  - _Prompt: Role: API developer | Task: Update task creation to resolve and store an immutable policy snapshot. Return structured JSON with `judgeId`, `mode`, `requestedCases`, `maxCasesPerTask`, and `highVolume`. Restrictions: Preserve frontend compatibility during migration by updating `index.html` in a later task; do not leak stack traces or file paths. Success: Controller tests show valid tasks return policy metadata and invalid tasks return clear 400 errors._
+  - Strict Validation:
+    - Run: `mvn -Dtest=JudgeControllerPolicyTest,TaskPolicyResolverTest,JudgeBaselineTest test`
+    - Expected: `POST /judge` 成功返回 JSON，字段至少包含 `judgeId`、`mode`、`requestedCases`、`maxCasesPerTask`、`highVolume`、`status`。
+    - Expected: high-volume 创建响应中 `requestedCases=100000`、`highVolume=true`、`maxCasesPerTask>=100000`。
+    - Expected: 非法请求返回 400，错误体结构稳定，至少包含 `code/message/submitted/max/profile`。
+    - Expected: 错误体不得包含 Java exception class、stack trace、临时目录、绝对路径、g++ 命令行完整内容。
+    - Expected: 已创建任务保存策略快照；测试应修改配置对象或模拟配置变化，确认老任务不被新配置影响。
+    - Blocking failure: `/judge/start/{judgeId}` 不得重新按当前前端请求或当前配置覆盖已创建策略。
+    - Blocking failure: 旧纯字符串响应如果暂时保留，必须有兼容测试；否则前端迁移 task 必须同步处理。
+    - Evidence: Controller 测试必须使用 MockMvc 或等价 HTTP 层测试，而不是只测 service。
+
+- [ ] 4. 引入可恢复的任务存储
+  - Create: `src/main/java/com/example/demo/model/JudgeTask.java`
+  - Create: `src/main/java/com/example/demo/model/JudgeStatus.java`
+  - Create: `src/main/java/com/example/demo/service/TaskStore.java`
+  - Create: `src/main/java/com/example/demo/service/FileTaskStore.java`
+  - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
+  - Test: `src/test/java/com/example/demo/FileTaskStoreTest.java`
+  - Purpose: 用文件型任务元数据替代只靠内存 map，刷新页面或服务重启后仍能读取状态。
+  - _Leverage: current temp directory layout under `java.io.tmpdir/online-judge`_
+  - _Requirements: 4.1, 4.3, 4.4, 8.1, 9.1_
+  - _Prompt: Role: Java persistence engineer | Task: Add a file-backed `TaskStore` that writes `metadata.json`, `summary.json`, and append-only `events.jsonl` under each judge work directory. Restrictions: Keep implementation local-file based for this task, do not introduce a database dependency, write atomically with temp file + move for metadata. Success: Tests create a task, update status, reload from disk, and mark stale running tasks after simulated restart._
+  - Strict Validation:
+    - Run: `mvn -Dtest=FileTaskStoreTest,JudgeControllerPolicyTest,TaskPolicyResolverTest test`
+    - Expected: 创建任务后存在独立工作目录，含 `metadata.json`、可选 `summary.json`、`events.jsonl`。
+    - Expected: `metadata.json` 能完整保存 `judgeId/status/requestedCases/policy/workDir/createdAt`。
+    - Expected: 状态迁移受控，不允许 `COMPLETED -> RUNNING`、`CANCELLED -> RUNNING` 等非法倒退。
+    - Expected: 写 `metadata.json` 和 `summary.json` 使用临时文件加原子 move；模拟写入中断不得破坏旧文件。
+    - Expected: 模拟进程重启后，`RUNNING` 和 `QUEUED` 历史任务被标记为 `STALE` 或设计指定终态。
+    - Expected: 并发更新同一任务时不会生成损坏 JSON。
+    - Blocking failure: 不得引入数据库、Redis、外部服务作为本 task 前提。
+    - Blocking failure: `TaskStore` 不得允许解析到 storage base 目录之外。
+    - Evidence: 测试必须使用 JUnit 临时目录，不污染真实 `java.io.tmpdir/online-judge`。
+
+- [ ] 5. 拆分结果聚合，支持大任务摘要
+  - Create: `src/main/java/com/example/demo/dto/JudgeSummary.java`
+  - Create: `src/main/java/com/example/demo/dto/JudgeProgressEvent.java`
+  - Create: `src/main/java/com/example/demo/service/ResultAggregator.java`
+  - Modify: `src/main/java/com/example/demo/dto/JudgeProgress.java`
+  - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
+  - Test: `src/test/java/com/example/demo/ResultAggregatorTest.java`
+  - Purpose: 小任务保留完整 results，大任务只推摘要和失败样本，避免 100000 条结果打爆内存和页面。
+  - _Leverage: `TestCaseResult`, existing result statuses `AC`, `WA`, `TLE`, `MLE`, `RE`, `System Error`_
+  - _Requirements: 2.3, 2.4, 2.5, 5.1, 5.2_
+  - _Prompt: Role: Backend engineer focused on memory efficiency | Task: Implement `ResultAggregator` with full-result mode for small tasks and summary/sample mode for high-volume tasks. Track total, completed, status counters, first failed case, failure samples, and slow samples. Restrictions: Do not store all 100000 results in memory in high-volume mode; keep existing small-task frontend contract available. Success: Tests feed 100000 synthetic results and verify memory-safe summary output with correct counters and samples._
+  - Strict Validation:
+    - Run: `mvn -Dtest=ResultAggregatorTest,FileTaskStoreTest test`
+    - Expected: 小任务模式完整保留 `results`，且按 `caseNumber` 稳定排序。
+    - Expected: high-volume 输入 100000 条合成结果后，输出包含 `totalCases/completedCases/ac/wa/tle/mle/re/systemError/outputLimitExceeded/firstFailedCase/failureSamples`。
+    - Expected: high-volume 的 `results` 为 null 或空列表，最终 WebSocket payload 估算大小不得随 100000 线性增长。
+    - Expected: 失败样本数量严格受配置限制，例如 `maxFailureSamples=100` 时最多 100 条。
+    - Expected: 并发乱序输入下，`firstFailedCase` 必须是最小失败编号。
+    - Expected: AC 全通过时 final status 为 AC；存在 WA/TLE/MLE/RE 时 final status 按设计优先级稳定。
+    - Blocking failure: 聚合器不得把全部 100000 `TestCaseResult` 暗藏在内部集合里。
+    - Blocking failure: 不能用“前端不展示”替代“后端不传输大 payload”。
+    - Evidence: 测试应断言样本集合大小和最终序列化 JSON 大小上限。
+
+- [ ] 6. 将 case 执行改为分批调度
+  - Create: `src/main/java/com/example/demo/service/CaseBatchRunner.java`
+  - Create: `src/main/java/com/example/demo/service/CancellationToken.java`
+  - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
+  - Modify: `src/main/java/com/example/demo/config/AsyncConfig.java`
+  - Test: `src/test/java/com/example/demo/CaseBatchRunnerTest.java`
+  - Purpose: 避免当前 `for 1..testCases` 一次性创建全部 `CompletableFuture`，让 100000 点按批运行。
+  - _Leverage: current `runTestCase`, `compile`, `ThreadPoolTaskExecutor`_
+  - _Requirements: 2.2, 3.3, 3.4, 4.2_
+  - _Prompt: Role: Java concurrency engineer | Task: Move test-case execution into `CaseBatchRunner` that submits at most `batchSize` cases at a time and respects `maxConcurrentCasesPerTask`. Add cancellation checks before each batch and after each case. Restrictions: Do not change judge correctness logic in this task; preserve case numbering and deterministic sorted reporting. Success: Tests prove a 100000-case synthetic task never has more than configured in-flight futures and cancellation stops new batches._
+  - Strict Validation:
+    - Run: `mvn -Dtest=CaseBatchRunnerTest,ResultAggregatorTest test`
+    - Expected: 100000 synthetic case 运行时，最大 in-flight case 数小于等于 `maxConcurrentCasesPerTask`。
+    - Expected: 任意时刻排队 future 数不得超过 `batchSize + maxConcurrentCasesPerTask` 的设计上限。
+    - Expected: 取消 token 触发后，不再派发新批次；已开始 case 可收尾，但最终状态必须可标记为 `CANCELLED`。
+    - Expected: batch 边界覆盖 `totalCases=1`、`batchSize-1`、`batchSize`、`batchSize+1`、`100000`。
+    - Expected: 单 case 判题语义不变：生成输入、用户程序输出、暴力或 SPJ 对比仍按原逻辑。
+    - Expected: case 完成顺序乱序时，结果聚合仍稳定。
+    - Blocking failure: `JudgeService` 中不得保留 `for 1..testCases` 一次性创建所有 future 的执行路径。
+    - Blocking failure: 不能通过把线程池 queueCapacity 调大到 100000 来“支持大任务”。
+    - Evidence: 测试应记录并断言 peak in-flight 数。
+
+- [ ] 7. 新增任务队列、取消和预算控制
+  - Create: `src/main/java/com/example/demo/service/JudgeScheduler.java`
+  - Create: `src/main/java/com/example/demo/dto/CancelJudgeResponse.java`
+  - Modify: `src/main/java/com/example/demo/controller/JudgeController.java`
+  - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
+  - Test: `src/test/java/com/example/demo/JudgeSchedulerTest.java`
+  - Purpose: 控制全局并发、队列容量、总运行预算，并支持用户取消任务。
+  - _Leverage: `AsyncConfig.JUDGE_REQUEST_EXECUTOR`, `TaskStore`, `CaseBatchRunner`_
+  - _Requirements: 3.2, 3.3, 3.4, 4.2, 4.5_
+  - _Prompt: Role: Backend concurrency engineer | Task: Implement a queue-backed scheduler with `enqueue`, `cancel`, and queue snapshot support. Add `POST /judge/cancel/{judgeId}`. Enforce max running tasks, queue capacity, and max task runtime budget. Restrictions: Queue overflow must produce a user-readable error; cancellation must stop future batches and terminate known child processes where possible. Success: Tests cover queue full, max concurrency, cancellation before start, cancellation while running, and budget exceeded._
+  - Strict Validation:
+    - Run: `mvn -Dtest=JudgeSchedulerTest,CaseBatchRunnerTest,FileTaskStoreTest test`
+    - Expected: `maxConcurrentTasks=1` 时，第二个任务保持 `QUEUED`，不能进入 `RUNNING`。
+    - Expected: 队列容量满时返回 429 或设计指定业务错误，错误体包含当前队列容量和重试提示。
+    - Expected: 取消 queued task 后不会执行任何 case。
+    - Expected: 取消 running task 后 2 秒内停止派发新 case，并向 runner 发出终止信号。
+    - Expected: `maxTaskRuntime` 到达后，任务状态为 `BUDGET_EXCEEDED`，summary 保留 completed count 和 stopped reason。
+    - Expected: 并发提交 20 个任务时，无任务丢失、无重复启动、无死锁。
+    - Blocking failure: 任务取消不能只是前端隐藏进度；后端状态和执行循环必须停止。
+    - Blocking failure: 队列满不能退化成 CallerRunsPolicy 在请求线程里执行大任务。
+    - Evidence: 测试记录 running count 峰值、queue size 峰值、取消后的 completed count。
+
+- [ ] 8. 统一进程执行和输出限制
+  - Create: `src/main/java/com/example/demo/service/ProcessRunner.java`
+  - Create: `src/main/java/com/example/demo/service/DirectProcessRunner.java`
+  - Create: `src/main/java/com/example/demo/service/SandboxProcessRunner.java`
+  - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
+  - Modify: `src/main/java/com/example/demo/service/SandboxService.java`
+  - Test: `src/test/java/com/example/demo/ProcessRunnerTest.java`
+  - Purpose: 所有 C++ 程序统一经过 runner，限制时间、内存、输出大小，并清理进程树。
+  - _Leverage: current `runProcessDirectly`, `runProcessInSandbox`, `MemoryMonitorService`, `SandboxConfiguration`_
+  - _Requirements: 3.5, 6.1, 6.2, 6.3, 6.4, 6.5, 8.2_
+  - _Prompt: Role: Systems-oriented Java engineer | Task: Extract process execution into runner implementations with a common result model. Enforce timeout, memory limit, output byte limit, and process cleanup. In non-trusted profiles, fail if sandbox is required but unavailable. Restrictions: Do not silently downgrade from sandbox to direct execution when `requireSandbox=true`; do not read unbounded output into memory. Success: Tests cover timeout, non-zero exit, output limit, sandbox-required failure, and direct runner allowed only for trusted-local._
+  - Strict Validation:
+    - Run: `mvn -Dtest=ProcessRunnerTest,CaseBatchRunnerTest test`
+    - Required scenarios: 正常退出、非 0 退出、超时、无限输出、超大 stderr、内存超限、工作目录非法、sandbox required but unavailable。
+    - Expected: 超时 case 在 `timeLimit + killGrace` 内返回，不留下仍在运行的子进程。
+    - Expected: 输出超过 `maxOutputBytesPerCase` 时返回 `OUTPUT_LIMIT_EXCEEDED` 或设计指定状态，且内存占用不随输出无限增长。
+    - Expected: stderr 同样有上限，不允许把编译或运行错误无限读入内存。
+    - Expected: `requireSandbox=true` 时，SandboxProcessRunner 不可用必须失败，不得调用 DirectProcessRunner。
+    - Expected: trusted-local 以外 profile 禁止 direct runner。
+    - Expected: 生成器、用户程序、暴力程序、Special Judge 都从同一 `ProcessRunner` 接口进入。
+    - Blocking failure: 使用 `Files.readString(outputFile)` 读取不受限大输出的路径不能保留在生产执行链路中。
+    - Blocking failure: 子进程清理失败不能吞掉，必须进入日志和 result error。
+    - Evidence: 测试应能在 Windows 环境稳定运行；Linux sandbox 专项可用 profile 条件跳过，但跳过原因必须明确。
+
+- [ ] 9. 加固详情和下载接口
+  - Modify: `src/main/java/com/example/demo/controller/JudgeController.java`
+  - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
+  - Create: `src/main/java/com/example/demo/service/JudgeFileService.java`
+  - Test: `src/test/java/com/example/demo/JudgeFileServiceTest.java`
+  - Purpose: 防止路径穿越，按需读取详情，并把全量下载改为流式生成。
+  - _Leverage: existing `/details`, `/download/{judgeId}/{caseNumber}`, `/download/{judgeId}/all`_
+  - _Requirements: 2.5, 5.3, 5.4, 8.3, 8.4_
+  - _Prompt: Role: Secure backend engineer | Task: Move case-detail and download file access into `JudgeFileService`. Validate `judgeId` exists in `TaskStore`, validate case number range, resolve paths under the task work directory, and stream zip downloads through `StreamingResponseBody`. Restrictions: Do not use `ByteArrayOutputStream` for full-task zip; never accept raw paths from the client. Success: Tests cover valid detail, missing case, expired task, path traversal attempts, and streaming all-case download._
+  - Strict Validation:
+    - Run: `mvn -Dtest=JudgeFileServiceTest,FileTaskStoreTest test`
+    - Attack cases: `../`、`..\\`、绝对路径、URL encoded traversal、超大 caseNumber、负数 caseNumber、不存在 judgeId。
+    - Expected: 所有攻击 case 都不能读取 storage base 外文件，返回 400/404，不泄漏真实路径。
+    - Expected: 合法详情读取只返回该 case 的 input、user output、correct output，且每段内容受大小限制。
+    - Expected: `/download/{judgeId}/all` 使用 `StreamingResponseBody` 或等价流式实现；测试不得发现 `ByteArrayOutputStream` 聚合全量 zip 的生产路径。
+    - Expected: 大任务全量下载超过配置大小时返回明确错误或分片提示。
+    - Expected: 下载接口必须校验任务归属和认证状态，不能仅凭 judgeId 直接下载。
+    - Blocking failure: Controller 不得直接拼接文件路径或直接访问 `Path.resolve(caseNumber + ".in")`。
+    - Blocking failure: zip entry name 不能包含路径穿越片段。
+    - Evidence: 测试创建 storage base 外的 canary 文件，确认攻击请求无法读到。
+
+- [ ] 10. 改造 WebSocket 进度推送
+  - Create: `src/main/java/com/example/demo/service/ProgressPublisher.java`
+  - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
+  - Modify: `src/main/java/com/example/demo/dto/JudgeProgress.java`
+  - Test: `src/test/java/com/example/demo/ProgressPublisherTest.java`
+  - Purpose: 推送状态变更和节流后的摘要进度，避免大任务消息风暴。
+  - _Leverage: `SimpMessagingTemplate`, current `/topic/progress/{judgeId}`_
+  - _Requirements: 5.5, 9.1, 9.2_
+  - _Prompt: Role: Spring WebSocket engineer | Task: Add `ProgressPublisher` that updates `TaskStore` and sends WebSocket messages at a configurable interval, while sending status transitions immediately. Restrictions: WebSocket failures must not fail the judge task; high-volume final message must not include all case results. Success: Tests verify throttling, immediate final event, disconnected session tolerance, and status polling fallback._
+  - Strict Validation:
+    - Run: `mvn -Dtest=ProgressPublisherTest,ResultAggregatorTest test`
+    - Expected: 100000 case 完成事件模拟下，WebSocket 推送次数小于等于 `ceil(durationSeconds * maxMessagesPerSecond) + statusTransitionCount`。
+    - Expected: `PENDING`、`COMPILING`、`RUNNING`、`CANCELLED`、终态事件立即发送，不被普通进度节流吞掉。
+    - Expected: SimpMessagingTemplate 抛异常时，任务执行不失败，状态仍写入 TaskStore。
+    - Expected: high-volume 最终消息 payload 不包含完整 results，序列化大小低于配置阈值。
+    - Expected: 轮询接口读到的状态与最后一次持久化状态一致。
+    - Blocking failure: WebSocket session inactive 不能导致状态停止更新。
+    - Blocking failure: 不能靠前端 throttle 解决后端消息风暴，后端必须节流。
+    - Evidence: 测试记录发送次数、最后一次 payload 结构和大小。
+
+- [ ] 11. 更新前端为普通/大任务双模式
+  - Modify: `src/main/resources/templates/index.html`
+  - Test: `src/test/java/com/example/demo/FrontendTemplateContractTest.java`
+  - Purpose: 普通任务显示结果网格，大任务显示摘要、失败样本、按需详情和下载入口。
+  - _Leverage: existing Bootstrap UI, `handleProgress`, `renderResultGrid`, `showDetailsModal`_
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
+  - _Prompt: Role: Frontend engineer maintaining a Thymeleaf single-page app | Task: Update the page to handle structured create responses and progress events with either `results` or `summary`. Show high-volume mode notice when backend returns `highVolume=true`. Render summary cards, counters, first failed case, and failure samples without creating 100000 DOM nodes. Restrictions: Keep small-task grid behavior; do not rely on frontend max attributes as security controls. Success: Manual and automated checks confirm 10-case grid works and synthetic 100000-case summary renders quickly._
+  - Strict Validation:
+    - Run: `mvn -Dtest=FrontendTemplateContractTest test`
+    - Manual run: 启动本地应用，浏览器提交 10 点示例，确认网格、详情弹窗、单点下载、错误 toast 可用。
+    - Synthetic check: 注入 100000 summary 事件，页面只渲染摘要和样本，DOM 中 `.result-case` 数量不得超过配置样本上限。
+    - Expected: 前端能处理结构化 `/judge` 响应，不再假设响应一定是纯字符串 judgeId。
+    - Expected: 小任务 `results` 路径继续可用；high-volume `summary` 路径不访问不存在的 `results.length`。
+    - Expected: 前端 `input max` 仅作提示；即使改成 100000，也必须展示后端拒绝错误。
+    - Expected: summary 显示 total、completed、AC/WA/TLE/MLE/RE/System Error、first failed case、failure samples。
+    - Blocking failure: 页面不得为 100000 case 创建 100000 个卡片、按钮或 diff 容器。
+    - Blocking failure: 任何错误消息不得通过 `innerHTML` 注入未转义的后端内容。
+    - Evidence: 保存手动验收截图或记录关键 DOM 计数；如无浏览器自动化，必须在 runbook 中写明人工步骤。
+
+- [ ] 12. 加固鉴权、WebSocket Origin 和启动风险提示
+  - Modify: `src/main/java/com/example/demo/config/AuthConfiguration.java`
+  - Modify: `src/main/java/com/example/demo/config/WebSocketConfig.java`
+  - Create: `src/main/java/com/example/demo/config/SecurityModeStartupValidator.java`
+  - Modify: `src/main/resources/application.yml`
+  - Test: `src/test/java/com/example/demo/SecurityModeStartupValidatorTest.java`
+  - Purpose: 默认访问码、`allowed-origins: "*"` 和无沙箱直跑只能出现在 trusted-local 模式。
+  - _Leverage: `AuthenticationInterceptor`, `SecurityConfig`, `SandboxConfiguration`_
+  - _Requirements: 6.1, 6.4, 7.1, 7.2, 7.3, 7.4_
+  - _Prompt: Role: Spring security engineer | Task: Validate security-sensitive startup configuration. Reject or warn based on profile when access code is default, WebSocket origin is wildcard, sandbox is disabled, or public mode is selected. Ensure protected judge/detail/download endpoints still require authentication. Restrictions: Do not break trusted-local convenience; do not allow insecure defaults in intranet-large. Success: Tests cover trusted-local warnings, intranet startup failure for wildcard origin/default code, and unauthenticated endpoint rejection._
+  - Strict Validation:
+    - Run: `mvn -Dtest=SecurityModeStartupValidatorTest,JudgeControllerPolicyTest test`
+    - Expected: trusted-local 允许默认访问码或 wildcard origin 时，启动日志必须包含明确高风险提示。
+    - Expected: intranet-large 下默认访问码、`allowed-origins: "*"`、`sandbox.enabled=false` 任意一项出现都导致启动失败或任务创建拒绝。
+    - Expected: public-disabled profile 下 `/judge` 创建任务不可用。
+    - Expected: 未认证访问 `/judge`、`/judge/start/**`、`/judge/status/**`、`/details/**`、`/download/**` 全部被拒绝。
+    - Expected: WebSocket origin 校验覆盖允许 origin、拒绝 origin、多个 origin 配置。
+    - Expected: 认证失败超过阈值后锁定或限流行为可测试。
+    - Blocking failure: 不能因为“内网使用”保留无条件 `allowed-origins: "*"`。
+    - Blocking failure: sandbox required 的 profile 不允许静默降级直跑。
+    - Evidence: 启动失败测试应断言失败原因文本，不只断言抛异常。
+
+- [ ] 13. 增加临时目录清理和启动补偿
+  - Create: `src/main/java/com/example/demo/service/TaskCleanupService.java`
+  - Modify: `src/main/java/com/example/demo/service/FileTaskStore.java`
+  - Modify: `src/main/resources/application.yml`
+  - Test: `src/test/java/com/example/demo/TaskCleanupServiceTest.java`
+  - Purpose: 控制磁盘增长，服务启动时清理过期任务，并把旧 running 任务标记为 stale。
+  - _Leverage: current delayed cleanup logic in `JudgeService.cleanupJudgeTask`_
+  - _Requirements: 4.4, 4.5, 8.5, 9.3_
+  - _Prompt: Role: Backend reliability engineer | Task: Add scheduled cleanup for expired task directories and startup reconciliation for stale running tasks. Make retention configurable by status. Restrictions: Never delete directories outside configured judge storage base; log cleanup failures with judgeId and path. Success: Tests use temporary directories to verify expired cleanup, active task preservation, stale state marking, and safe path checks._
+  - Strict Validation:
+    - Run: `mvn -Dtest=TaskCleanupServiceTest,FileTaskStoreTest test`
+    - Expected: completed/cancelled/failed/stale 各状态按独立 retention 配置清理。
+    - Expected: running/queued 未过期任务绝不清理。
+    - Expected: 启动补偿将旧 `RUNNING` 标记为 `STALE`，并写入 events。
+    - Expected: 清理前后磁盘目录数量和 TaskStore 状态一致，不出现元数据已删但目录残留的不可解释状态。
+    - Expected: storage base 外路径、符号链接逃逸、`..` 路径都拒绝删除。
+    - Expected: 删除失败记录 warning/error，包含 judgeId 和相对路径，不包含敏感绝对路径给前端。
+    - Blocking failure: 不允许使用宽泛递归删除清理用户未确认的目录。
+    - Blocking failure: 不能同时保留旧 delayed cleanup 和新 cleanup 造成重复删除竞态。
+    - Evidence: 测试必须使用临时目录和 canary 文件证明不会越界删除。
+
+- [ ] 14. 补齐高容量模式验收测试和本地运行说明
+  - Create: `src/test/java/com/example/demo/HighVolumeJudgeIntegrationTest.java`
+  - Create: `docs/judge-hardening-runbook.md`
+  - Modify: `README.md`
+  - Purpose: 给出 10 点、1000 点、100000 点策略验证和部署模式说明。
+  - _Leverage: all implemented components_
+  - _Requirements: 10.1, 10.2, 10.4, 10.5_
+  - _Prompt: Role: QA and documentation engineer | Task: Add integration tests and runbook for local trusted mode, local-large 100000 mode, and intranet-large secure mode. Include commands, expected logs, expected UI behavior, and rollback/configuration notes. Restrictions: 100000 CI test may use a fake or fast runner to avoid long runtime, but must still verify scheduling and aggregation behavior. Success: `mvn test` passes, docs explain how to safely enable 100000 cases, and README warns that public exposure is unsupported without strong sandboxing._
+  - Strict Validation:
+    - Run: `mvn -Dtest=HighVolumeJudgeIntegrationTest test`
+    - Run: `mvn test`
+    - Expected: 10 点真实流程 AC，保留完整小任务 results，前端仍可渲染网格。
+    - Expected: 1000 点流程验证分批调度、进度节流、summary 计数和失败样本。
+    - Expected: 100000 点使用 fake/fast runner，但必须真实经过策略、调度、聚合、状态存储和进度发布链路。
+    - Expected: 100000 点测试断言 peak in-flight、payload size、failure sample count、final summary counters。
+    - Expected: 高容量测试总耗时应在 CI 可接受范围内；如设置阈值，例如 30 秒，超过即失败并需要优化 fake runner 或调度测试。
+    - Expected: `docs/judge-hardening-runbook.md` 包含 trusted-local、local-large、intranet-large 的配置示例、启动命令、预期日志、验收 curl/浏览器步骤、风险和回滚。
+    - Expected: README 明确写出公网暴露不受支持，除非另行实现强认证、强沙箱、审计和隔离。
+    - Blocking failure: 不能把 100000 验收降级成“只测配置解析”，必须穿过核心执行链路。
+    - Blocking failure: `mvn test` 不通过时，整个规格不能算完成。
+    - Evidence: 提交最终验收摘要，包括测试命令、通过数量、关键指标 peak in-flight/payload size/samples count。
