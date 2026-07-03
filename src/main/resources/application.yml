@@ -19,6 +19,8 @@ judge:
   auth:
     access-code: "123"
     default-access-code: "123"
+    account-auth-enabled: false
+    accounts: []
     session-timeout: 30d
     normal-session-timeout: 24h
     max-attempts: 5

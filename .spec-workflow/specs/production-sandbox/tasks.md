@@ -160,7 +160,7 @@
     - Regression: `.\mvnw.cmd test`: 118 run, 0 failures, 0 errors, 1 skipped.
     - `git diff --check`: exit 0, no whitespace errors.
 
-- [ ] 7. 加强认证模型，禁用生产共享访问码
+- [x] 7. 加强认证模型，禁用生产共享访问码
   - Create: `src/main/java/com/example/demo/service/UserAccountService.java`
   - Create: `src/main/java/com/example/demo/model/UserAccount.java`
   - Modify: `src/main/java/com/example/demo/controller/AuthenticationController.java`
@@ -178,6 +178,11 @@
     - Expected: auth failure is rate limited and audited.
     - Blocking failure: A single shared access code granting all production permissions fails.
     - Evidence: Tests assert no plaintext password appears in persisted user/session state.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd "-Dtest=ProductionAuthenticationTest,ProductionSecurityStartupValidatorTest" test` failed at testCompile because `UserAccountService`, account configuration, and username/password request fields did not exist.
+    - Green/Strict: `.\mvnw.cmd "-Dtest=ProductionAuthenticationTest,ProductionSecurityStartupValidatorTest" test`: 10 run, 0 failures, 0 errors, 0 skipped.
+    - Regression: `.\mvnw.cmd test`: 122 run, 0 failures, 0 errors, 1 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
 
 - [ ] 8. 实现 LinuxContainerRunner capability probe 和执行
   - Create: `src/main/java/com/example/demo/service/sandbox/LinuxContainerRunner.java`

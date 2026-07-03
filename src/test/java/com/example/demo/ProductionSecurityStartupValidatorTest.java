@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -17,6 +20,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ExtendWith(OutputCaptureExtension.class)
 class ProductionSecurityStartupValidatorTest {
+
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Test
     void trustedLocalAllowsDirectRunnerAndWildcardOriginButLogsWarnings(CapturedOutput output) {
@@ -164,6 +169,10 @@ class ProductionSecurityStartupValidatorTest {
         AuthConfiguration auth = new AuthConfiguration();
         auth.setAccessCode(accessCode);
         auth.setDefaultAccessCode("123");
+        if (!"trusted-local".equals(profile)) {
+            auth.setAccountAuthEnabled(true);
+            auth.setAccounts(List.of(validAccount()));
+        }
 
         ExecutionProperties execution = new ExecutionProperties();
         execution.setProfile(profile);
@@ -194,5 +203,14 @@ class ProductionSecurityStartupValidatorTest {
         sandbox.setCapabilityProbeRequired(true);
         sandbox.setCapabilityProbePassed(capabilityProbePassed);
         return sandbox;
+    }
+
+    private AuthConfiguration.AccountProperties validAccount() {
+        AuthConfiguration.AccountProperties account = new AuthConfiguration.AccountProperties();
+        account.setUserId("validator-admin");
+        account.setUsername("validator-admin");
+        account.setPasswordHash(passwordEncoder.encode("CorrectPassword-51"));
+        account.setAdmin(true);
+        return account;
     }
 }

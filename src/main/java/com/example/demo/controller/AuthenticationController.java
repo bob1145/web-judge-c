@@ -5,9 +5,11 @@ import com.example.demo.dto.AuthResponse;
 import com.example.demo.dto.LogoutRequest;
 import com.example.demo.dto.SessionInfo;
 import com.example.demo.model.AuthStatus;
+import com.example.demo.model.UserAccount;
 import com.example.demo.model.UserSession;
 import com.example.demo.service.AccessCodeService;
 import com.example.demo.service.SessionManagementService;
+import com.example.demo.service.UserAccountService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +32,7 @@ public class AuthenticationController {
     
     private final AccessCodeService accessCodeService;
     private final SessionManagementService sessionManagementService;
+    private final UserAccountService userAccountService;
     
     private static final String SESSION_COOKIE_NAME = "JUDGE_SESSION";
     private static final int COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30天
@@ -69,6 +72,35 @@ public class AuthenticationController {
         log.info("收到认证请求，IP: {}, rememberMe: {}", ipAddress, request.isRememberMe());
         
         // 验证校验码
+        if (userAccountService.requiresAccountAuthentication()) {
+            UserAccountService.LoginResult login = userAccountService.authenticate(
+                    request.getUsername(),
+                    request.getPassword(),
+                    ipAddress
+            );
+            if (!login.success()) {
+                int statusCode = login.status() == UserAccountService.Status.TOO_MANY_ATTEMPTS ? 429 : 401;
+                return ResponseEntity.status(statusCode).body(AuthResponse.failure(login.message()));
+            }
+
+            UserAccount account = login.account();
+            UserSession session = accessCodeService.createSession(
+                    request.isRememberMe(),
+                    ipAddress,
+                    userAgent,
+                    account.getUserId(),
+                    account.isAdmin()
+            );
+            setSessionCookie(httpResponse, session.getSessionId(), request.isRememberMe());
+
+            String redirectUrl = httpRequest.getParameter("redirect");
+            if (redirectUrl == null || redirectUrl.isEmpty()) {
+                redirectUrl = "/";
+            }
+
+            return ResponseEntity.ok(AuthResponse.success(session.getSessionId(), redirectUrl));
+        }
+
         AuthStatus status = accessCodeService.validateAccessCode(request.getAccessCode(), ipAddress);
         
         if (status == AuthStatus.SUCCESS) {

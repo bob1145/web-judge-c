@@ -16,6 +16,10 @@ public class AuthRequest {
      * 用户输入的校验码
      */
     private String accessCode;
+
+    private String username;
+
+    private String password;
     
     /**
      * 是否记住用户30天

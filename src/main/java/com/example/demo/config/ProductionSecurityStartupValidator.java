@@ -2,6 +2,7 @@ package com.example.demo.config;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -26,6 +27,7 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
     private final SandboxConfiguration sandboxConfiguration;
     private final SandboxProperties sandboxProperties;
     private final WebSocketConfig webSocketConfig;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
     public void afterSingletonsInstantiated() {
@@ -40,6 +42,7 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
             risks.forEach(risk -> log.warn("HIGH RISK trusted-local configuration: {}", risk));
             return;
         }
+        risks.addAll(authenticationRisks());
 
         switch (profile) {
             case WINDOWS_PROD -> validateWindowsProd(risks);
@@ -106,6 +109,35 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
             risks.add("sandbox capability probe has not passed");
         }
         return risks;
+    }
+
+    private List<String> authenticationRisks() {
+        List<String> risks = new ArrayList<>();
+        if (!authConfiguration.isAccountAuthEnabled() || authConfiguration.getAccounts().isEmpty()) {
+            risks.add("production account authentication is required");
+            return risks;
+        }
+        for (AuthConfiguration.AccountProperties account : authConfiguration.getAccounts()) {
+            if (!StringUtils.hasText(account.getUserId()) || !StringUtils.hasText(account.getUsername())) {
+                risks.add("account userId and username are required");
+            }
+            String hash = account.getPasswordHash();
+            if (!StringUtils.hasText(hash) || !hash.startsWith("$2")) {
+                risks.add("account password hash must use BCrypt");
+                continue;
+            }
+            if (account.isAdmin() && matchesSamplePassword(hash)) {
+                risks.add("sample admin password is not allowed");
+            }
+        }
+        return risks;
+    }
+
+    private boolean matchesSamplePassword(String hash) {
+        return passwordEncoder.matches("admin", hash)
+                || passwordEncoder.matches("password", hash)
+                || passwordEncoder.matches("123456", hash)
+                || passwordEncoder.matches(valueOrEmpty(authConfiguration.getDefaultAccessCode()), hash);
     }
 
     private void requireProvider(SandboxProperties.Provider expected, String label, List<String> risks) {
