@@ -168,6 +168,17 @@ judge:
       security-profile: seccomp:judge-linux
       capability-probe-required: true
       capability-probe-passed: false
+      linux-container:
+        runtime-command: docker
+        image: cpp-judge-runner:latest
+        container-user: "65532:65532"
+        work-mount: /work
+        runner-command: /opt/judge-runner/run-task
+        task-spec-file: sandbox-task.json
+        event-file: events.jsonl
+        pids-limit: 64
+        cpus: 1.0
+        command-timeout: 30s
 
 ---
 spring:

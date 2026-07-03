@@ -184,7 +184,7 @@
     - Regression: `.\mvnw.cmd test`: 122 run, 0 failures, 0 errors, 1 skipped.
     - `git diff --check`: exit 0, no whitespace errors.
 
-- [ ] 8. 实现 LinuxContainerRunner capability probe 和执行
+- [x] 8. 实现 LinuxContainerRunner capability probe 和执行
   - Create: `src/main/java/com/example/demo/service/sandbox/LinuxContainerRunner.java`
   - Create: `src/test/java/com/example/demo/LinuxContainerRunnerTest.java`
   - Create: `docs/linux-sandbox-runbook.md`
@@ -203,6 +203,13 @@
     - Expected: timeout kills task and no container remains running.
     - Blocking failure: Falling back to host `ProcessBuilder` in linux-prod fails.
     - Evidence: Test logs include provider, image, cgroup mode and skip reason if unavailable.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=LinuxContainerRunnerTest test` failed at testCompile because `LinuxContainerRunner` did not exist.
+    - Green/Strict: `.\mvnw.cmd -Dtest=LinuxContainerRunnerTest test`: 7 run, 0 failures, 0 errors, 1 skipped.
+    - Skip reason: live Linux container capability probe skipped on this Windows host with `container runtime unavailable: Cannot run program "docker"`; deterministic fake-runtime tests cover unavailable runtime, unsafe probe output, network none, non-root, cgroup, seccomp/AppArmor, detached run command, event polling, cancel cleanup, and no host fallback.
+    - Runbook: `docs/linux-sandbox-runbook.md` documents Linux deployment prerequisites, capability probe commands, network/pids/memory/path-isolation/timeout cleanup smoke checks, and Windows/Linux boundary notes.
+    - Regression: `.\mvnw.cmd test`: 129 run, 0 failures, 0 errors, 2 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
 
 - [ ] 9. 实现 WindowsHyperVContainerRunner capability probe 和执行
   - Create: `src/main/java/com/example/demo/service/sandbox/WindowsHyperVContainerRunner.java`
