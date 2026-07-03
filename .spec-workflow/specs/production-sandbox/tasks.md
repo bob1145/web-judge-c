@@ -401,7 +401,7 @@
     - `git diff --check`: exit 0, no whitespace errors; Git reported Windows CRLF conversion warnings for touched runbooks.
     - Evidence: `ProductionHighVolumeIntegrationTest` verifies the production runner chain through policy, scheduler, fake sandbox runner, event ingestor, TaskStore, and ProgressPublisher; final progress omits the full result list and keeps payload/sample/WebSocket counts bounded.
 
-- [ ] 16. 平台 capability smoke 和生产部署 runbook
+- [x] 16. 平台 capability smoke 和生产部署 runbook
   - Create: `docs/production-sandbox-runbook.md`
   - Create: `docs/security-boundary.md`
   - Create: `scripts/smoke/windows-capability-smoke.ps1`
@@ -422,6 +422,16 @@
     - Expected: Linux docs state cgroup/seccomp/AppArmor/non-root/network requirements.
     - Blocking failure: Documentation saying “Windows Sandbox” or “Job Object-only” is enough for production fails.
     - Evidence: Smoke scripts parse successfully and docs contain all required profile names.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd "-Dtest=ProductionRunbookDocumentationTest" test` initially failed because `docs/production-sandbox-runbook.md`, `docs/security-boundary.md`, `scripts/smoke/windows-capability-smoke.ps1`, and the README production warning did not exist.
+    - Green/Strict: `.\mvnw.cmd "-Dtest=ProductionRunbookDocumentationTest" test`: 4 run, 0 failures, 0 errors, 0 skipped.
+    - Windows smoke precheck: `powershell -ExecutionPolicy Bypass -File scripts/smoke/windows-capability-smoke.ps1 -WhatIf`: exit 0; Docker CLI unavailable on this host, so this is local precheck evidence only and not release evidence.
+    - Linux syntax: `bash -n scripts/smoke/linux-capability-smoke.sh`: exit 0.
+    - WSL syntax: `wsl.exe -- bash -lc "cd /mnt/c/tmp/codex-production-sandbox-tasks && bash -n scripts/smoke/linux-capability-smoke.sh"`: exit 0.
+    - WSL dry run: `wsl.exe -- bash -lc "cd /mnt/c/tmp/codex-production-sandbox-tasks && bash scripts/smoke/linux-capability-smoke.sh --dry-run --skip-maven"`: exit 0 and printed the Docker command with `--network none`, `--pids-limit`, `--read-only`, non-root user, seccomp and AppArmor options.
+    - Regression: `.\mvnw.cmd test`: 165 run, 0 failures, 0 errors, 4 skipped.
+    - `git diff --check`: exit 0, no whitespace errors; Git reported a Windows CRLF conversion warning for `README.md`.
+    - Evidence: `ProductionRunbookDocumentationTest` locks the required profile names, platform smoke entry points, rollback, default access code rejection, wildcard origin rejection, network disabled, resource limits, path isolation, process-tree kill, Hyper-V requirement, Job Object limitation, Linux cgroup/seccomp/AppArmor/non-root/network requirements, remote-worker authentication, and the statement that WSL smoke is not production release evidence.
 
 - [ ] 17. 最终安全审计和上线门禁
   - Test: all tests and smoke scripts
