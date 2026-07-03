@@ -315,7 +315,7 @@
     - Regression: `.\mvnw.cmd test`: 152 run, 0 failures, 0 errors, 4 skipped.
     - `git diff --check`: exit 0, no whitespace errors.
 
-- [ ] 13. 增加审计、管理视图和运维指标
+- [x] 13. 增加审计、管理视图和运维指标
   - Create: `src/main/java/com/example/demo/service/AuditService.java`
   - Create: `src/main/java/com/example/demo/dto/AdminQueueSnapshot.java`
   - Create: `src/main/java/com/example/demo/controller/AdminController.java`
@@ -332,6 +332,13 @@
     - Expected: audit logs do not contain plaintext passwords, full source code, or secrets.
     - Blocking failure: Logging only free-form messages without structured fields is insufficient.
     - Evidence: Tests inspect audit sink entries.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd "-Dtest=AuditAndAdminTest,ProductionAuthenticationTest" test` failed at testCompile because `AuditService` did not exist.
+    - Green/Strict: `.\mvnw.cmd "-Dtest=AuditAndAdminTest,ProductionAuthenticationTest" test`: 6 run, 0 failures, 0 errors, 0 skipped.
+    - Focused regression: `.\mvnw.cmd "-Dtest=AuditAndAdminTest,QuotaAndAuthorizationTest,JudgeFileServiceProductionTest" test`: 13 run, 0 failures, 0 errors, 1 skipped.
+    - Regression: `.\mvnw.cmd test`: 154 run, 0 failures, 0 errors, 4 skipped.
+    - `git diff --check`: exit 0, no whitespace errors; Git reported Windows CRLF conversion warnings for touched files.
+    - Evidence: tests verify structured task create/start/cancel/download/security/quota audit events, admin-only `/admin/queue`, queue/running/provider/failure snapshots, and sanitized audit/admin payloads.
 
 - [ ] 14. 增加任务清理、启动对账和容器残留清理
   - Create: `src/main/java/com/example/demo/service/TaskCleanupService.java`

@@ -8,6 +8,7 @@ import com.example.demo.model.UserSession;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
 import com.example.demo.service.FileTaskStore;
+import com.example.demo.service.AuditService;
 import com.example.demo.service.JudgeFileService;
 import com.example.demo.service.JudgeScheduler;
 import com.example.demo.service.JudgeService;
@@ -278,7 +279,9 @@ class JudgeSchedulerTest {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new JudgeController(
                 judgeService,
                 mock(JudgeFileService.class),
-                accessCodeService(session)
+                accessCodeService(session),
+                new AuditService(),
+                new ExecutionProperties()
         )).build();
 
         mockMvc.perform(post("/judge/cancel/{judgeId}", "abc")
@@ -301,7 +304,9 @@ class JudgeSchedulerTest {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new JudgeController(
                 judgeService,
                 mock(JudgeFileService.class),
-                accessCodeService(session)
+                accessCodeService(session),
+                new AuditService(),
+                new ExecutionProperties()
         )).build();
 
         mockMvc.perform(post("/judge/start/{judgeId}", "full")
