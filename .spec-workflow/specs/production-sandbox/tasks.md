@@ -290,7 +290,7 @@
     - Regression: `.\mvnw.cmd test`: 148 run, 0 failures, 0 errors, 3 skipped.
     - `git diff --check`: exit 0, no whitespace errors.
 
-- [ ] 12. 加固任务文件、挂载、详情和下载
+- [x] 12. 加固任务文件、挂载、详情和下载
   - Create: `src/main/java/com/example/demo/service/JudgeFileService.java`
   - Modify: `src/main/java/com/example/demo/controller/JudgeController.java`
   - Modify: `src/main/java/com/example/demo/service/FileTaskStore.java`
@@ -307,6 +307,13 @@
     - Expected: download requires owner/admin authorization.
     - Blocking failure: Controller directly touching filesystem paths fails.
     - Evidence: Test creates outside-storage canary and confirms it is never returned.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd "-Dtest=JudgeFileServiceProductionTest,QuotaAndAuthorizationTest" test` failed: 11 run, 2 failures, 0 errors, 1 skipped. Failures showed `JudgeFileService` accepted Windows junction/directory-link workDir escape for details and archive creation.
+    - Green/Strict: `.\mvnw.cmd "-Dtest=JudgeFileServiceProductionTest,QuotaAndAuthorizationTest" test`: 11 run, 0 failures, 0 errors, 1 skipped.
+    - File regression: `.\mvnw.cmd "-Dtest=JudgeFileServiceProductionTest,JudgeFileServiceTest,QuotaAndAuthorizationTest,FileTaskStoreTest,TaskCleanupServiceTest" test`: 37 run, 0 failures, 0 errors, 2 skipped.
+    - Security evidence: tests cover outside-storage canary, Windows junction/directory-link workDir escape, file symlink escape when the platform allows symlinks, archive rejection before streaming, no absolute path/canary leakage, owner/admin authorization regression, and no full-zip `ByteArrayOutputStream` in production service code.
+    - Regression: `.\mvnw.cmd test`: 152 run, 0 failures, 0 errors, 4 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
 
 - [ ] 13. 增加审计、管理视图和运维指标
   - Create: `src/main/java/com/example/demo/service/AuditService.java`

@@ -114,6 +114,7 @@ public class FileTaskStore implements TaskStore {
         ensureInsideStorageBase(workDir);
         synchronized (lock(task.getJudgeId())) {
             Files.createDirectories(workDir);
+            validateTaskDirectory(workDir);
             JudgeTask normalized = copyForWrite(task);
             if (normalized.getCreatedAt() == null) {
                 normalized.setCreatedAt(Instant.now());
@@ -131,10 +132,16 @@ public class FileTaskStore implements TaskStore {
     public Optional<JudgeTask> find(String judgeId) throws IOException {
         validateJudgeId(judgeId);
         synchronized (lock(judgeId)) {
-            Path metadata = metadataFile(taskDirectory(judgeId));
-            if (!Files.exists(metadata)) {
+            Path workDir = taskDirectory(judgeId);
+            if (!Files.exists(workDir, LinkOption.NOFOLLOW_LINKS)) {
                 return Optional.empty();
             }
+            validateTaskDirectory(workDir);
+            Path metadata = metadataFile(workDir);
+            if (!Files.exists(metadata, LinkOption.NOFOLLOW_LINKS)) {
+                return Optional.empty();
+            }
+            validateRegularFile(metadata);
             return Optional.of(objectMapper.readValue(metadata.toFile(), JudgeTask.class));
         }
     }
@@ -160,6 +167,7 @@ public class FileTaskStore implements TaskStore {
 
             Path workDir = Path.of(task.getWorkDir()).toAbsolutePath().normalize();
             ensureInsideStorageBase(workDir);
+            validateTaskDirectory(workDir);
             writeJsonAtomically(metadataFile(workDir), task);
             appendEvent(workDir, event(judgeId, status, message));
             return task;
@@ -174,6 +182,7 @@ public class FileTaskStore implements TaskStore {
                     .orElseThrow(() -> new IllegalArgumentException("Judge task not found: " + judgeId));
             Path workDir = Path.of(task.getWorkDir()).toAbsolutePath().normalize();
             ensureInsideStorageBase(workDir);
+            validateTaskDirectory(workDir);
             writeJsonAtomically(summaryFile(workDir), summary);
         }
     }
@@ -182,10 +191,16 @@ public class FileTaskStore implements TaskStore {
     public Optional<JudgeProgress> findSummary(String judgeId) throws IOException {
         validateJudgeId(judgeId);
         synchronized (lock(judgeId)) {
-            Path summaryPath = summaryFile(taskDirectory(judgeId));
-            if (!Files.exists(summaryPath)) {
+            Path workDir = taskDirectory(judgeId);
+            if (!Files.exists(workDir, LinkOption.NOFOLLOW_LINKS)) {
                 return Optional.empty();
             }
+            validateTaskDirectory(workDir);
+            Path summaryPath = summaryFile(workDir);
+            if (!Files.exists(summaryPath, LinkOption.NOFOLLOW_LINKS)) {
+                return Optional.empty();
+            }
+            validateRegularFile(summaryPath);
 
             JsonNode json = objectMapper.readTree(summaryPath.toFile());
             String status = json.path("status").asText();
@@ -243,8 +258,22 @@ public class FileTaskStore implements TaskStore {
         try (Stream<Path> stream = Files.list(storageBase)) {
             List<Path> metadataFiles = stream
                     .filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
+                    .peek(path -> {
+                        try {
+                            validateTaskDirectory(path);
+                        } catch (IOException ex) {
+                            throw new UnsafeTaskDirectoryException(ex);
+                        }
+                    })
                     .map(this::metadataFile)
-                    .filter(Files::exists)
+                    .filter(path -> Files.exists(path, LinkOption.NOFOLLOW_LINKS))
+                    .peek(path -> {
+                        try {
+                            validateRegularFile(path);
+                        } catch (IOException ex) {
+                            throw new UnsafeTaskDirectoryException(ex);
+                        }
+                    })
                     .sorted(Comparator.comparing(Path::toString))
                     .toList();
             List<JudgeTask> tasks = new ArrayList<>();
@@ -252,6 +281,8 @@ public class FileTaskStore implements TaskStore {
                 tasks.add(objectMapper.readValue(metadata.toFile(), JudgeTask.class));
             }
             return tasks;
+        } catch (UnsafeTaskDirectoryException ex) {
+            throw ex.asIOException();
         }
     }
 
@@ -273,6 +304,30 @@ public class FileTaskStore implements TaskStore {
                     }
                 }
             }
+        }
+    }
+
+    private void validateTaskDirectory(Path directory) throws IOException {
+        ensureInsideStorageBase(directory);
+        if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Unsafe judge task directory");
+        }
+        Path realStorageBase = storageBase.toRealPath();
+        Path realDirectory = directory.toRealPath();
+        if (!realDirectory.startsWith(realStorageBase)) {
+            throw new IOException("Unsafe judge task directory");
+        }
+    }
+
+    private void validateRegularFile(Path file) throws IOException {
+        ensureInsideStorageBase(file);
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Unsafe judge task file");
+        }
+        Path realStorageBase = storageBase.toRealPath();
+        Path realFile = file.toRealPath();
+        if (!realFile.startsWith(realStorageBase)) {
+            throw new IOException("Unsafe judge task file");
         }
     }
 
@@ -366,6 +421,17 @@ public class FileTaskStore implements TaskStore {
         Path normalized = path.toAbsolutePath().normalize();
         if (!normalized.startsWith(storageBase)) {
             throw new IllegalArgumentException("Path is outside storage base");
+        }
+    }
+
+    private static final class UnsafeTaskDirectoryException extends RuntimeException {
+
+        private UnsafeTaskDirectoryException(IOException cause) {
+            super(cause);
+        }
+
+        private IOException asIOException() {
+            return (IOException) getCause();
         }
     }
 }
