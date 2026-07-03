@@ -1,0 +1,348 @@
+# Tasks Document
+
+## Global Acceptance Rules
+
+这些规则适用于下面每一个 task。任何一条不满足，都不能把该 task 标为完成。
+
+- 每个实现 task 必须先补失败测试，再改实现；纯文档或纯基线 task 除外。
+- 每个 task 必须运行自己的 `Run:` 命令，并记录命令结果、测试数量、失败数量和跳过原因。
+- 每个 task 必须回归已完成 task 的相关测试；不得删除、跳过或放宽旧测试来通过新任务。
+- 任何 sandbox/security task 必须包含滥用用例，例如禁网、越权路径、默认口令、wildcard origin、沙箱不可用、资源耗尽。
+- 任何 Windows provider task 必须证明 Hyper-V isolation 或 remote worker 生效；Job Object-only 不能作为生产安全证明。
+- 任何 Linux provider task 必须证明容器隔离、禁网、非 root、cgroup 资源限制和 seccomp/AppArmor 或等价策略。
+- 任何 100000+ case task 必须证明 Java future、WebSocket payload、DOM node、内存结果集合不会随 case 数线性爆炸。
+- 任何文件/下载/挂载 task 必须证明不会读写 storage base 外文件，且错误响应不泄漏服务器绝对路径。
+- 任何生产 profile task 必须证明 insecure 配置无法启动或无法创建任务。
+- 最终验收必须运行 `mvn test`、平台 capability smoke、100000 case high-volume smoke；失败即不能标记规格完成。
+
+- [x] 1. 锁定生产沙箱现状基线
+  - File: `src/main/java/com/example/demo/service/SandboxService.java`
+  - File: `src/main/java/com/example/demo/service/JudgeService.java`
+  - File: `src/main/resources/application.yml`
+  - Test: `src/test/java/com/example/demo/ProductionSandboxBaselineTest.java`
+  - Purpose: 用测试暴露当前 Windows/Linux 生产风险：沙箱关闭、Windows 静默直跑、编译/运行发生在 Web 进程、默认访问码和 wildcard origin。
+  - _Leverage: existing `SandboxConfiguration`, `JudgeService`, `application.yml`_
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 7.1, 7.4_
+  - _Prompt: Role: Security QA engineer | Task: Add characterization tests showing the current implementation is not production-safe. Cover Windows direct fallback, sandbox disabled, wildcard WebSocket origin, default access code, and direct compile/run in JudgeService. Restrictions: Do not modify production code in this task. Success: Tests document current risk and become the safety net for later changes._
+  - Strict Validation:
+    - Run: `mvn -Dtest=ProductionSandboxBaselineTest test`
+    - Expected: Tests assert the current config has `trusted-local` semantics and cannot be accepted as production.
+    - Expected: Test names clearly state the unsafe behavior being locked down.
+    - Expected: This task must not edit production code; `git diff -- src/main/java src/main/resources` should show no implementation changes.
+    - Blocking failure: If tests only check “application starts”, they are too weak.
+    - Evidence: `target/surefire-reports/*ProductionSandboxBaselineTest*`.
+  - Validation Evidence (2026-07-03):
+    - `.\mvnw.cmd -Dtest=ProductionSandboxBaselineTest test`: 5 run, 0 failures, 0 errors, 0 skipped.
+    - `git diff -- src/main/java src/main/resources --exit-code`: exit 0, no production implementation changes.
+    - `target/surefire-reports/com.example.demo.ProductionSandboxBaselineTest.txt` and `TEST-com.example.demo.ProductionSandboxBaselineTest.xml` generated.
+
+- [ ] 2. 增加生产沙箱配置模型和启动校验
+  - Create: `src/main/java/com/example/demo/config/SandboxProperties.java`
+  - Create: `src/main/java/com/example/demo/config/ProductionSecurityStartupValidator.java`
+  - Modify: `src/main/resources/application.yml`
+  - Test: `src/test/java/com/example/demo/ProductionSecurityStartupValidatorTest.java`
+  - Purpose: 定义 `trusted-local`、`windows-prod`、`linux-prod`、`worker-prod`，阻止生产危险配置。
+  - _Leverage: existing `SandboxConfiguration`, `ExecutionProperties`, `AuthConfiguration`, `WebSocketConfig`_
+  - _Requirements: 1.1, 1.2, 1.6, 7.1, 7.4_
+  - _Prompt: Role: Spring Boot configuration engineer | Task: Add production sandbox properties and a startup validator that rejects insecure production settings. Restrictions: trusted-local convenience may remain with warnings, but production profiles must fail closed. Success: Tests prove default access code, wildcard origin, direct runner, disabled sandbox, and failed capability probe are rejected in production._
+  - Strict Validation:
+    - Run: `mvn -Dtest=ProductionSecurityStartupValidatorTest,ProductionSandboxBaselineTest test`
+    - Expected: `trusted-local` can start with warning when direct runner or wildcard origin is configured.
+    - Expected: `windows-prod` rejects `provider=direct`, `isolation=process`, `sandbox.required=false`, default access code, wildcard origin.
+    - Expected: `linux-prod` rejects `provider=direct`, missing security profile, `sandbox.required=false`, default access code, wildcard origin.
+    - Expected: `worker-prod` requires worker endpoint and authentication token/mTLS configuration.
+    - Expected: Startup failure messages name the failed invariant without leaking secrets.
+    - Blocking failure: Validator must not be bypassed by changing only Spring active profile names.
+    - Evidence: Tests assert both pass and fail startup cases with exact failure reason fragments.
+
+- [ ] 3. 定义统一 SandboxRunner 合约和 DTO
+  - Create: `src/main/java/com/example/demo/service/sandbox/SandboxRunner.java`
+  - Create: `src/main/java/com/example/demo/dto/SandboxTaskSpec.java`
+  - Create: `src/main/java/com/example/demo/dto/SandboxTaskEvent.java`
+  - Create: `src/main/java/com/example/demo/dto/SandboxCapabilities.java`
+  - Create: `src/main/java/com/example/demo/dto/SandboxRunHandle.java`
+  - Test: `src/test/java/com/example/demo/SandboxRunnerContractTest.java`
+  - Purpose: 建立 Windows/Linux/remote worker 都必须实现的统一 contract。
+  - _Leverage: existing `JudgeRequest`, `ResolvedTaskPolicy`, `JudgeSummary`, `TestCaseResult`_
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+  - _Prompt: Role: Java API architect | Task: Define stable DTOs and interfaces for sandbox task execution. Include task limits, source paths, retention policy, event types, capabilities, and run handles. Restrictions: Do not implement platform execution here; focus on clear contracts and validation. Success: Contract tests verify required fields, path normalization, event type coverage, and serialization stability._
+  - Strict Validation:
+    - Run: `mvn -Dtest=SandboxRunnerContractTest test`
+    - Expected: `SandboxTaskSpec` cannot be built without judgeId, userId, workDir, testCases, time/memory/output limits.
+    - Expected: workDir normalization rejects relative traversal and storage-base escape when storage base is supplied.
+    - Expected: Event enum covers compile, run, summary, cancellation, budget, security, system error, sandbox unavailable.
+    - Expected: DTO JSON serialization is stable and excludes secrets.
+    - Blocking failure: DTOs must not expose raw client-supplied paths or unrestricted command lines.
+    - Evidence: Contract test includes serialization snapshot-like assertions for key fields.
+
+- [ ] 4. 把 JudgeService 改为任务级 runner 编排
+  - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
+  - Modify: `src/main/java/com/example/demo/service/JudgeScheduler.java`
+  - Create: `src/main/java/com/example/demo/service/sandbox/LocalFakeSandboxRunner.java`
+  - Test: `src/test/java/com/example/demo/JudgeSandboxOrchestrationTest.java`
+  - Purpose: Web 层不再直接编译/运行用户代码，而是提交任务级 `SandboxTaskSpec` 给 runner。
+  - _Leverage: existing `TaskStore`, `JudgeScheduler`, `ProgressPublisher` if present, `ResultAggregator`_
+  - _Requirements: 2.1, 2.2, 2.3, 5.1, 5.2_
+  - _Prompt: Role: Spring backend engineer | Task: Refactor judge orchestration to submit one sandbox task per judgeId through SandboxRunner. Use a fake runner in tests to emit deterministic events. Restrictions: Preserve existing HTTP API shape where possible; do not run g++ or user binaries in the Web JVM path. Success: Integration tests prove create/start/status works through runner events and no direct compile/run path is used for production profiles._
+  - Strict Validation:
+    - Run: `mvn -Dtest=JudgeSandboxOrchestrationTest,JudgeSchedulerTest,TaskPolicyResolverTest test`
+    - Expected: `/judge -> /judge/start/{judgeId}` creates `SandboxTaskSpec` with immutable policy snapshot.
+    - Expected: fake runner emits compile/running/summary/completed events and final status is persisted.
+    - Expected: production profile does not call existing `compile()` or `runProcessDirectly()` path.
+    - Expected: runner failure produces terminal `SYSTEM_ERROR` or `SANDBOX_UNAVAILABLE`.
+    - Blocking failure: Keeping a production path that calls `new ProcessBuilder(g++)` from `JudgeService` fails this task.
+    - Evidence: Test uses spy/fake runner to assert exactly one task-level `start()` call per judgeId.
+
+- [ ] 5. 实现 runner 事件摄取、摘要持久化和节流推送
+  - Create: `src/main/java/com/example/demo/service/SandboxEventIngestor.java`
+  - Modify: `src/main/java/com/example/demo/service/ResultAggregator.java`
+  - Modify: `src/main/java/com/example/demo/service/FileTaskStore.java`
+  - Modify: `src/main/java/com/example/demo/service/ProgressPublisher.java`
+  - Test: `src/test/java/com/example/demo/SandboxEventIngestorTest.java`
+  - Purpose: 统一处理 runner 事件，生成 summary、samples、WebSocket progress 和可轮询状态。
+  - _Leverage: existing `JudgeSummary`, `JudgeProgress`, `TaskStore`_
+  - _Requirements: 2.3, 2.4, 5.3, 5.4, 9.1, 9.2_
+  - _Prompt: Role: Event-driven backend engineer | Task: Implement event ingestion from SandboxRunner into TaskStore, ResultAggregator, and ProgressPublisher. Restrictions: High-volume events must not create unbounded result lists or WebSocket messages. Success: Tests feed 100000 synthetic events and prove bounded payload, summary correctness, throttling, and terminal state persistence._
+  - Strict Validation:
+    - Run: `mvn -Dtest=SandboxEventIngestorTest,ResultAggregatorTest,ProgressPublisherTest test`
+    - Expected: 100000 case events produce correct counters and bounded sample lists.
+    - Expected: Final progress payload size is below configured threshold.
+    - Expected: WebSocket ordinary progress sends are throttled; terminal events are immediate.
+    - Expected: Event order jitter does not corrupt first failed case or summary.
+    - Blocking failure: Any hidden `List<TestCaseResult>` containing all 100000 cases in high-volume mode fails.
+    - Evidence: Test asserts payload byte size, sample count and send count.
+
+- [ ] 6. 实现生产配额和用户所有权保护
+  - Create: `src/main/java/com/example/demo/service/QuotaService.java`
+  - Create: `src/main/java/com/example/demo/model/JudgeOwnership.java`
+  - Modify: `src/main/java/com/example/demo/controller/JudgeController.java`
+  - Modify: `src/main/java/com/example/demo/service/FileTaskStore.java`
+  - Test: `src/test/java/com/example/demo/QuotaAndAuthorizationTest.java`
+  - Purpose: 上线后按用户限制并发、排队、每日 case/runtime，并保护详情/下载/取消权限。
+  - _Leverage: existing auth interceptor and task metadata_
+  - _Requirements: 6.1, 6.2, 6.3, 7.2, 7.3, 7.5, 7.6_
+  - _Prompt: Role: Security backend engineer | Task: Add quota checks and judge ownership enforcement. Store userId with each task and validate ownership for status, cancel, details, and download. Restrictions: Do not rely on obscurity of judgeId; do not leak whether another user's task exists. Success: Tests prove quota rejection and cross-user access denial._
+  - Strict Validation:
+    - Run: `mvn -Dtest=QuotaAndAuthorizationTest,JudgeSandboxOrchestrationTest test`
+    - Expected: User exceeding daily cases, runtime budget, running tasks, or queued tasks receives clear 429/business error.
+    - Expected: User A cannot read, cancel, or download User B's task.
+    - Expected: Admin role can inspect/cancel when explicitly allowed.
+    - Expected: Errors do not reveal other user's judgeId existence.
+    - Blocking failure: Checking only session validity without task ownership fails.
+    - Evidence: Tests cover same user, other user, anonymous user and admin user.
+
+- [ ] 7. 加强认证模型，禁用生产共享访问码
+  - Create: `src/main/java/com/example/demo/service/UserAccountService.java`
+  - Create: `src/main/java/com/example/demo/model/UserAccount.java`
+  - Modify: `src/main/java/com/example/demo/controller/AuthenticationController.java`
+  - Modify: `src/main/java/com/example/demo/service/AccessCodeService.java`
+  - Test: `src/test/java/com/example/demo/ProductionAuthenticationTest.java`
+  - Purpose: 生产 profile 使用账号/外部认证，trusted-local 可保留访问码。
+  - _Leverage: existing `AuthenticationController`, `AccessCodeService`, `SessionManagementService`_
+  - _Requirements: 7.1, 7.2, 7.4, 7.6_
+  - _Prompt: Role: Authentication engineer | Task: Add a production authentication path with user identity and secure password hashing or a configurable external-auth adapter. Keep trusted-local access code for local development only. Restrictions: Do not store plaintext passwords; do not accept default credentials in production. Success: Tests prove production rejects access-code-only auth and records user identity in sessions._
+  - Strict Validation:
+    - Run: `mvn -Dtest=ProductionAuthenticationTest,ProductionSecurityStartupValidatorTest test`
+    - Expected: production profile refuses default access code and sample admin password.
+    - Expected: login produces session containing stable userId.
+    - Expected: passwords are hashed with BCrypt or external auth is explicitly configured.
+    - Expected: auth failure is rate limited and audited.
+    - Blocking failure: A single shared access code granting all production permissions fails.
+    - Evidence: Tests assert no plaintext password appears in persisted user/session state.
+
+- [ ] 8. 实现 LinuxContainerRunner capability probe 和执行
+  - Create: `src/main/java/com/example/demo/service/sandbox/LinuxContainerRunner.java`
+  - Create: `src/test/java/com/example/demo/LinuxContainerRunnerTest.java`
+  - Create: `docs/linux-sandbox-runbook.md`
+  - Purpose: 支持 Linux 生产 provider，验证容器、cgroup、禁网、非 root 和 seccomp/AppArmor。
+  - _Leverage: `SandboxRunner`, `SandboxTaskSpec`, `SandboxCapabilities`_
+  - _Requirements: 1.4, 1.5, 4.1, 4.2, 4.3, 4.4, 4.5, 10.4_
+  - _Prompt: Role: Linux container security engineer | Task: Implement LinuxContainerRunner using configured container runtime. Probe and enforce network none, non-root, readonly rootfs, tmpfs/workdir mount, memory/cpu/pids limits, and seccomp/AppArmor or configured equivalent. Restrictions: Do not run user code directly on host. Success: Capability tests prove isolation and resource limits when Linux container runtime is available; otherwise tests skip with explicit environment reason._
+  - Strict Validation:
+    - Run: `mvn -Dtest=LinuxContainerRunnerTest test`
+    - Smoke command: documented in `docs/linux-sandbox-runbook.md`.
+    - Expected: probe verifies container runtime available, image version, cgroup limits, network disabled, non-root user, security profile.
+    - Expected: program attempting network access fails.
+    - Expected: fork bomb or many-child program hits pids limit.
+    - Expected: memory hog hits memory limit.
+    - Expected: file read outside workdir fails.
+    - Expected: timeout kills task and no container remains running.
+    - Blocking failure: Falling back to host `ProcessBuilder` in linux-prod fails.
+    - Evidence: Test logs include provider, image, cgroup mode and skip reason if unavailable.
+
+- [ ] 9. 实现 WindowsHyperVContainerRunner capability probe 和执行
+  - Create: `src/main/java/com/example/demo/service/sandbox/WindowsHyperVContainerRunner.java`
+  - Create: `src/test/java/com/example/demo/WindowsHyperVContainerRunnerTest.java`
+  - Create: `docs/windows-sandbox-runbook.md`
+  - Purpose: 支持 Windows 生产 provider，强制 Hyper-V isolation，并要求容器内 Job Object 进程树控制。
+  - _Leverage: `SandboxRunner`, `SandboxTaskSpec`, `SandboxCapabilities`_
+  - _Requirements: 1.3, 1.5, 3.1, 3.2, 3.3, 3.4, 3.6, 10.3_
+  - _Prompt: Role: Windows container security engineer | Task: Implement WindowsHyperVContainerRunner using configured container runtime and Hyper-V isolation. Probe actual isolation mode, network disabled, image version, resource limits, and task cleanup. Restrictions: Job Object-only is not production-safe; process isolation must not pass production validation by default. Success: Capability tests prove Hyper-V isolation, no network, process-tree kill via runner, and no residual containers/processes._
+  - Strict Validation:
+    - Run: `mvn -Dtest=WindowsHyperVContainerRunnerTest test`
+    - Smoke command: documented in `docs/windows-sandbox-runbook.md`.
+    - Expected: probe verifies actual isolation mode is `hyperv`.
+    - Expected: `--network none` or equivalent is active.
+    - Expected: task container mounts only the judge workdir.
+    - Expected: child-process-spawning program is killed fully on timeout/cancel.
+    - Expected: memory/output limits are enforced.
+    - Expected: container is removed after completion/cancel/failure.
+    - Blocking failure: Passing test under process isolation without explicit non-production risk flag fails.
+    - Blocking failure: Host direct execution path in windows-prod fails.
+    - Evidence: Test logs include provider, isolation mode, container id, cleanup confirmation and skip reason if unavailable.
+
+- [ ] 10. 实现 RemoteWorkerRunner 和 Worker 协议
+  - Create: `src/main/java/com/example/demo/service/sandbox/RemoteWorkerRunner.java`
+  - Create: `src/main/java/com/example/demo/config/WorkerProperties.java`
+  - Test: `src/test/java/com/example/demo/RemoteWorkerRunnerTest.java`
+  - Purpose: 支持 Web 服务和执行环境分离，适配 Linux/Windows Worker VM 或后续集群。
+  - _Leverage: `SandboxRunner`, `SandboxTaskEvent`, fake HTTP server or MockWebServer_
+  - _Requirements: 1.3, 1.4, 2.4, 3.5, 10.1_
+  - _Prompt: Role: Distributed systems backend engineer | Task: Implement RemoteWorkerRunner with authenticated task submission, event polling/streaming, cancellation, timeout, and worker capability probe. Restrictions: Do not send secrets in logs; reject worker endpoints without authentication in production. Success: Tests with a fake worker cover success, event stream, cancellation, worker unavailable, stale run, and auth failure._
+  - Strict Validation:
+    - Run: `mvn -Dtest=RemoteWorkerRunnerTest test`
+    - Expected: probe reads worker capabilities and productionSafe flag.
+    - Expected: start sends full `SandboxTaskSpec` and receives run handle.
+    - Expected: event stream/poll maps worker events to local task events.
+    - Expected: cancel sends authenticated cancel request and handles idempotent cancellation.
+    - Expected: worker unavailable returns `SANDBOX_UNAVAILABLE`.
+    - Blocking failure: Remote worker without token/mTLS/signature in production fails validation.
+    - Evidence: Fake worker asserts request auth headers and payload fields.
+
+- [ ] 11. 构建容器/Worker 内 Task Runner
+  - Create: `runner/README.md`
+  - Create: `runner/task-runner-spec.md`
+  - Create: `runner/src/...` or `runner/scripts/...` according to chosen implementation
+  - Test: `runner/tests/...` and `src/test/java/com/example/demo/TaskRunnerArtifactContractTest.java`
+  - Purpose: 容器/Worker 内部真正编译和执行 case，统一输出 events/summary/samples。
+  - _Leverage: `SandboxTaskSpec`, `SandboxTaskEvent`_
+  - _Requirements: 3.3, 4.3, 5.1, 5.5, 6.4, 10.1_
+  - _Prompt: Role: Systems engineer | Task: Build the sandbox-internal task runner contract and first implementation. It compiles generator/user/oracle/SPJ, runs cases, enforces per-process limits, writes events.jsonl and summary.json atomically, and exits with stable codes. Restrictions: It must work inside both Windows and Linux provider images or have platform-specific binaries behind the same contract. Success: Artifact contract tests prove event format, exit codes, limit statuses, and summary shape._
+  - Strict Validation:
+    - Run: runner-specific test command documented in `runner/README.md`.
+    - Run: `mvn -Dtest=TaskRunnerArtifactContractTest test`
+    - Expected: compile success, compile failure, AC, WA, TLE, MLE, output limit, security violation, cancellation all produce stable events.
+    - Expected: `summary.json` is atomically written or safely recoverable.
+    - Expected: stderr/compile output is bounded.
+    - Expected: runner exit codes are documented and tested.
+    - Blocking failure: Runner writes ad hoc logs only without machine-readable events.
+    - Evidence: Test fixture includes example `events.jsonl` and `summary.json`.
+
+- [ ] 12. 加固任务文件、挂载、详情和下载
+  - Create: `src/main/java/com/example/demo/service/JudgeFileService.java`
+  - Modify: `src/main/java/com/example/demo/controller/JudgeController.java`
+  - Modify: `src/main/java/com/example/demo/service/FileTaskStore.java`
+  - Test: `src/test/java/com/example/demo/JudgeFileServiceProductionTest.java`
+  - Purpose: 任务目录、容器挂载、详情读取、zip 下载都必须路径安全和流式。
+  - _Leverage: existing `/details`, `/download`, `FileTaskStore`_
+  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
+  - _Prompt: Role: Secure file handling engineer | Task: Centralize file access and download logic. Resolve files only from TaskStore-owned workdir, validate case numbers, stream zip downloads, and reject symlink/junction/reparse escape. Restrictions: No raw client paths, no full zip in memory, no absolute path leakage. Success: Tests prove path traversal and symlink attacks fail and large downloads stream._
+  - Strict Validation:
+    - Run: `mvn -Dtest=JudgeFileServiceProductionTest,QuotaAndAuthorizationTest test`
+    - Attack cases: `../`, `..\\`, encoded traversal, absolute path, negative case, huge case number, nonexistent judgeId, symlink/junction escape.
+    - Expected: attacks return 400/404/403 without reading canary file outside storage base.
+    - Expected: download-all uses streaming response or equivalent; no `ByteArrayOutputStream` full zip in production path.
+    - Expected: download requires owner/admin authorization.
+    - Blocking failure: Controller directly touching filesystem paths fails.
+    - Evidence: Test creates outside-storage canary and confirms it is never returned.
+
+- [ ] 13. 增加审计、管理视图和运维指标
+  - Create: `src/main/java/com/example/demo/service/AuditService.java`
+  - Create: `src/main/java/com/example/demo/dto/AdminQueueSnapshot.java`
+  - Create: `src/main/java/com/example/demo/controller/AdminController.java`
+  - Test: `src/test/java/com/example/demo/AuditAndAdminTest.java`
+  - Purpose: 生产运维可看到队列、运行任务、资源耗用、安全违规和失败原因。
+  - _Leverage: `JudgeScheduler.QueueSnapshot`, `TaskStore`, auth roles_
+  - _Requirements: 7.5, 7.6, 9.1, 9.2, 9.3, 9.4_
+  - _Prompt: Role: Observability backend engineer | Task: Add structured audit events and an authenticated admin status API for queue depth, running tasks, provider health, task resource summaries, and recent failures. Restrictions: Admin API must require admin role; user-facing APIs must not expose sensitive internals. Success: Tests prove audit events are emitted and admin/non-admin access is enforced._
+  - Strict Validation:
+    - Run: `mvn -Dtest=AuditAndAdminTest,ProductionAuthenticationTest test`
+    - Expected: task create/start/cancel/download/security/quota events include userId, judgeId, provider, timestamp and sanitized details.
+    - Expected: admin endpoint returns queue depth, running count, provider health, recent failure counts.
+    - Expected: non-admin user receives 403.
+    - Expected: audit logs do not contain plaintext passwords, full source code, or secrets.
+    - Blocking failure: Logging only free-form messages without structured fields is insufficient.
+    - Evidence: Tests inspect audit sink entries.
+
+- [ ] 14. 增加任务清理、启动对账和容器残留清理
+  - Create: `src/main/java/com/example/demo/service/TaskCleanupService.java`
+  - Modify: `src/main/java/com/example/demo/service/sandbox/SandboxRunner.java`
+  - Modify: `src/main/java/com/example/demo/service/FileTaskStore.java`
+  - Test: `src/test/java/com/example/demo/ProductionCleanupTest.java`
+  - Purpose: 控制磁盘增长，服务重启后对账 stale 任务，并清理残留容器/进程/目录。
+  - _Leverage: existing `FileTaskStore.markStaleRunningTasksOnStartup` if present_
+  - _Requirements: 3.6, 4.4, 5.5, 8.6, 9.5_
+  - _Prompt: Role: Reliability engineer | Task: Add cleanup and startup reconciliation for task directories, stale metadata, runner handles, and provider residuals. Restrictions: Never delete outside storage base, never silently ignore cleanup failure, do not race with running tasks. Success: Tests prove stale marking, retention cleanup, residual runner cleanup, and path safety._
+  - Strict Validation:
+    - Run: `mvn -Dtest=ProductionCleanupTest,JudgeFileServiceProductionTest test`
+    - Expected: startup marks old RUNNING/QUEUED as STALE or reconciles with live runner.
+    - Expected: completed/cancelled/failed/stale tasks clean by retention.
+    - Expected: active running tasks are preserved.
+    - Expected: provider cleanup called for residual handles.
+    - Expected: symlink/junction/reparse escape is not deleted.
+    - Blocking failure: Broad recursive delete over computed paths without base verification fails.
+    - Evidence: Tests include canary outside storage base and fake provider residuals.
+
+- [ ] 15. 高容量跨平台压测和回归
+  - Create: `src/test/java/com/example/demo/ProductionHighVolumeIntegrationTest.java`
+  - Create: `scripts/smoke/high-volume-smoke.ps1`
+  - Create: `scripts/smoke/high-volume-smoke.sh`
+  - Modify: `docs/linux-sandbox-runbook.md`
+  - Modify: `docs/windows-sandbox-runbook.md`
+  - Test: `ProductionHighVolumeIntegrationTest`
+  - Purpose: 验证 100000+ case 生产链路不会打爆内存、消息、结果、DOM 或 runner。
+  - _Leverage: fake/fast runner, `SandboxEventIngestor`, `ProgressPublisher`, `TaskStore`_
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.6, 10.2_
+  - _Prompt: Role: Performance QA engineer | Task: Add high-volume tests and smoke scripts for 100, 10000, 100000, and optional 200000 cases. Use fake/fast runner for CI while preserving real policy/scheduler/event/progress/storage path. Restrictions: Do not reduce assertions to config parsing; must pass through core execution chain. Success: Tests record peak in-flight, payload size, sample count, heap estimate, event count and throughput._
+  - Strict Validation:
+    - Run: `mvn -Dtest=ProductionHighVolumeIntegrationTest test`
+    - Run Windows smoke: `powershell -ExecutionPolicy Bypass -File scripts/smoke/high-volume-smoke.ps1 -Cases 100000`
+    - Run Linux smoke: `bash scripts/smoke/high-volume-smoke.sh --cases 100000`
+    - Expected: 100000 case test passes through policy, scheduler, sandbox runner fake, event ingestor, TaskStore and progress publisher.
+    - Expected: final payload below configured byte threshold.
+    - Expected: sample count <= configured sample limit.
+    - Expected: WebSocket send count bounded by throttle settings.
+    - Expected: Java future count does not equal case count.
+    - Optional: 200000 case script documented with expected machine prerequisites.
+    - Blocking failure: Testing only `TaskPolicyResolver` for 100000 support fails.
+    - Evidence: Test output prints peak in-flight, payload bytes, samples, elapsed, throughput.
+
+- [ ] 16. 平台 capability smoke 和生产部署 runbook
+  - Create: `docs/production-sandbox-runbook.md`
+  - Create: `docs/security-boundary.md`
+  - Create: `scripts/smoke/windows-capability-smoke.ps1`
+  - Create: `scripts/smoke/linux-capability-smoke.sh`
+  - Modify: `README.md`
+  - Purpose: 给出 Windows/Linux/remote worker 的部署、验收、回滚和故障排查路径。
+  - _Leverage: provider tests and smoke scripts_
+  - _Requirements: 1.5, 3.6, 4.2, 7.1, 10.1, 10.3, 10.4, 10.6_
+  - _Prompt: Role: Release engineer | Task: Write production runbooks and capability smoke scripts for Windows Hyper-V containers, Linux containers, and remote workers. Include setup, config, start commands, expected logs, validation commands, failure modes, rollback, and security boundary warnings. Restrictions: Docs must not claim Job Object-only or Linux direct process is production safe. Success: A new operator can follow docs to verify sandbox capability before serving users._
+  - Strict Validation:
+    - Run: `powershell -ExecutionPolicy Bypass -File scripts/smoke/windows-capability-smoke.ps1 -WhatIf`
+    - Run: `bash -n scripts/smoke/linux-capability-smoke.sh`
+    - Run: `mvn test`
+    - Expected: runbook includes `trusted-local`, `windows-prod`, `linux-prod`, `worker-prod` configs.
+    - Expected: runbook includes exact validation for禁网、资源限制、路径隔离、进程树 kill、默认口令拒绝、origin 拒绝。
+    - Expected: README warns that production requires strong sandbox and strong auth.
+    - Expected: Windows docs state Hyper-V isolation requirement and Job Object limitation.
+    - Expected: Linux docs state cgroup/seccomp/AppArmor/non-root/network requirements.
+    - Blocking failure: Documentation saying “Windows Sandbox” or “Job Object-only” is enough for production fails.
+    - Evidence: Smoke scripts parse successfully and docs contain all required profile names.
+
+- [ ] 17. 最终安全审计和上线门禁
+  - Test: all tests and smoke scripts
+  - Purpose: 在标记规格完成前做逐项审计，确保每个 requirement 有强证据。
+  - _Leverage: all tasks_
+  - _Requirements: All_
+  - _Prompt: Role: Release owner and security reviewer | Task: Audit every production-sandbox requirement against current code, tests, smoke output, and docs. Produce a completion matrix and block release on any missing evidence. Restrictions: Do not mark complete based on intent or partial tests; every requirement needs direct evidence. Success: Full regression passes and completion matrix links each requirement to tests/docs/smoke evidence._
+  - Strict Validation:
+    - Run: `mvn test`
+    - Run: `mvn -Dtest=ProductionHighVolumeIntegrationTest test`
+    - Run platform-specific smoke available on the deployment target.
+    - Expected: Completion matrix maps Requirement 1-10 acceptance criteria to exact test names, smoke outputs or docs.
+    - Expected: No production path allows direct runner under production profiles.
+    - Expected: No production path accepts default credentials or wildcard origin.
+    - Expected: Windows/Linux provider unavailable cases fail closed.
+    - Expected: 100000 case high-volume evidence includes bounded payload, samples and in-flight counts.
+    - Blocking failure: Any skipped platform test without documented environment reason and alternative production evidence blocks release.
+    - Evidence: Final audit document saved under `docs/production-sandbox-acceptance.md`.
