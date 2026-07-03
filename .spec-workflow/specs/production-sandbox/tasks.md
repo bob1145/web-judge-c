@@ -109,7 +109,7 @@
     - Regression: `.\mvnw.cmd test`: 109 run, 0 failures, 0 errors, 1 skipped.
     - `git diff --check`: exit 0, no whitespace errors.
 
-- [ ] 5. 实现 runner 事件摄取、摘要持久化和节流推送
+- [x] 5. 实现 runner 事件摄取、摘要持久化和节流推送
   - Create: `src/main/java/com/example/demo/service/SandboxEventIngestor.java`
   - Modify: `src/main/java/com/example/demo/service/ResultAggregator.java`
   - Modify: `src/main/java/com/example/demo/service/FileTaskStore.java`
@@ -127,6 +127,13 @@
     - Expected: Event order jitter does not corrupt first failed case or summary.
     - Blocking failure: Any hidden `List<TestCaseResult>` containing all 100000 cases in high-volume mode fails.
     - Evidence: Test asserts payload byte size, sample count and send count.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=SandboxEventIngestorTest test` failed at testCompile because `SandboxEventIngestor` did not exist.
+    - Green: `.\mvnw.cmd -Dtest=SandboxEventIngestorTest test`: 2 run, 0 failures, 0 errors, 0 skipped.
+    - Strict: `.\mvnw.cmd "-Dtest=SandboxEventIngestorTest,ResultAggregatorTest,ProgressPublisherTest" test`: 10 run, 0 failures, 0 errors, 0 skipped.
+    - Regression found and fixed: full `mvn test` initially left runner orchestration polling at `PENDING`; `JudgeService` now mirrors ingested runner progress into its in-memory status map.
+    - Regression: `.\mvnw.cmd test`: 111 run, 0 failures, 0 errors, 1 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
 
 - [ ] 6. 实现生产配额和用户所有权保护
   - Create: `src/main/java/com/example/demo/service/QuotaService.java`

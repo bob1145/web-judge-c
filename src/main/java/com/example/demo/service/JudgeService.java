@@ -45,6 +45,7 @@ public class JudgeService {
     private final ExecutionProperties executionProperties;
     private final SandboxProcessRunner processRunner;
     private final ProgressPublisher progressPublisher;
+    private final SandboxEventIngestor sandboxEventIngestor;
     private final TaskPolicyResolver taskPolicyResolver;
     private final TaskStore taskStore;
     private final CaseBatchRunner caseBatchRunner;
@@ -377,12 +378,11 @@ public class JudgeService {
             Path workDir,
             String topic
     ) {
+        SandboxEventIngestor.Session eventSession = sandboxEventIngestor.start(judgeId, policy);
         if (sandboxRunner.isEmpty()) {
-            safeSendMessage(topic, terminalProgress(
+            rememberRunnerProgress(judgeId, eventSession.terminal(
                     JudgeStatus.SANDBOX_UNAVAILABLE.name(),
-                    "SandboxRunner is not configured for profile " + policy.profile(),
-                    policy.requestedCases(),
-                    schedulerContext.completedCases()
+                    "SandboxRunner is not configured for profile " + policy.profile()
             ));
             return;
         }
@@ -402,28 +402,39 @@ public class JudgeService {
                     if (terminal) {
                         break;
                     }
-                    terminal = handleSandboxEvent(topic, event, policy, schedulerContext);
+                    JudgeProgress progress = eventSession.accept(event);
+                    rememberRunnerProgress(judgeId, progress);
+                    terminal = eventSession.isTerminal(progress);
                 }
             }
             if (schedulerContext.cancellationToken().isCancellationRequested()) {
-                runner.cancel(handle);
-                safeSendStoppedMessage(topic, schedulerContext.cancellationToken(), 100,
-                        emptyStoppedSummary(policy.requestedCases(), schedulerContext.completedCases(), schedulerContext.cancellationToken()));
+                if (handle != null) {
+                    runner.cancel(handle);
+                }
+                String status = schedulerContext.cancellationToken().isBudgetExceeded()
+                        ? JudgeStatus.BUDGET_EXCEEDED.name()
+                        : JudgeStatus.CANCELLED.name();
+                String message = schedulerContext.cancellationToken().isBudgetExceeded()
+                        ? "Task runtime budget exceeded"
+                        : "Cancellation requested";
+                rememberRunnerProgress(judgeId, eventSession.terminal(status, message));
             } else if (!terminal) {
-                safeSendMessage(topic, terminalProgress(
+                rememberRunnerProgress(judgeId, eventSession.terminal(
                         JudgeStatus.SYSTEM_ERROR.name(),
-                        "SandboxRunner finished without a terminal event",
-                        policy.requestedCases(),
-                        schedulerContext.completedCases()
+                        "SandboxRunner finished without a terminal event"
                 ));
             }
         } catch (Exception e) {
-            safeSendMessage(topic, terminalProgress(
+            rememberRunnerProgress(judgeId, eventSession.terminal(
                     JudgeStatus.SYSTEM_ERROR.name(),
-                    "SandboxRunner failed: " + e.getMessage(),
-                    policy.requestedCases(),
-                    schedulerContext.completedCases()
+                    "SandboxRunner failed: " + e.getMessage()
             ));
+        }
+    }
+
+    private void rememberRunnerProgress(String judgeId, JudgeProgress progress) {
+        if (progress != null) {
+            judgeStatusMap.put(judgeId, progress);
         }
     }
 
@@ -481,82 +492,6 @@ public class JudgeService {
         }
         Path parent = workDir.toAbsolutePath().normalize().getParent();
         return parent == null ? workDir.toAbsolutePath().normalize() : parent;
-    }
-
-    private boolean handleSandboxEvent(
-            String topic,
-            SandboxTaskEvent event,
-            ResolvedTaskPolicy policy,
-            JudgeScheduler.TaskContext schedulerContext
-    ) {
-        SandboxTaskEvent.Type type = event.type();
-        String message = event.message() == null ? type.name() : event.message();
-        switch (type) {
-            case COMPILE_STARTED -> safeSendMessage(topic, new JudgeProgress("COMPILING", message, 5));
-            case COMPILE_FINISHED -> safeSendMessage(topic, new JudgeProgress("COMPILING", message, 15));
-            case RUN_STARTED -> safeSendMessage(topic, new JudgeProgress("RUNNING", message, 15));
-            case RUN_FINISHED -> {
-                if (event.result() != null) {
-                    schedulerContext.recordCompletedCase();
-                }
-                int progress = Math.min(99, 15 + (int) ((double) schedulerContext.completedCases() / policy.requestedCases() * 85));
-                safeSendMessage(topic, new JudgeProgress("RUNNING", message, progress));
-            }
-            case SUMMARY -> {
-                String status = event.status() == null ? JudgeStatus.COMPLETED.name() : event.status();
-                safeSendMessage(topic, new JudgeProgress(status, message, 100, null, event.summary()));
-                return true;
-            }
-            case COMPLETED -> {
-                safeSendMessage(topic, terminalProgress(
-                        JudgeStatus.COMPLETED.name(),
-                        message,
-                        policy.requestedCases(),
-                        schedulerContext.completedCases()
-                ));
-                return true;
-            }
-            case CANCELLED -> {
-                safeSendMessage(topic, terminalProgress(JudgeStatus.CANCELLED.name(), message, policy.requestedCases(), schedulerContext.completedCases()));
-                return true;
-            }
-            case BUDGET_EXCEEDED -> {
-                safeSendMessage(topic, terminalProgress(JudgeStatus.BUDGET_EXCEEDED.name(), message, policy.requestedCases(), schedulerContext.completedCases()));
-                return true;
-            }
-            case SECURITY_VIOLATION -> {
-                safeSendMessage(topic, terminalProgress(JudgeStatus.SECURITY_VIOLATION.name(), message, policy.requestedCases(), schedulerContext.completedCases()));
-                return true;
-            }
-            case SYSTEM_ERROR -> {
-                safeSendMessage(topic, terminalProgress(JudgeStatus.SYSTEM_ERROR.name(), message, policy.requestedCases(), schedulerContext.completedCases()));
-                return true;
-            }
-            case SANDBOX_UNAVAILABLE -> {
-                safeSendMessage(topic, terminalProgress(JudgeStatus.SANDBOX_UNAVAILABLE.name(), message, policy.requestedCases(), schedulerContext.completedCases()));
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private JudgeProgress terminalProgress(String status, String message, int totalCases, int completedCases) {
-        JudgeSummary summary = new JudgeSummary(
-                totalCases,
-                completedCases,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                null,
-                List.of(),
-                List.of(),
-                message
-        );
-        return new JudgeProgress(status, message, 100, null, summary);
     }
 
     private TestCaseResult runTestCase(int caseNumber, JudgeRequest request, ResolvedTaskPolicy policy, Path tempDir, Path genExecutable, Path userExecutable, Path judgeExecutable) {

@@ -20,6 +20,7 @@ import com.example.demo.service.JudgeService;
 import com.example.demo.service.ProgressPublisher;
 import com.example.demo.service.ResolvedTaskPolicy;
 import com.example.demo.service.SandboxProcessRunner;
+import com.example.demo.service.SandboxEventIngestor;
 import com.example.demo.service.TaskPolicyResolver;
 import com.example.demo.service.sandbox.LocalFakeSandboxRunner;
 import com.example.demo.service.sandbox.SandboxRunner;
@@ -183,6 +184,7 @@ class JudgeSandboxOrchestrationTest {
                 execution,
                 legacyRunner,
                 publisher,
+                new SandboxEventIngestor(publisher, execution),
                 policyResolver,
                 store,
                 new CaseBatchRunner(caseExecutor),
