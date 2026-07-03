@@ -101,6 +101,10 @@ public class ResultAggregator {
         );
     }
 
+    public synchronized int completedCases() {
+        return completedCases;
+    }
+
     private void incrementStatus(String status) {
         switch (normalize(status)) {
             case "AC" -> ac++;

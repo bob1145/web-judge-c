@@ -20,6 +20,16 @@ public class UserSession {
      * 会话ID，唯一标识一个用户会话
      */
     private String sessionId;
+
+    /**
+     * Stable user identity attached to the session.
+     */
+    private String userId;
+
+    /**
+     * Whether this session may inspect or operate on any judge task.
+     */
+    private boolean admin;
     
     /**
      * 会话创建时间

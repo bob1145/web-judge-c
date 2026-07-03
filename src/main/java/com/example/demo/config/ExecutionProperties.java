@@ -18,6 +18,10 @@ public class ExecutionProperties {
     private int batchSize = 100;
     private int maxFailureSamples = 100;
     private int maxSlowSamples = 20;
+    private long maxDailyCasesPerUser = 200_000;
+    private long maxDailyRuntimeMillisPerUser = 1_000_000_000L;
+    private int maxRunningTasksPerUser = 1;
+    private int maxQueuedTasksPerUser = 5;
     private Duration progressPublishInterval = Duration.ofSeconds(1);
     private Duration cleanupInterval = Duration.ofMinutes(30);
     private Duration completedRetention = Duration.ofHours(24);

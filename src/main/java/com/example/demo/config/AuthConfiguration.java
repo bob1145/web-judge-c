@@ -5,6 +5,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 认证相关配置类
@@ -21,6 +23,10 @@ public class AuthConfiguration {
     private String accessCode = "secure-access-code-2024";
 
     private String defaultAccessCode = "123";
+
+    private boolean accountAuthEnabled = false;
+
+    private List<AccountProperties> accounts = new ArrayList<>();
     
     /**
      * 记住我会话超时时间（30天）
@@ -41,4 +47,13 @@ public class AuthConfiguration {
      * 尝试次数重置时间（小时）
      */
     private int attemptResetHours = 1;
+
+    @Data
+    public static class AccountProperties {
+        private String userId;
+        private String username;
+        private String passwordHash;
+        private boolean admin;
+        private boolean enabled = true;
+    }
 }

@@ -251,3 +251,7 @@ A: 点击失败的测试点，在弹窗中查看完整的输入输出对比。
 See `docs/judge-hardening-runbook.md` for trusted-local, local-large, and intranet-large startup commands, expected logs, curl checks, browser validation, risk notes, and rollback steps.
 
 Public exposure is unsupported unless a separate deployment adds strong authentication, mandatory sandbox enforcement, audit logging, tenant isolation, rate limiting, and host-level process isolation. The current configuration is intended for local trusted use or controlled intranet use only.
+
+## Production sandbox deployment
+
+Production deployment requires strong sandbox and strong authentication. Before serving untrusted users, follow `docs/production-sandbox-runbook.md` and `docs/security-boundary.md`, then run the matching Windows/Linux/worker capability smoke and the 100000-case high-volume smoke on the actual deployment host.

@@ -1,0 +1,464 @@
+# Tasks Document
+
+## Global Acceptance Rules
+
+这些规则适用于下面每一个 task。任何一条不满足，都不能把该 task 标为完成。
+
+- 每个实现 task 必须先补失败测试，再改实现；纯文档或纯基线 task 除外。
+- 每个 task 必须运行自己的 `Run:` 命令，并记录命令结果、测试数量、失败数量和跳过原因。
+- 每个 task 必须回归已完成 task 的相关测试；不得删除、跳过或放宽旧测试来通过新任务。
+- 任何 sandbox/security task 必须包含滥用用例，例如禁网、越权路径、默认口令、wildcard origin、沙箱不可用、资源耗尽。
+- 任何 Windows provider task 必须证明 Hyper-V isolation 或 remote worker 生效；Job Object-only 不能作为生产安全证明。
+- 任何 Linux provider task 必须证明容器隔离、禁网、非 root、cgroup 资源限制和 seccomp/AppArmor 或等价策略。
+- 任何 100000+ case task 必须证明 Java future、WebSocket payload、DOM node、内存结果集合不会随 case 数线性爆炸。
+- 任何文件/下载/挂载 task 必须证明不会读写 storage base 外文件，且错误响应不泄漏服务器绝对路径。
+- 任何生产 profile task 必须证明 insecure 配置无法启动或无法创建任务。
+- 最终验收必须运行 `mvn test`、平台 capability smoke、100000 case high-volume smoke；失败即不能标记规格完成。
+
+- [x] 1. 锁定生产沙箱现状基线
+  - File: `src/main/java/com/example/demo/service/SandboxService.java`
+  - File: `src/main/java/com/example/demo/service/JudgeService.java`
+  - File: `src/main/resources/application.yml`
+  - Test: `src/test/java/com/example/demo/ProductionSandboxBaselineTest.java`
+  - Purpose: 用测试暴露当前 Windows/Linux 生产风险：沙箱关闭、Windows 静默直跑、编译/运行发生在 Web 进程、默认访问码和 wildcard origin。
+  - _Leverage: existing `SandboxConfiguration`, `JudgeService`, `application.yml`_
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 7.1, 7.4_
+  - _Prompt: Role: Security QA engineer | Task: Add characterization tests showing the current implementation is not production-safe. Cover Windows direct fallback, sandbox disabled, wildcard WebSocket origin, default access code, and direct compile/run in JudgeService. Restrictions: Do not modify production code in this task. Success: Tests document current risk and become the safety net for later changes._
+  - Strict Validation:
+    - Run: `mvn -Dtest=ProductionSandboxBaselineTest test`
+    - Expected: Tests assert the current config has `trusted-local` semantics and cannot be accepted as production.
+    - Expected: Test names clearly state the unsafe behavior being locked down.
+    - Expected: This task must not edit production code; `git diff -- src/main/java src/main/resources` should show no implementation changes.
+    - Blocking failure: If tests only check “application starts”, they are too weak.
+    - Evidence: `target/surefire-reports/*ProductionSandboxBaselineTest*`.
+  - Validation Evidence (2026-07-03):
+    - `.\mvnw.cmd -Dtest=ProductionSandboxBaselineTest test`: 5 run, 0 failures, 0 errors, 0 skipped.
+    - `git diff -- src/main/java src/main/resources --exit-code`: exit 0, no production implementation changes.
+    - `target/surefire-reports/com.example.demo.ProductionSandboxBaselineTest.txt` and `TEST-com.example.demo.ProductionSandboxBaselineTest.xml` generated.
+
+- [x] 2. 增加生产沙箱配置模型和启动校验
+  - Create: `src/main/java/com/example/demo/config/SandboxProperties.java`
+  - Create: `src/main/java/com/example/demo/config/ProductionSecurityStartupValidator.java`
+  - Modify: `src/main/resources/application.yml`
+  - Test: `src/test/java/com/example/demo/ProductionSecurityStartupValidatorTest.java`
+  - Purpose: 定义 `trusted-local`、`windows-prod`、`linux-prod`、`worker-prod`，阻止生产危险配置。
+  - _Leverage: existing `SandboxConfiguration`, `ExecutionProperties`, `AuthConfiguration`, `WebSocketConfig`_
+  - _Requirements: 1.1, 1.2, 1.6, 7.1, 7.4_
+  - _Prompt: Role: Spring Boot configuration engineer | Task: Add production sandbox properties and a startup validator that rejects insecure production settings. Restrictions: trusted-local convenience may remain with warnings, but production profiles must fail closed. Success: Tests prove default access code, wildcard origin, direct runner, disabled sandbox, and failed capability probe are rejected in production._
+  - Strict Validation:
+    - Run: `mvn -Dtest=ProductionSecurityStartupValidatorTest,ProductionSandboxBaselineTest test`
+    - Expected: `trusted-local` can start with warning when direct runner or wildcard origin is configured.
+    - Expected: `windows-prod` rejects `provider=direct`, `isolation=process`, `sandbox.required=false`, default access code, wildcard origin.
+    - Expected: `linux-prod` rejects `provider=direct`, missing security profile, `sandbox.required=false`, default access code, wildcard origin.
+    - Expected: `worker-prod` requires worker endpoint and authentication token/mTLS configuration.
+    - Expected: Startup failure messages name the failed invariant without leaking secrets.
+    - Blocking failure: Validator must not be bypassed by changing only Spring active profile names.
+    - Evidence: Tests assert both pass and fail startup cases with exact failure reason fragments.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=ProductionSecurityStartupValidatorTest test` failed at testCompile because `ProductionSecurityStartupValidator` and `SandboxProperties` did not exist.
+    - Green: `.\mvnw.cmd "-Dtest=ProductionSecurityStartupValidatorTest,ProductionSandboxBaselineTest" test`: 11 run, 0 failures, 0 errors, 0 skipped.
+    - Regression: `.\mvnw.cmd test`: 100 run, 0 failures, 0 errors, 1 skipped.
+    - PowerShell note: the comma-separated `-Dtest` value must be quoted on Windows.
+
+- [x] 3. 定义统一 SandboxRunner 合约和 DTO
+  - Create: `src/main/java/com/example/demo/service/sandbox/SandboxRunner.java`
+  - Create: `src/main/java/com/example/demo/dto/SandboxTaskSpec.java`
+  - Create: `src/main/java/com/example/demo/dto/SandboxTaskEvent.java`
+  - Create: `src/main/java/com/example/demo/dto/SandboxCapabilities.java`
+  - Create: `src/main/java/com/example/demo/dto/SandboxRunHandle.java`
+  - Test: `src/test/java/com/example/demo/SandboxRunnerContractTest.java`
+  - Purpose: 建立 Windows/Linux/remote worker 都必须实现的统一 contract。
+  - _Leverage: existing `JudgeRequest`, `ResolvedTaskPolicy`, `JudgeSummary`, `TestCaseResult`_
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+  - _Prompt: Role: Java API architect | Task: Define stable DTOs and interfaces for sandbox task execution. Include task limits, source paths, retention policy, event types, capabilities, and run handles. Restrictions: Do not implement platform execution here; focus on clear contracts and validation. Success: Contract tests verify required fields, path normalization, event type coverage, and serialization stability._
+  - Strict Validation:
+    - Run: `mvn -Dtest=SandboxRunnerContractTest test`
+    - Expected: `SandboxTaskSpec` cannot be built without judgeId, userId, workDir, testCases, time/memory/output limits.
+    - Expected: workDir normalization rejects relative traversal and storage-base escape when storage base is supplied.
+    - Expected: Event enum covers compile, run, summary, cancellation, budget, security, system error, sandbox unavailable.
+    - Expected: DTO JSON serialization is stable and excludes secrets.
+    - Blocking failure: DTOs must not expose raw client-supplied paths or unrestricted command lines.
+    - Evidence: Contract test includes serialization snapshot-like assertions for key fields.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=SandboxRunnerContractTest test` failed at testCompile because `SandboxRunner` and sandbox DTOs did not exist.
+    - Green: `.\mvnw.cmd -Dtest=SandboxRunnerContractTest test`: 6 run, 0 failures, 0 errors, 0 skipped.
+    - Regression: `.\mvnw.cmd "-Dtest=SandboxRunnerContractTest,ProductionSecurityStartupValidatorTest,ProductionSandboxBaselineTest" test`: 17 run, 0 failures, 0 errors, 0 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
+
+- [x] 4. 把 JudgeService 改为任务级 runner 编排
+  - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
+  - Modify: `src/main/java/com/example/demo/service/JudgeScheduler.java`
+  - Create: `src/main/java/com/example/demo/service/sandbox/LocalFakeSandboxRunner.java`
+  - Test: `src/test/java/com/example/demo/JudgeSandboxOrchestrationTest.java`
+  - Purpose: Web 层不再直接编译/运行用户代码，而是提交任务级 `SandboxTaskSpec` 给 runner。
+  - _Leverage: existing `TaskStore`, `JudgeScheduler`, `ProgressPublisher` if present, `ResultAggregator`_
+  - _Requirements: 2.1, 2.2, 2.3, 5.1, 5.2_
+  - _Prompt: Role: Spring backend engineer | Task: Refactor judge orchestration to submit one sandbox task per judgeId through SandboxRunner. Use a fake runner in tests to emit deterministic events. Restrictions: Preserve existing HTTP API shape where possible; do not run g++ or user binaries in the Web JVM path. Success: Integration tests prove create/start/status works through runner events and no direct compile/run path is used for production profiles._
+  - Strict Validation:
+    - Run: `mvn -Dtest=JudgeSandboxOrchestrationTest,JudgeSchedulerTest,TaskPolicyResolverTest test`
+    - Expected: `/judge -> /judge/start/{judgeId}` creates `SandboxTaskSpec` with immutable policy snapshot.
+    - Expected: fake runner emits compile/running/summary/completed events and final status is persisted.
+    - Expected: production profile does not call existing `compile()` or `runProcessDirectly()` path.
+    - Expected: runner failure produces terminal `SYSTEM_ERROR` or `SANDBOX_UNAVAILABLE`.
+    - Blocking failure: Keeping a production path that calls `new ProcessBuilder(g++)` from `JudgeService` fails this task.
+    - Evidence: Test uses spy/fake runner to assert exactly one task-level `start()` call per judgeId.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=JudgeSandboxOrchestrationTest test` failed at testCompile because `LocalFakeSandboxRunner` and runner orchestration were not implemented.
+    - Green: `.\mvnw.cmd -Dtest=JudgeSandboxOrchestrationTest test`: 3 run, 0 failures, 0 errors, 0 skipped.
+    - Strict: `.\mvnw.cmd "-Dtest=JudgeSandboxOrchestrationTest,JudgeSchedulerTest,TaskPolicyResolverTest" test`: 17 run, 0 failures, 0 errors, 0 skipped.
+    - Regression: `.\mvnw.cmd test`: 109 run, 0 failures, 0 errors, 1 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
+
+- [x] 5. 实现 runner 事件摄取、摘要持久化和节流推送
+  - Create: `src/main/java/com/example/demo/service/SandboxEventIngestor.java`
+  - Modify: `src/main/java/com/example/demo/service/ResultAggregator.java`
+  - Modify: `src/main/java/com/example/demo/service/FileTaskStore.java`
+  - Modify: `src/main/java/com/example/demo/service/ProgressPublisher.java`
+  - Test: `src/test/java/com/example/demo/SandboxEventIngestorTest.java`
+  - Purpose: 统一处理 runner 事件，生成 summary、samples、WebSocket progress 和可轮询状态。
+  - _Leverage: existing `JudgeSummary`, `JudgeProgress`, `TaskStore`_
+  - _Requirements: 2.3, 2.4, 5.3, 5.4, 9.1, 9.2_
+  - _Prompt: Role: Event-driven backend engineer | Task: Implement event ingestion from SandboxRunner into TaskStore, ResultAggregator, and ProgressPublisher. Restrictions: High-volume events must not create unbounded result lists or WebSocket messages. Success: Tests feed 100000 synthetic events and prove bounded payload, summary correctness, throttling, and terminal state persistence._
+  - Strict Validation:
+    - Run: `mvn -Dtest=SandboxEventIngestorTest,ResultAggregatorTest,ProgressPublisherTest test`
+    - Expected: 100000 case events produce correct counters and bounded sample lists.
+    - Expected: Final progress payload size is below configured threshold.
+    - Expected: WebSocket ordinary progress sends are throttled; terminal events are immediate.
+    - Expected: Event order jitter does not corrupt first failed case or summary.
+    - Blocking failure: Any hidden `List<TestCaseResult>` containing all 100000 cases in high-volume mode fails.
+    - Evidence: Test asserts payload byte size, sample count and send count.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=SandboxEventIngestorTest test` failed at testCompile because `SandboxEventIngestor` did not exist.
+    - Green: `.\mvnw.cmd -Dtest=SandboxEventIngestorTest test`: 2 run, 0 failures, 0 errors, 0 skipped.
+    - Strict: `.\mvnw.cmd "-Dtest=SandboxEventIngestorTest,ResultAggregatorTest,ProgressPublisherTest" test`: 10 run, 0 failures, 0 errors, 0 skipped.
+    - Regression found and fixed: full `mvn test` initially left runner orchestration polling at `PENDING`; `JudgeService` now mirrors ingested runner progress into its in-memory status map.
+    - Regression: `.\mvnw.cmd test`: 111 run, 0 failures, 0 errors, 1 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
+
+- [x] 6. 实现生产配额和用户所有权保护
+  - Create: `src/main/java/com/example/demo/service/QuotaService.java`
+  - Create: `src/main/java/com/example/demo/model/JudgeOwnership.java`
+  - Modify: `src/main/java/com/example/demo/controller/JudgeController.java`
+  - Modify: `src/main/java/com/example/demo/service/FileTaskStore.java`
+  - Test: `src/test/java/com/example/demo/QuotaAndAuthorizationTest.java`
+  - Purpose: 上线后按用户限制并发、排队、每日 case/runtime，并保护详情/下载/取消权限。
+  - _Leverage: existing auth interceptor and task metadata_
+  - _Requirements: 6.1, 6.2, 6.3, 7.2, 7.3, 7.5, 7.6_
+  - _Prompt: Role: Security backend engineer | Task: Add quota checks and judge ownership enforcement. Store userId with each task and validate ownership for status, cancel, details, and download. Restrictions: Do not rely on obscurity of judgeId; do not leak whether another user's task exists. Success: Tests prove quota rejection and cross-user access denial._
+  - Strict Validation:
+    - Run: `mvn -Dtest=QuotaAndAuthorizationTest,JudgeSandboxOrchestrationTest test`
+    - Expected: User exceeding daily cases, runtime budget, running tasks, or queued tasks receives clear 429/business error.
+    - Expected: User A cannot read, cancel, or download User B's task.
+    - Expected: Admin role can inspect/cancel when explicitly allowed.
+    - Expected: Errors do not reveal other user's judgeId existence.
+    - Blocking failure: Checking only session validity without task ownership fails.
+    - Evidence: Tests cover same user, other user, anonymous user and admin user.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=QuotaAndAuthorizationTest test` failed at testCompile because quota properties, `JudgeOwnership`, and the user/admin session overload did not exist.
+    - Green: `.\mvnw.cmd -Dtest=QuotaAndAuthorizationTest test`: 7 run, 0 failures, 0 errors, 0 skipped.
+    - Strict: `.\mvnw.cmd "-Dtest=QuotaAndAuthorizationTest,JudgeSandboxOrchestrationTest" test`: 10 run, 0 failures, 0 errors, 0 skipped.
+    - Regression: `.\mvnw.cmd test`: 118 run, 0 failures, 0 errors, 1 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
+
+- [x] 7. 加强认证模型，禁用生产共享访问码
+  - Create: `src/main/java/com/example/demo/service/UserAccountService.java`
+  - Create: `src/main/java/com/example/demo/model/UserAccount.java`
+  - Modify: `src/main/java/com/example/demo/controller/AuthenticationController.java`
+  - Modify: `src/main/java/com/example/demo/service/AccessCodeService.java`
+  - Test: `src/test/java/com/example/demo/ProductionAuthenticationTest.java`
+  - Purpose: 生产 profile 使用账号/外部认证，trusted-local 可保留访问码。
+  - _Leverage: existing `AuthenticationController`, `AccessCodeService`, `SessionManagementService`_
+  - _Requirements: 7.1, 7.2, 7.4, 7.6_
+  - _Prompt: Role: Authentication engineer | Task: Add a production authentication path with user identity and secure password hashing or a configurable external-auth adapter. Keep trusted-local access code for local development only. Restrictions: Do not store plaintext passwords; do not accept default credentials in production. Success: Tests prove production rejects access-code-only auth and records user identity in sessions._
+  - Strict Validation:
+    - Run: `mvn -Dtest=ProductionAuthenticationTest,ProductionSecurityStartupValidatorTest test`
+    - Expected: production profile refuses default access code and sample admin password.
+    - Expected: login produces session containing stable userId.
+    - Expected: passwords are hashed with BCrypt or external auth is explicitly configured.
+    - Expected: auth failure is rate limited and audited.
+    - Blocking failure: A single shared access code granting all production permissions fails.
+    - Evidence: Tests assert no plaintext password appears in persisted user/session state.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd "-Dtest=ProductionAuthenticationTest,ProductionSecurityStartupValidatorTest" test` failed at testCompile because `UserAccountService`, account configuration, and username/password request fields did not exist.
+    - Green/Strict: `.\mvnw.cmd "-Dtest=ProductionAuthenticationTest,ProductionSecurityStartupValidatorTest" test`: 10 run, 0 failures, 0 errors, 0 skipped.
+    - Regression: `.\mvnw.cmd test`: 122 run, 0 failures, 0 errors, 1 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
+
+- [x] 8. 实现 LinuxContainerRunner capability probe 和执行
+  - Create: `src/main/java/com/example/demo/service/sandbox/LinuxContainerRunner.java`
+  - Create: `src/test/java/com/example/demo/LinuxContainerRunnerTest.java`
+  - Create: `docs/linux-sandbox-runbook.md`
+  - Purpose: 支持 Linux 生产 provider，验证容器、cgroup、禁网、非 root 和 seccomp/AppArmor。
+  - _Leverage: `SandboxRunner`, `SandboxTaskSpec`, `SandboxCapabilities`_
+  - _Requirements: 1.4, 1.5, 4.1, 4.2, 4.3, 4.4, 4.5, 10.4_
+  - _Prompt: Role: Linux container security engineer | Task: Implement LinuxContainerRunner using configured container runtime. Probe and enforce network none, non-root, readonly rootfs, tmpfs/workdir mount, memory/cpu/pids limits, and seccomp/AppArmor or configured equivalent. Restrictions: Do not run user code directly on host. Success: Capability tests prove isolation and resource limits when Linux container runtime is available; otherwise tests skip with explicit environment reason._
+  - Strict Validation:
+    - Run: `mvn -Dtest=LinuxContainerRunnerTest test`
+    - Smoke command: documented in `docs/linux-sandbox-runbook.md`.
+    - Expected: probe verifies container runtime available, image version, cgroup limits, network disabled, non-root user, security profile.
+    - Expected: program attempting network access fails.
+    - Expected: fork bomb or many-child program hits pids limit.
+    - Expected: memory hog hits memory limit.
+    - Expected: file read outside workdir fails.
+    - Expected: timeout kills task and no container remains running.
+    - Blocking failure: Falling back to host `ProcessBuilder` in linux-prod fails.
+    - Evidence: Test logs include provider, image, cgroup mode and skip reason if unavailable.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=LinuxContainerRunnerTest test` failed at testCompile because `LinuxContainerRunner` did not exist.
+    - Green/Strict: `.\mvnw.cmd -Dtest=LinuxContainerRunnerTest test`: 7 run, 0 failures, 0 errors, 1 skipped.
+    - Skip reason: live Linux container capability probe skipped on this Windows host with `container runtime unavailable: Cannot run program "docker"`; deterministic fake-runtime tests cover unavailable runtime, unsafe probe output, network none, non-root, cgroup, seccomp/AppArmor, detached run command, event polling, cancel cleanup, and no host fallback.
+    - Runbook: `docs/linux-sandbox-runbook.md` documents Linux deployment prerequisites, capability probe commands, network/pids/memory/path-isolation/timeout cleanup smoke checks, and Windows/Linux boundary notes.
+    - Regression: `.\mvnw.cmd test`: 129 run, 0 failures, 0 errors, 2 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
+
+- [x] 9. 实现 WindowsHyperVContainerRunner capability probe 和执行
+  - Create: `src/main/java/com/example/demo/service/sandbox/WindowsHyperVContainerRunner.java`
+  - Create: `src/test/java/com/example/demo/WindowsHyperVContainerRunnerTest.java`
+  - Create: `docs/windows-sandbox-runbook.md`
+  - Purpose: 支持 Windows 生产 provider，强制 Hyper-V isolation，并要求容器内 Job Object 进程树控制。
+  - _Leverage: `SandboxRunner`, `SandboxTaskSpec`, `SandboxCapabilities`_
+  - _Requirements: 1.3, 1.5, 3.1, 3.2, 3.3, 3.4, 3.6, 10.3_
+  - _Prompt: Role: Windows container security engineer | Task: Implement WindowsHyperVContainerRunner using configured container runtime and Hyper-V isolation. Probe actual isolation mode, network disabled, image version, resource limits, and task cleanup. Restrictions: Job Object-only is not production-safe; process isolation must not pass production validation by default. Success: Capability tests prove Hyper-V isolation, no network, process-tree kill via runner, and no residual containers/processes._
+  - Strict Validation:
+    - Run: `mvn -Dtest=WindowsHyperVContainerRunnerTest test`
+    - Smoke command: documented in `docs/windows-sandbox-runbook.md`.
+    - Expected: probe verifies actual isolation mode is `hyperv`.
+    - Expected: `--network none` or equivalent is active.
+    - Expected: task container mounts only the judge workdir.
+    - Expected: child-process-spawning program is killed fully on timeout/cancel.
+    - Expected: memory/output limits are enforced.
+    - Expected: container is removed after completion/cancel/failure.
+    - Blocking failure: Passing test under process isolation without explicit non-production risk flag fails.
+    - Blocking failure: Host direct execution path in windows-prod fails.
+    - Evidence: Test logs include provider, isolation mode, container id, cleanup confirmation and skip reason if unavailable.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=WindowsHyperVContainerRunnerTest test` failed at testCompile because `WindowsHyperVContainerRunner` did not exist.
+    - Green/Strict: `.\mvnw.cmd -Dtest=WindowsHyperVContainerRunnerTest test`: 7 run, 0 failures, 0 errors, 1 skipped.
+    - Skip reason: live Windows Hyper-V container capability probe skipped on this Windows host with `container runtime unavailable: Cannot run program "docker"`; deterministic fake-runtime tests cover unavailable runtime, Hyper-V isolation, process-isolation rejection, network none, memory limit, Job Object/process-tree kill proof, output limit proof, detached run command, event polling, cancel cleanup, workdir-only mount, and no host fallback.
+    - Runbook: `docs/windows-sandbox-runbook.md` documents Windows Hyper-V deployment prerequisites, capability probe commands, Hyper-V/network/workdir/process-tree/memory/output/cleanup smoke checks, and Windows/Linux boundary notes.
+    - Regression: `.\mvnw.cmd test`: 136 run, 0 failures, 0 errors, 3 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
+
+- [x] 10. 实现 RemoteWorkerRunner 和 Worker 协议
+  - Create: `src/main/java/com/example/demo/service/sandbox/RemoteWorkerRunner.java`
+  - Create: `src/main/java/com/example/demo/config/WorkerProperties.java`
+  - Test: `src/test/java/com/example/demo/RemoteWorkerRunnerTest.java`
+  - Purpose: 支持 Web 服务和执行环境分离，适配 Linux/Windows Worker VM 或后续集群。
+  - _Leverage: `SandboxRunner`, `SandboxTaskEvent`, fake HTTP server or MockWebServer_
+  - _Requirements: 1.3, 1.4, 2.4, 3.5, 10.1_
+  - _Prompt: Role: Distributed systems backend engineer | Task: Implement RemoteWorkerRunner with authenticated task submission, event polling/streaming, cancellation, timeout, and worker capability probe. Restrictions: Do not send secrets in logs; reject worker endpoints without authentication in production. Success: Tests with a fake worker cover success, event stream, cancellation, worker unavailable, stale run, and auth failure._
+  - Strict Validation:
+    - Run: `mvn -Dtest=RemoteWorkerRunnerTest test`
+    - Expected: probe reads worker capabilities and productionSafe flag.
+    - Expected: start sends full `SandboxTaskSpec` and receives run handle.
+    - Expected: event stream/poll maps worker events to local task events.
+    - Expected: cancel sends authenticated cancel request and handles idempotent cancellation.
+    - Expected: worker unavailable returns `SANDBOX_UNAVAILABLE`.
+    - Blocking failure: Remote worker without token/mTLS/signature in production fails validation.
+    - Evidence: Fake worker asserts request auth headers and payload fields.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=RemoteWorkerRunnerTest test` failed at testCompile because `WorkerProperties` and `RemoteWorkerRunner` did not exist.
+    - Green/Strict: `.\mvnw.cmd -Dtest=RemoteWorkerRunnerTest test`: 6 run, 0 failures, 0 errors, 0 skipped.
+    - Fake worker evidence: tests assert Bearer auth headers, full `SandboxTaskSpec` payload fields, capabilities probe mapping, event polling by cursor, idempotent cancel, unauthenticated channel rejection, and `SANDBOX_UNAVAILABLE` events for unavailable workers.
+    - Regression: `.\mvnw.cmd test`: 142 run, 0 failures, 0 errors, 3 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
+
+- [x] 11. 构建容器/Worker 内 Task Runner
+  - Create: `runner/README.md`
+  - Create: `runner/task-runner-spec.md`
+  - Create: `runner/src/...` or `runner/scripts/...` according to chosen implementation
+  - Test: `runner/tests/...` and `src/test/java/com/example/demo/TaskRunnerArtifactContractTest.java`
+  - Purpose: 容器/Worker 内部真正编译和执行 case，统一输出 events/summary/samples。
+  - _Leverage: `SandboxTaskSpec`, `SandboxTaskEvent`_
+  - _Requirements: 3.3, 4.3, 5.1, 5.5, 6.4, 10.1_
+  - _Prompt: Role: Systems engineer | Task: Build the sandbox-internal task runner contract and first implementation. It compiles generator/user/oracle/SPJ, runs cases, enforces per-process limits, writes events.jsonl and summary.json atomically, and exits with stable codes. Restrictions: It must work inside both Windows and Linux provider images or have platform-specific binaries behind the same contract. Success: Artifact contract tests prove event format, exit codes, limit statuses, and summary shape._
+  - Strict Validation:
+    - Run: runner-specific test command documented in `runner/README.md`.
+    - Run: `mvn -Dtest=TaskRunnerArtifactContractTest test`
+    - Expected: compile success, compile failure, AC, WA, TLE, MLE, output limit, security violation, cancellation all produce stable events.
+    - Expected: `summary.json` is atomically written or safely recoverable.
+    - Expected: stderr/compile output is bounded.
+    - Expected: runner exit codes are documented and tested.
+    - Blocking failure: Runner writes ad hoc logs only without machine-readable events.
+    - Evidence: Test fixture includes example `events.jsonl` and `summary.json`.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=TaskRunnerArtifactContractTest test` failed because `runner/scripts/task_runner.py` did not exist and Python returned exit code 2 for every contract scenario.
+    - Runner command: `python -m unittest discover -s runner/tests`: 2 run, 0 failures, 0 errors, 0 skipped.
+    - Green/Strict: `.\mvnw.cmd -Dtest=TaskRunnerArtifactContractTest test`: 6 run, 0 failures, 0 errors, 0 skipped.
+    - Contract evidence: tests cover compile success, compile failure, AC, WA, TLE, MLE, output limit, security violation, cancellation, bounded compile output, stable exit codes, Java DTO parsing of `events.jsonl`, and atomic `summary.json`.
+    - Fixtures: `runner/fixtures/example-events.jsonl` and `runner/fixtures/example-summary.json`.
+    - Regression: `.\mvnw.cmd test`: 148 run, 0 failures, 0 errors, 3 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
+
+- [x] 12. 加固任务文件、挂载、详情和下载
+  - Create: `src/main/java/com/example/demo/service/JudgeFileService.java`
+  - Modify: `src/main/java/com/example/demo/controller/JudgeController.java`
+  - Modify: `src/main/java/com/example/demo/service/FileTaskStore.java`
+  - Test: `src/test/java/com/example/demo/JudgeFileServiceProductionTest.java`
+  - Purpose: 任务目录、容器挂载、详情读取、zip 下载都必须路径安全和流式。
+  - _Leverage: existing `/details`, `/download`, `FileTaskStore`_
+  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
+  - _Prompt: Role: Secure file handling engineer | Task: Centralize file access and download logic. Resolve files only from TaskStore-owned workdir, validate case numbers, stream zip downloads, and reject symlink/junction/reparse escape. Restrictions: No raw client paths, no full zip in memory, no absolute path leakage. Success: Tests prove path traversal and symlink attacks fail and large downloads stream._
+  - Strict Validation:
+    - Run: `mvn -Dtest=JudgeFileServiceProductionTest,QuotaAndAuthorizationTest test`
+    - Attack cases: `../`, `..\\`, encoded traversal, absolute path, negative case, huge case number, nonexistent judgeId, symlink/junction escape.
+    - Expected: attacks return 400/404/403 without reading canary file outside storage base.
+    - Expected: download-all uses streaming response or equivalent; no `ByteArrayOutputStream` full zip in production path.
+    - Expected: download requires owner/admin authorization.
+    - Blocking failure: Controller directly touching filesystem paths fails.
+    - Evidence: Test creates outside-storage canary and confirms it is never returned.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd "-Dtest=JudgeFileServiceProductionTest,QuotaAndAuthorizationTest" test` failed: 11 run, 2 failures, 0 errors, 1 skipped. Failures showed `JudgeFileService` accepted Windows junction/directory-link workDir escape for details and archive creation.
+    - Green/Strict: `.\mvnw.cmd "-Dtest=JudgeFileServiceProductionTest,QuotaAndAuthorizationTest" test`: 11 run, 0 failures, 0 errors, 1 skipped.
+    - File regression: `.\mvnw.cmd "-Dtest=JudgeFileServiceProductionTest,JudgeFileServiceTest,QuotaAndAuthorizationTest,FileTaskStoreTest,TaskCleanupServiceTest" test`: 37 run, 0 failures, 0 errors, 2 skipped.
+    - Security evidence: tests cover outside-storage canary, Windows junction/directory-link workDir escape, file symlink escape when the platform allows symlinks, archive rejection before streaming, no absolute path/canary leakage, owner/admin authorization regression, and no full-zip `ByteArrayOutputStream` in production service code.
+    - Regression: `.\mvnw.cmd test`: 152 run, 0 failures, 0 errors, 4 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
+
+- [x] 13. 增加审计、管理视图和运维指标
+  - Create: `src/main/java/com/example/demo/service/AuditService.java`
+  - Create: `src/main/java/com/example/demo/dto/AdminQueueSnapshot.java`
+  - Create: `src/main/java/com/example/demo/controller/AdminController.java`
+  - Test: `src/test/java/com/example/demo/AuditAndAdminTest.java`
+  - Purpose: 生产运维可看到队列、运行任务、资源耗用、安全违规和失败原因。
+  - _Leverage: `JudgeScheduler.QueueSnapshot`, `TaskStore`, auth roles_
+  - _Requirements: 7.5, 7.6, 9.1, 9.2, 9.3, 9.4_
+  - _Prompt: Role: Observability backend engineer | Task: Add structured audit events and an authenticated admin status API for queue depth, running tasks, provider health, task resource summaries, and recent failures. Restrictions: Admin API must require admin role; user-facing APIs must not expose sensitive internals. Success: Tests prove audit events are emitted and admin/non-admin access is enforced._
+  - Strict Validation:
+    - Run: `mvn -Dtest=AuditAndAdminTest,ProductionAuthenticationTest test`
+    - Expected: task create/start/cancel/download/security/quota events include userId, judgeId, provider, timestamp and sanitized details.
+    - Expected: admin endpoint returns queue depth, running count, provider health, recent failure counts.
+    - Expected: non-admin user receives 403.
+    - Expected: audit logs do not contain plaintext passwords, full source code, or secrets.
+    - Blocking failure: Logging only free-form messages without structured fields is insufficient.
+    - Evidence: Tests inspect audit sink entries.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd "-Dtest=AuditAndAdminTest,ProductionAuthenticationTest" test` failed at testCompile because `AuditService` did not exist.
+    - Green/Strict: `.\mvnw.cmd "-Dtest=AuditAndAdminTest,ProductionAuthenticationTest" test`: 6 run, 0 failures, 0 errors, 0 skipped.
+    - Focused regression: `.\mvnw.cmd "-Dtest=AuditAndAdminTest,QuotaAndAuthorizationTest,JudgeFileServiceProductionTest" test`: 13 run, 0 failures, 0 errors, 1 skipped.
+    - Regression: `.\mvnw.cmd test`: 154 run, 0 failures, 0 errors, 4 skipped.
+    - `git diff --check`: exit 0, no whitespace errors; Git reported Windows CRLF conversion warnings for touched files.
+    - Evidence: tests verify structured task create/start/cancel/download/security/quota audit events, admin-only `/admin/queue`, queue/running/provider/failure snapshots, and sanitized audit/admin payloads.
+
+- [x] 14. 增加任务清理、启动对账和容器残留清理
+  - Create: `src/main/java/com/example/demo/service/TaskCleanupService.java`
+  - Modify: `src/main/java/com/example/demo/service/sandbox/SandboxRunner.java`
+  - Modify: `src/main/java/com/example/demo/service/FileTaskStore.java`
+  - Test: `src/test/java/com/example/demo/ProductionCleanupTest.java`
+  - Purpose: 控制磁盘增长，服务重启后对账 stale 任务，并清理残留容器/进程/目录。
+  - _Leverage: existing `FileTaskStore.markStaleRunningTasksOnStartup` if present_
+  - _Requirements: 3.6, 4.4, 5.5, 8.6, 9.5_
+  - _Prompt: Role: Reliability engineer | Task: Add cleanup and startup reconciliation for task directories, stale metadata, runner handles, and provider residuals. Restrictions: Never delete outside storage base, never silently ignore cleanup failure, do not race with running tasks. Success: Tests prove stale marking, retention cleanup, residual runner cleanup, and path safety._
+  - Strict Validation:
+    - Run: `mvn -Dtest=ProductionCleanupTest,JudgeFileServiceProductionTest test`
+    - Expected: startup marks old RUNNING/QUEUED as STALE or reconciles with live runner.
+    - Expected: completed/cancelled/failed/stale tasks clean by retention.
+    - Expected: active running tasks are preserved.
+    - Expected: provider cleanup called for residual handles.
+    - Expected: symlink/junction/reparse escape is not deleted.
+    - Blocking failure: Broad recursive delete over computed paths without base verification fails.
+    - Evidence: Tests include canary outside storage base and fake provider residuals.
+
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd "-Dtest=ProductionCleanupTest,JudgeFileServiceProductionTest" test` failed at testCompile because task metadata did not persist `SandboxRunHandle`, `FileTaskStore.saveRunHandle` did not exist, `SandboxRunner.cleanupResidual` did not exist, and `TaskCleanupService` did not accept a runner dependency.
+    - Green/Strict: `.\mvnw.cmd "-Dtest=ProductionCleanupTest,JudgeFileServiceProductionTest" test`: 9 run, 0 failures, 0 errors, 1 skipped.
+    - Focused regression: `.\mvnw.cmd "-Dtest=ProductionCleanupTest,TaskCleanupServiceTest,FileTaskStoreTest,JudgeSandboxOrchestrationTest,JudgeFileServiceProductionTest" test`: 23 run, 0 failures, 0 errors, 2 skipped.
+    - Regression: `.\mvnw.cmd test`: 159 run, 0 failures, 0 errors, 4 skipped.
+    - Evidence: `ProductionCleanupTest` verifies startup cleanup of residual handles before STALE marking, handle persistence across restarts, retention cleanup for completed/cancelled/failed/stale tasks, preservation of active RUNNING tasks, cleanup failure reporting without deleting the task directory, and symlink/junction/reparse escape protection with an outside-storage canary.
+
+- [x] 15. 高容量跨平台压测和回归
+  - Create: `src/test/java/com/example/demo/ProductionHighVolumeIntegrationTest.java`
+  - Create: `scripts/smoke/high-volume-smoke.ps1`
+  - Create: `scripts/smoke/high-volume-smoke.sh`
+  - Modify: `docs/linux-sandbox-runbook.md`
+  - Modify: `docs/windows-sandbox-runbook.md`
+  - Test: `ProductionHighVolumeIntegrationTest`
+  - Purpose: 验证 100000+ case 生产链路不会打爆内存、消息、结果、DOM 或 runner。
+  - _Leverage: fake/fast runner, `SandboxEventIngestor`, `ProgressPublisher`, `TaskStore`_
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.6, 10.2_
+  - _Prompt: Role: Performance QA engineer | Task: Add high-volume tests and smoke scripts for 100, 10000, 100000, and optional 200000 cases. Use fake/fast runner for CI while preserving real policy/scheduler/event/progress/storage path. Restrictions: Do not reduce assertions to config parsing; must pass through core execution chain. Success: Tests record peak in-flight, payload size, sample count, heap estimate, event count and throughput._
+  - Strict Validation:
+    - Run: `mvn -Dtest=ProductionHighVolumeIntegrationTest test`
+    - Run Windows smoke: `powershell -ExecutionPolicy Bypass -File scripts/smoke/high-volume-smoke.ps1 -Cases 100000`
+    - Run Linux smoke: `bash scripts/smoke/high-volume-smoke.sh --cases 100000`
+    - Expected: 100000 case test passes through policy, scheduler, sandbox runner fake, event ingestor, TaskStore and progress publisher.
+    - Expected: final payload below configured byte threshold.
+    - Expected: sample count <= configured sample limit.
+    - Expected: WebSocket send count bounded by throttle settings.
+    - Expected: Java future count does not equal case count.
+    - Optional: 200000 case script documented with expected machine prerequisites.
+    - Blocking failure: Testing only `TaskPolicyResolver` for 100000 support fails.
+    - Evidence: Test output prints peak in-flight, payload bytes, samples, elapsed, throughput.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd "-Dtest=ProductionHighVolumeIntegrationTest" test` initially failed because `scripts/smoke/high-volume-smoke.ps1` did not exist.
+    - Red: `.\mvnw.cmd "-Dtest=ProductionHighVolumeIntegrationTest#highVolumeSmokeScriptsAndRunbooksExposeWindowsAndLinuxEntryPoints" test` failed after adding the WSL expectation because `docs/windows-sandbox-runbook.md` did not yet document `wsl.exe`.
+    - Green/Strict: `.\mvnw.cmd "-Dtest=ProductionHighVolumeIntegrationTest" test`: 2 run, 0 failures, 0 errors, 0 skipped. 100000-case evidence printed `schedulerTasks=1`, `peakInFlightSchedulerTasks=1`, `pollCount=196`, `payloadBytes=1069`, `websocketMessages=4`, `failureSamples=5`, `slowSamples=7`.
+    - Windows smoke: `powershell -ExecutionPolicy Bypass -File scripts/smoke/high-volume-smoke.ps1 -Cases 100000`: 2 run, 0 failures, 0 errors, 0 skipped; printed `HIGH_VOLUME_SMOKE` for 100, 10000, and 100000 cases.
+    - Linux smoke: `bash scripts/smoke/high-volume-smoke.sh --cases 100000`: 2 run, 0 failures, 0 errors, 0 skipped; printed `HIGH_VOLUME_SMOKE` for 100, 10000, and 100000 cases. Script avoids CRLF `mvnw` failures and can fall back to `mvnw.cmd` or `mvn`.
+    - WSL smoke: `wsl.exe -- bash -lc "cd /mnt/c/tmp/codex-production-sandbox-tasks && bash scripts/smoke/high-volume-smoke.sh --cases 100000"`: 2 run, 0 failures, 0 errors, 0 skipped.
+    - Focused regression: `.\mvnw.cmd "-Dtest=ProductionHighVolumeIntegrationTest,HighVolumeJudgeIntegrationTest,SandboxEventIngestorTest,ProgressPublisherTest" test`: 12 run, 0 failures, 0 errors, 0 skipped.
+    - Regression: `.\mvnw.cmd test`: 161 run, 0 failures, 0 errors, 4 skipped.
+    - `git diff --check`: exit 0, no whitespace errors; Git reported Windows CRLF conversion warnings for touched runbooks.
+    - Evidence: `ProductionHighVolumeIntegrationTest` verifies the production runner chain through policy, scheduler, fake sandbox runner, event ingestor, TaskStore, and ProgressPublisher; final progress omits the full result list and keeps payload/sample/WebSocket counts bounded.
+
+- [x] 16. 平台 capability smoke 和生产部署 runbook
+  - Create: `docs/production-sandbox-runbook.md`
+  - Create: `docs/security-boundary.md`
+  - Create: `scripts/smoke/windows-capability-smoke.ps1`
+  - Create: `scripts/smoke/linux-capability-smoke.sh`
+  - Modify: `README.md`
+  - Purpose: 给出 Windows/Linux/remote worker 的部署、验收、回滚和故障排查路径。
+  - _Leverage: provider tests and smoke scripts_
+  - _Requirements: 1.5, 3.6, 4.2, 7.1, 10.1, 10.3, 10.4, 10.6_
+  - _Prompt: Role: Release engineer | Task: Write production runbooks and capability smoke scripts for Windows Hyper-V containers, Linux containers, and remote workers. Include setup, config, start commands, expected logs, validation commands, failure modes, rollback, and security boundary warnings. Restrictions: Docs must not claim Job Object-only or Linux direct process is production safe. Success: A new operator can follow docs to verify sandbox capability before serving users._
+  - Strict Validation:
+    - Run: `powershell -ExecutionPolicy Bypass -File scripts/smoke/windows-capability-smoke.ps1 -WhatIf`
+    - Run: `bash -n scripts/smoke/linux-capability-smoke.sh`
+    - Run: `mvn test`
+    - Expected: runbook includes `trusted-local`, `windows-prod`, `linux-prod`, `worker-prod` configs.
+    - Expected: runbook includes exact validation for禁网、资源限制、路径隔离、进程树 kill、默认口令拒绝、origin 拒绝。
+    - Expected: README warns that production requires strong sandbox and strong auth.
+    - Expected: Windows docs state Hyper-V isolation requirement and Job Object limitation.
+    - Expected: Linux docs state cgroup/seccomp/AppArmor/non-root/network requirements.
+    - Blocking failure: Documentation saying “Windows Sandbox” or “Job Object-only” is enough for production fails.
+    - Evidence: Smoke scripts parse successfully and docs contain all required profile names.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd "-Dtest=ProductionRunbookDocumentationTest" test` initially failed because `docs/production-sandbox-runbook.md`, `docs/security-boundary.md`, `scripts/smoke/windows-capability-smoke.ps1`, and the README production warning did not exist.
+    - Green/Strict: `.\mvnw.cmd "-Dtest=ProductionRunbookDocumentationTest" test`: 4 run, 0 failures, 0 errors, 0 skipped.
+    - Windows smoke precheck: `powershell -ExecutionPolicy Bypass -File scripts/smoke/windows-capability-smoke.ps1 -WhatIf`: exit 0; Docker CLI unavailable on this host, so this is local precheck evidence only and not release evidence.
+    - Linux syntax: `bash -n scripts/smoke/linux-capability-smoke.sh`: exit 0.
+    - WSL syntax: `wsl.exe -- bash -lc "cd /mnt/c/tmp/codex-production-sandbox-tasks && bash -n scripts/smoke/linux-capability-smoke.sh"`: exit 0.
+    - WSL dry run: `wsl.exe -- bash -lc "cd /mnt/c/tmp/codex-production-sandbox-tasks && bash scripts/smoke/linux-capability-smoke.sh --dry-run --skip-maven"`: exit 0 and printed the Docker command with `--network none`, `--pids-limit`, `--read-only`, non-root user, seccomp and AppArmor options.
+    - Regression: `.\mvnw.cmd test`: 165 run, 0 failures, 0 errors, 4 skipped.
+    - `git diff --check`: exit 0, no whitespace errors; Git reported a Windows CRLF conversion warning for `README.md`.
+    - Evidence: `ProductionRunbookDocumentationTest` locks the required profile names, platform smoke entry points, rollback, default access code rejection, wildcard origin rejection, network disabled, resource limits, path isolation, process-tree kill, Hyper-V requirement, Job Object limitation, Linux cgroup/seccomp/AppArmor/non-root/network requirements, remote-worker authentication, and the statement that WSL smoke is not production release evidence.
+
+- [x] 17. 最终安全审计和上线门禁
+  - Test: all tests and smoke scripts
+  - Purpose: 在标记规格完成前做逐项审计，确保每个 requirement 有强证据。
+  - _Leverage: all tasks_
+  - _Requirements: All_
+  - _Prompt: Role: Release owner and security reviewer | Task: Audit every production-sandbox requirement against current code, tests, smoke output, and docs. Produce a completion matrix and block release on any missing evidence. Restrictions: Do not mark complete based on intent or partial tests; every requirement needs direct evidence. Success: Full regression passes and completion matrix links each requirement to tests/docs/smoke evidence._
+  - Strict Validation:
+    - Run: `mvn test`
+    - Run: `mvn -Dtest=ProductionHighVolumeIntegrationTest test`
+    - Run platform-specific smoke available on the deployment target.
+    - Expected: Completion matrix maps Requirement 1-10 acceptance criteria to exact test names, smoke outputs or docs.
+    - Expected: No production path allows direct runner under production profiles.
+    - Expected: No production path accepts default credentials or wildcard origin.
+    - Expected: Windows/Linux provider unavailable cases fail closed.
+    - Expected: 100000 case high-volume evidence includes bounded payload, samples and in-flight counts.
+    - Blocking failure: Any skipped platform test without documented environment reason and alternative production evidence blocks release.
+    - Evidence: Final audit document saved under `docs/production-sandbox-acceptance.md`.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd "-Dtest=ProductionSandboxAcceptanceDocumentationTest" test` failed because `docs/production-sandbox-acceptance.md` did not exist.
+    - Green: `.\mvnw.cmd "-Dtest=ProductionSandboxAcceptanceDocumentationTest" test`: 2 run, 0 failures, 0 errors, 0 skipped.
+    - High-volume strict: `.\mvnw.cmd "-Dtest=ProductionHighVolumeIntegrationTest" test`: 2 run, 0 failures, 0 errors, 0 skipped; 100000-case evidence printed `schedulerTasks=1`, `peakInFlightSchedulerTasks=1`, `pollCount=196`, `payloadBytes=1069`, `websocketMessages=4`, `failureSamples=5`, `slowSamples=7`.
+    - Windows high-volume smoke: `powershell -ExecutionPolicy Bypass -File scripts/smoke/high-volume-smoke.ps1 -Cases 100000`: 2 run, 0 failures, 0 errors, 0 skipped.
+    - Linux/WSL high-volume smoke: `bash scripts/smoke/high-volume-smoke.sh --cases 100000`: 2 run, 0 failures, 0 errors, 0 skipped.
+    - Windows capability precheck: `powershell -ExecutionPolicy Bypass -File scripts/smoke/windows-capability-smoke.ps1 -WhatIf`: exit 0; Docker CLI unavailable on this Windows workstation, so live Hyper-V container release evidence remains blocked until run on the deployment target.
+    - Linux capability syntax: `bash -n scripts/smoke/linux-capability-smoke.sh`: exit 0.
+    - WSL capability dry run: `wsl.exe -- bash -lc "cd /mnt/c/tmp/codex-production-sandbox-tasks && bash scripts/smoke/linux-capability-smoke.sh --dry-run --skip-maven"`: exit 0 and printed `--network none`, `--pids-limit`, `--read-only`, non-root user, seccomp, and AppArmor options.
+    - Regression: `.\mvnw.cmd test`: 167 run, 0 failures, 0 errors, 4 skipped.
+    - `git diff --check`: exit 0, no whitespace errors; Git reported a Windows CRLF conversion warning for `.spec-workflow/specs/production-sandbox/tasks.md`.
+    - Release decision: `docs/production-sandbox-acceptance.md` maps Requirement 1-10 to tests/docs/smoke evidence and explicitly blocks production traffic until live platform capability smoke passes on the actual Windows, Linux, or remote-worker host.

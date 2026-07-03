@@ -3,3 +3,5 @@
 /.vscode
 /.claude
 /logs
+__pycache__/
+*.py[cod]

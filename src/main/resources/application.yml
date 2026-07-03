@@ -19,6 +19,8 @@ judge:
   auth:
     access-code: "123"
     default-access-code: "123"
+    account-auth-enabled: false
+    accounts: []
     session-timeout: 30d
     normal-session-timeout: 24h
     max-attempts: 5
@@ -37,6 +39,10 @@ judge:
     max-concurrent-tasks: 1
     max-concurrent-cases-per-task: 4
     batch-size: 100
+    max-daily-cases-per-user: 200000
+    max-daily-runtime-millis-per-user: 1000000000
+    max-running-tasks-per-user: 1
+    max-queued-tasks-per-user: 5
     cleanup-interval: 30m
     completed-retention: 24h
     cancelled-retention: 24h
@@ -60,6 +66,24 @@ judge:
     base-directory: C:/temp/judge-sandbox  # Windows路径格式
     network-disabled: true
     max-processes: 10
+    production:
+      provider: direct
+      isolation: process
+      security-profile: ""
+      capability-probe-required: false
+      capability-probe-passed: false
+      worker:
+        endpoint: ""
+        auth-token: ""
+        mtls-certificate: ""
+
+  worker:
+    endpoint: ""
+    auth-token: ""
+    signing-secret: ""
+    mtls-certificate: ""
+    connect-timeout: 5s
+    request-timeout: 30s
 
 logging:
   level:
@@ -115,3 +139,94 @@ judge:
     batch-size: 100
     max-task-runtime: 2h
     require-sandbox: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: windows-prod
+
+judge:
+  execution:
+    profile: windows-prod
+    require-sandbox: true
+  sandbox:
+    enabled: true
+    production:
+      provider: windows-container
+      isolation: hyper-v
+      security-profile: hyper-v;job-object
+      capability-probe-required: true
+      capability-probe-passed: false
+      windows-container:
+        runtime-command: docker
+        image: cpp-judge-runner-windows:latest
+        container-user: ContainerUser
+        work-mount: "C:\\work"
+        runner-command: "C:\\judge-runner\\run-task.exe"
+        probe-command: "C:\\judge-runner\\probe.cmd"
+        task-spec-file: sandbox-task.json
+        event-file: events.jsonl
+        cpus: 1.0
+        probe-memory-bytes: 268435456
+        command-timeout: 30s
+
+---
+spring:
+  config:
+    activate:
+      on-profile: linux-prod
+
+judge:
+  execution:
+    profile: linux-prod
+    require-sandbox: true
+  sandbox:
+    enabled: true
+    production:
+      provider: linux-container
+      isolation: container
+      security-profile: seccomp:judge-linux
+      capability-probe-required: true
+      capability-probe-passed: false
+      linux-container:
+        runtime-command: docker
+        image: cpp-judge-runner:latest
+        container-user: "65532:65532"
+        work-mount: /work
+        runner-command: /opt/judge-runner/run-task
+        task-spec-file: sandbox-task.json
+        event-file: events.jsonl
+        pids-limit: 64
+        cpus: 1.0
+        command-timeout: 30s
+
+---
+spring:
+  config:
+    activate:
+      on-profile: worker-prod
+
+judge:
+  execution:
+    profile: worker-prod
+    require-sandbox: true
+  sandbox:
+    enabled: true
+    production:
+      provider: remote-worker
+      isolation: remote
+      security-profile: worker-policy
+      capability-probe-required: true
+      capability-probe-passed: false
+      worker:
+        endpoint: ""
+        auth-token: ""
+        mtls-certificate: ""
+  worker:
+    endpoint: ""
+    auth-token: ""
+    signing-secret: ""
+    mtls-certificate: ""
+    connect-timeout: 5s
+    request-timeout: 30s

@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
@@ -49,7 +50,7 @@ public class JudgeFileService {
         JudgeTask task = requireTask(judgeId);
         validateCaseNumber(task, caseNumber);
         Path inputFile = caseFile(requireWorkDir(task), caseNumber, ".in");
-        if (!Files.isRegularFile(inputFile)) {
+        if (!Files.isRegularFile(inputFile, LinkOption.NOFOLLOW_LINKS)) {
             throw new IOException("Input file not found for caseNumber " + caseNumber);
         }
         return inputFile;
@@ -73,10 +74,10 @@ public class JudgeFileService {
                     addFileToZip(zipStream, inputFile, caseNumber + ".in");
 
                     Path answerFile = caseFile(workDir, caseNumber, ".ans");
-                    if (!Files.isRegularFile(answerFile)) {
+                    if (!Files.isRegularFile(answerFile, LinkOption.NOFOLLOW_LINKS)) {
                         answerFile = caseFile(workDir, caseNumber, ".out");
                     }
-                    if (Files.isRegularFile(answerFile)) {
+                    if (Files.isRegularFile(answerFile, LinkOption.NOFOLLOW_LINKS)) {
                         addFileToZip(zipStream, answerFile, caseNumber + ".out");
                     }
                 }
@@ -100,8 +101,19 @@ public class JudgeFileService {
 
     private Path requireWorkDir(JudgeTask task) throws IOException {
         Path workDir = Path.of(task.getWorkDir()).toAbsolutePath().normalize();
-        if (!Files.isDirectory(workDir)) {
+        if (!Files.isDirectory(workDir, LinkOption.NOFOLLOW_LINKS)) {
             throw new IOException("Judge task files not found");
+        }
+        if (taskStore instanceof FileTaskStore fileTaskStore) {
+            Path storageBase = fileTaskStore.storageBase().toAbsolutePath().normalize();
+            if (!workDir.startsWith(storageBase)) {
+                throw new IOException("Judge task files not found");
+            }
+            Path realStorageBase = storageBase.toRealPath();
+            Path realWorkDir = workDir.toRealPath();
+            if (!realWorkDir.startsWith(realStorageBase)) {
+                throw new IOException("Judge task files not found");
+            }
         }
         return workDir;
     }
@@ -117,11 +129,21 @@ public class JudgeFileService {
         if (!file.startsWith(workDir)) {
             throw new IOException("Resolved case file is outside task directory");
         }
+        if (Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
+            if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException("Resolved case file is not a regular file");
+            }
+            Path realWorkDir = workDir.toRealPath();
+            Path realFile = file.toRealPath();
+            if (!realFile.startsWith(realWorkDir)) {
+                throw new IOException("Resolved case file is outside task directory");
+            }
+        }
         return file;
     }
 
     private String readRequiredUtf8(Path file, long maxBytes, String label) throws IOException {
-        if (!Files.isRegularFile(file)) {
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
             throw new IOException(label + " file not found");
         }
         if (Files.size(file) > maxBytes) {
@@ -139,8 +161,8 @@ public class JudgeFileService {
 
     private List<Path> listInputFiles(JudgeTask task, Path workDir) throws IOException {
         try (Stream<Path> stream = Files.list(workDir)) {
-            return stream
-                    .filter(Files::isRegularFile)
+            List<Path> candidates = stream
+                    .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
                     .filter(path -> INPUT_FILE_NAME.matcher(path.getFileName().toString()).matches())
                     .filter(path -> {
                         int caseNumber = parseCaseNumber(path);
@@ -148,12 +170,20 @@ public class JudgeFileService {
                     })
                     .sorted(Comparator.comparingInt(this::parseCaseNumber))
                     .toList();
+            List<Path> safeFiles = new java.util.ArrayList<>(candidates.size());
+            for (Path candidate : candidates) {
+                safeFiles.add(caseFile(workDir, parseCaseNumber(candidate), ".in"));
+            }
+            return safeFiles;
         }
     }
 
     private void addFileToZip(ZipOutputStream zipStream, Path file, String entryName) throws IOException {
         if (!SAFE_ENTRY_NAME.matcher(entryName).matches()) {
             throw new IOException("Unsafe zip entry name");
+        }
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Archive source file not found");
         }
         zipStream.putNextEntry(new ZipEntry(entryName));
         try (InputStream inputStream = Files.newInputStream(file)) {

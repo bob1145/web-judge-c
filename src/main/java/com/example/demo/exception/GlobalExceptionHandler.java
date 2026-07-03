@@ -2,6 +2,7 @@ package com.example.demo.exception;
 
 import com.example.demo.dto.ErrorResponse;
 import com.example.demo.dto.JudgeErrorResponse;
+import com.example.demo.service.QuotaService;
 import com.example.demo.service.TaskPolicyResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -9,6 +10,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+
+import java.util.Map;
 
 /**
  * 全局异常处理器
@@ -33,6 +36,22 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
+
+    @ExceptionHandler(QuotaService.QuotaExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleQuotaExceeded(
+            QuotaService.QuotaExceededException e) {
+        log.warn("Judge quota rejected request: quota={}, used={}, requested={}, limit={}",
+                e.getQuota(), e.getUsed(), e.getRequested(), e.getLimit());
+
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of(
+                "code", e.getCode(),
+                "message", e.getMessage(),
+                "quota", e.getQuota(),
+                "used", e.getUsed(),
+                "requested", e.getRequested(),
+                "limit", e.getLimit()
+        ));
     }
     
     /**

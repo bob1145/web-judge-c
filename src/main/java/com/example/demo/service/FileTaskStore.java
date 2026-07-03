@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import com.example.demo.dto.JudgeProgress;
 import com.example.demo.dto.JudgeSummary;
+import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.dto.TestCaseResult;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
@@ -66,6 +67,7 @@ public class FileTaskStore implements TaskStore {
         return storageBase.relativize(taskDirectory(judgeId)).toString();
     }
 
+    @Override
     public List<JudgeTask> findAll() throws IOException {
         return loadAllTasks();
     }
@@ -78,17 +80,14 @@ public class FileTaskStore implements TaskStore {
                 return false;
             }
 
-            validateSafeDeleteTree(directory);
-            List<Path> paths;
-            try (Stream<Path> stream = Files.walk(directory)) {
-                paths = stream
-                        .sorted(Comparator.reverseOrder())
-                        .toList();
-            }
+            List<Path> paths = safeDeletePaths(directory);
 
             IOException failure = null;
+            Path realStorageBase = storageBase.toRealPath();
+            Path realDirectory = directory.toRealPath();
             for (Path path : paths) {
                 try {
+                    validateSafeDeleteEntry(path, realStorageBase, realDirectory);
                     Files.deleteIfExists(path);
                 } catch (IOException ex) {
                     if (failure == null) {
@@ -113,6 +112,7 @@ public class FileTaskStore implements TaskStore {
         ensureInsideStorageBase(workDir);
         synchronized (lock(task.getJudgeId())) {
             Files.createDirectories(workDir);
+            validateTaskDirectory(workDir);
             JudgeTask normalized = copyForWrite(task);
             if (normalized.getCreatedAt() == null) {
                 normalized.setCreatedAt(Instant.now());
@@ -130,10 +130,16 @@ public class FileTaskStore implements TaskStore {
     public Optional<JudgeTask> find(String judgeId) throws IOException {
         validateJudgeId(judgeId);
         synchronized (lock(judgeId)) {
-            Path metadata = metadataFile(taskDirectory(judgeId));
-            if (!Files.exists(metadata)) {
+            Path workDir = taskDirectory(judgeId);
+            if (!Files.exists(workDir, LinkOption.NOFOLLOW_LINKS)) {
                 return Optional.empty();
             }
+            validateTaskDirectory(workDir);
+            Path metadata = metadataFile(workDir);
+            if (!Files.exists(metadata, LinkOption.NOFOLLOW_LINKS)) {
+                return Optional.empty();
+            }
+            validateRegularFile(metadata);
             return Optional.of(objectMapper.readValue(metadata.toFile(), JudgeTask.class));
         }
     }
@@ -159,8 +165,31 @@ public class FileTaskStore implements TaskStore {
 
             Path workDir = Path.of(task.getWorkDir()).toAbsolutePath().normalize();
             ensureInsideStorageBase(workDir);
+            validateTaskDirectory(workDir);
             writeJsonAtomically(metadataFile(workDir), task);
             appendEvent(workDir, event(judgeId, status, message));
+            return task;
+        }
+    }
+
+    @Override
+    public JudgeTask saveRunHandle(String judgeId, SandboxRunHandle handle) throws IOException {
+        validateJudgeId(judgeId);
+        if (handle == null) {
+            throw new IllegalArgumentException("Sandbox run handle is required");
+        }
+        if (handle.judgeId() != null && !judgeId.equals(handle.judgeId())) {
+            throw new IllegalArgumentException("Sandbox run handle judgeId does not match task");
+        }
+        synchronized (lock(judgeId)) {
+            JudgeTask task = find(judgeId)
+                    .orElseThrow(() -> new IllegalArgumentException("Judge task not found: " + judgeId));
+            task.setSandboxRunHandle(handle);
+
+            Path workDir = Path.of(task.getWorkDir()).toAbsolutePath().normalize();
+            ensureInsideStorageBase(workDir);
+            validateTaskDirectory(workDir);
+            writeJsonAtomically(metadataFile(workDir), task);
             return task;
         }
     }
@@ -173,6 +202,7 @@ public class FileTaskStore implements TaskStore {
                     .orElseThrow(() -> new IllegalArgumentException("Judge task not found: " + judgeId));
             Path workDir = Path.of(task.getWorkDir()).toAbsolutePath().normalize();
             ensureInsideStorageBase(workDir);
+            validateTaskDirectory(workDir);
             writeJsonAtomically(summaryFile(workDir), summary);
         }
     }
@@ -181,10 +211,16 @@ public class FileTaskStore implements TaskStore {
     public Optional<JudgeProgress> findSummary(String judgeId) throws IOException {
         validateJudgeId(judgeId);
         synchronized (lock(judgeId)) {
-            Path summaryPath = summaryFile(taskDirectory(judgeId));
-            if (!Files.exists(summaryPath)) {
+            Path workDir = taskDirectory(judgeId);
+            if (!Files.exists(workDir, LinkOption.NOFOLLOW_LINKS)) {
                 return Optional.empty();
             }
+            validateTaskDirectory(workDir);
+            Path summaryPath = summaryFile(workDir);
+            if (!Files.exists(summaryPath, LinkOption.NOFOLLOW_LINKS)) {
+                return Optional.empty();
+            }
+            validateRegularFile(summaryPath);
 
             JsonNode json = objectMapper.readTree(summaryPath.toFile());
             String status = json.path("status").asText();
@@ -242,8 +278,22 @@ public class FileTaskStore implements TaskStore {
         try (Stream<Path> stream = Files.list(storageBase)) {
             List<Path> metadataFiles = stream
                     .filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
+                    .peek(path -> {
+                        try {
+                            validateTaskDirectory(path);
+                        } catch (IOException ex) {
+                            throw new UnsafeTaskDirectoryException(ex);
+                        }
+                    })
                     .map(this::metadataFile)
-                    .filter(Files::exists)
+                    .filter(path -> Files.exists(path, LinkOption.NOFOLLOW_LINKS))
+                    .peek(path -> {
+                        try {
+                            validateRegularFile(path);
+                        } catch (IOException ex) {
+                            throw new UnsafeTaskDirectoryException(ex);
+                        }
+                    })
                     .sorted(Comparator.comparing(Path::toString))
                     .toList();
             List<JudgeTask> tasks = new ArrayList<>();
@@ -251,27 +301,75 @@ public class FileTaskStore implements TaskStore {
                 tasks.add(objectMapper.readValue(metadata.toFile(), JudgeTask.class));
             }
             return tasks;
+        } catch (UnsafeTaskDirectoryException ex) {
+            throw ex.asIOException();
         }
     }
 
-    private void validateSafeDeleteTree(Path directory) throws IOException {
+    private List<Path> safeDeletePaths(Path directory) throws IOException {
         ensureInsideStorageBase(directory);
         if (Files.isSymbolicLink(directory)) {
             throw new SecurityException("Refusing to delete symbolic link task directory");
         }
+        Path realStorageBase = storageBase.toRealPath();
+        Path realDirectory = directory.toRealPath();
+        if (!realDirectory.startsWith(realStorageBase)) {
+            throw new SecurityException("Refusing to delete task directory outside storage base");
+        }
+        List<Path> paths;
         try (Stream<Path> stream = Files.walk(directory)) {
-            for (Path path : stream.toList()) {
-                ensureInsideStorageBase(path);
-                if (Files.isSymbolicLink(path)) {
-                    Path target = path.getParent()
-                            .resolve(Files.readSymbolicLink(path))
-                            .toAbsolutePath()
-                            .normalize();
-                    if (!target.startsWith(storageBase)) {
-                        throw new SecurityException("Refusing to delete symlink outside storage base");
-                    }
-                }
+            paths = stream.toList();
+        }
+        for (Path path : paths) {
+            validateSafeDeleteEntry(path, realStorageBase, realDirectory);
+        }
+        return paths.stream()
+                .sorted(Comparator.reverseOrder())
+                .toList();
+    }
+
+    private void validateSafeDeleteEntry(Path path, Path realStorageBase, Path realDirectory) throws IOException {
+        ensureInsideStorageBase(path);
+        if (Files.isSymbolicLink(path)) {
+            Path target = path.getParent()
+                    .resolve(Files.readSymbolicLink(path))
+                    .toAbsolutePath()
+                    .normalize();
+            if (!target.startsWith(storageBase) || !target.startsWith(realDirectory)) {
+                throw new SecurityException("Refusing to delete symlink outside task directory");
             }
+            return;
+        }
+        if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
+            return;
+        }
+        Path realPath = path.toRealPath();
+        if (!realPath.startsWith(realStorageBase) || !realPath.startsWith(realDirectory)) {
+            throw new SecurityException("Refusing to delete reparse point outside task directory");
+        }
+    }
+
+    private void validateTaskDirectory(Path directory) throws IOException {
+        ensureInsideStorageBase(directory);
+        if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Unsafe judge task directory");
+        }
+        Path realStorageBase = storageBase.toRealPath();
+        Path realDirectory = directory.toRealPath();
+        if (!realDirectory.startsWith(realStorageBase)) {
+            throw new IOException("Unsafe judge task directory");
+        }
+    }
+
+    private void validateRegularFile(Path file) throws IOException {
+        ensureInsideStorageBase(file);
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Unsafe judge task file");
+        }
+        Path realStorageBase = storageBase.toRealPath();
+        Path realFile = file.toRealPath();
+        if (!realFile.startsWith(realStorageBase)) {
+            throw new IOException("Unsafe judge task file");
         }
     }
 
@@ -298,6 +396,8 @@ public class FileTaskStore implements TaskStore {
         copy.setRequestedCases(task.getRequestedCases());
         copy.setMode(task.getMode());
         copy.setPolicy(task.getPolicy());
+        copy.setSandboxRunHandle(task.getSandboxRunHandle());
+        copy.setOwnership(task.getOwnership());
         copy.setWorkDir(Path.of(task.getWorkDir()).toAbsolutePath().normalize().toString());
         copy.setCreatedAt(task.getCreatedAt());
         copy.setStartedAt(task.getStartedAt());
@@ -364,6 +464,17 @@ public class FileTaskStore implements TaskStore {
         Path normalized = path.toAbsolutePath().normalize();
         if (!normalized.startsWith(storageBase)) {
             throw new IllegalArgumentException("Path is outside storage base");
+        }
+    }
+
+    private static final class UnsafeTaskDirectoryException extends RuntimeException {
+
+        private UnsafeTaskDirectoryException(IOException cause) {
+            super(cause);
+        }
+
+        private IOException asIOException() {
+            return (IOException) getCause();
         }
     }
 }
