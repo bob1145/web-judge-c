@@ -263,7 +263,7 @@
     - Regression: `.\mvnw.cmd test`: 142 run, 0 failures, 0 errors, 3 skipped.
     - `git diff --check`: exit 0, no whitespace errors.
 
-- [ ] 11. 构建容器/Worker 内 Task Runner
+- [x] 11. 构建容器/Worker 内 Task Runner
   - Create: `runner/README.md`
   - Create: `runner/task-runner-spec.md`
   - Create: `runner/src/...` or `runner/scripts/...` according to chosen implementation
@@ -281,6 +281,14 @@
     - Expected: runner exit codes are documented and tested.
     - Blocking failure: Runner writes ad hoc logs only without machine-readable events.
     - Evidence: Test fixture includes example `events.jsonl` and `summary.json`.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=TaskRunnerArtifactContractTest test` failed because `runner/scripts/task_runner.py` did not exist and Python returned exit code 2 for every contract scenario.
+    - Runner command: `python -m unittest discover -s runner/tests`: 2 run, 0 failures, 0 errors, 0 skipped.
+    - Green/Strict: `.\mvnw.cmd -Dtest=TaskRunnerArtifactContractTest test`: 6 run, 0 failures, 0 errors, 0 skipped.
+    - Contract evidence: tests cover compile success, compile failure, AC, WA, TLE, MLE, output limit, security violation, cancellation, bounded compile output, stable exit codes, Java DTO parsing of `events.jsonl`, and atomic `summary.json`.
+    - Fixtures: `runner/fixtures/example-events.jsonl` and `runner/fixtures/example-summary.json`.
+    - Regression: `.\mvnw.cmd test`: 148 run, 0 failures, 0 errors, 3 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
 
 - [ ] 12. 加固任务文件、挂载、详情和下载
   - Create: `src/main/java/com/example/demo/service/JudgeFileService.java`
