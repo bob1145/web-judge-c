@@ -97,7 +97,7 @@
     - Blocking failure: `TaskStore` 不得允许解析到 storage base 目录之外。
     - Evidence: 测试必须使用 JUnit 临时目录，不污染真实 `java.io.tmpdir/online-judge`。
 
-- [ ] 5. 拆分结果聚合，支持大任务摘要
+- [x] 5. 拆分结果聚合，支持大任务摘要
   - Create: `src/main/java/com/example/demo/dto/JudgeSummary.java`
   - Create: `src/main/java/com/example/demo/dto/JudgeProgressEvent.java`
   - Create: `src/main/java/com/example/demo/service/ResultAggregator.java`
@@ -120,7 +120,7 @@
     - Blocking failure: 不能用“前端不展示”替代“后端不传输大 payload”。
     - Evidence: 测试应断言样本集合大小和最终序列化 JSON 大小上限。
 
-- [ ] 6. 将 case 执行改为分批调度
+- [x] 6. 将 case 执行改为分批调度
   - Create: `src/main/java/com/example/demo/service/CaseBatchRunner.java`
   - Create: `src/main/java/com/example/demo/service/CancellationToken.java`
   - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
@@ -142,7 +142,7 @@
     - Blocking failure: 不能通过把线程池 queueCapacity 调大到 100000 来“支持大任务”。
     - Evidence: 测试应记录并断言 peak in-flight 数。
 
-- [ ] 7. 新增任务队列、取消和预算控制
+- [x] 7. 新增任务队列、取消和预算控制
   - Create: `src/main/java/com/example/demo/service/JudgeScheduler.java`
   - Create: `src/main/java/com/example/demo/dto/CancelJudgeResponse.java`
   - Modify: `src/main/java/com/example/demo/controller/JudgeController.java`
@@ -164,7 +164,7 @@
     - Blocking failure: 队列满不能退化成 CallerRunsPolicy 在请求线程里执行大任务。
     - Evidence: 测试记录 running count 峰值、queue size 峰值、取消后的 completed count。
 
-- [ ] 8. 统一进程执行和输出限制
+- [x] 8. 统一进程执行和输出限制
   - Create: `src/main/java/com/example/demo/service/ProcessRunner.java`
   - Create: `src/main/java/com/example/demo/service/DirectProcessRunner.java`
   - Create: `src/main/java/com/example/demo/service/SandboxProcessRunner.java`
@@ -188,7 +188,7 @@
     - Blocking failure: 子进程清理失败不能吞掉，必须进入日志和 result error。
     - Evidence: 测试应能在 Windows 环境稳定运行；Linux sandbox 专项可用 profile 条件跳过，但跳过原因必须明确。
 
-- [ ] 9. 加固详情和下载接口
+- [x] 9. 加固详情和下载接口
   - Modify: `src/main/java/com/example/demo/controller/JudgeController.java`
   - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
   - Create: `src/main/java/com/example/demo/service/JudgeFileService.java`
@@ -209,7 +209,7 @@
     - Blocking failure: zip entry name 不能包含路径穿越片段。
     - Evidence: 测试创建 storage base 外的 canary 文件，确认攻击请求无法读到。
 
-- [ ] 10. 改造 WebSocket 进度推送
+- [x] 10. 改造 WebSocket 进度推送
   - Create: `src/main/java/com/example/demo/service/ProgressPublisher.java`
   - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
   - Modify: `src/main/java/com/example/demo/dto/JudgeProgress.java`
@@ -229,7 +229,7 @@
     - Blocking failure: 不能靠前端 throttle 解决后端消息风暴，后端必须节流。
     - Evidence: 测试记录发送次数、最后一次 payload 结构和大小。
 
-- [ ] 11. 更新前端为普通/大任务双模式
+- [x] 11. 更新前端为普通/大任务双模式
   - Modify: `src/main/resources/templates/index.html`
   - Test: `src/test/java/com/example/demo/FrontendTemplateContractTest.java`
   - Purpose: 普通任务显示结果网格，大任务显示摘要、失败样本、按需详情和下载入口。
@@ -248,7 +248,7 @@
     - Blocking failure: 任何错误消息不得通过 `innerHTML` 注入未转义的后端内容。
     - Evidence: 保存手动验收截图或记录关键 DOM 计数；如无浏览器自动化，必须在 runbook 中写明人工步骤。
 
-- [ ] 12. 加固鉴权、WebSocket Origin 和启动风险提示
+- [x] 12. 加固鉴权、WebSocket Origin 和启动风险提示
   - Modify: `src/main/java/com/example/demo/config/AuthConfiguration.java`
   - Modify: `src/main/java/com/example/demo/config/WebSocketConfig.java`
   - Create: `src/main/java/com/example/demo/config/SecurityModeStartupValidator.java`
@@ -270,7 +270,7 @@
     - Blocking failure: sandbox required 的 profile 不允许静默降级直跑。
     - Evidence: 启动失败测试应断言失败原因文本，不只断言抛异常。
 
-- [ ] 13. 增加临时目录清理和启动补偿
+- [x] 13. 增加临时目录清理和启动补偿
   - Create: `src/main/java/com/example/demo/service/TaskCleanupService.java`
   - Modify: `src/main/java/com/example/demo/service/FileTaskStore.java`
   - Modify: `src/main/resources/application.yml`
@@ -291,7 +291,7 @@
     - Blocking failure: 不能同时保留旧 delayed cleanup 和新 cleanup 造成重复删除竞态。
     - Evidence: 测试必须使用临时目录和 canary 文件证明不会越界删除。
 
-- [ ] 14. 补齐高容量模式验收测试和本地运行说明
+- [x] 14. 补齐高容量模式验收测试和本地运行说明
   - Create: `src/test/java/com/example/demo/HighVolumeJudgeIntegrationTest.java`
   - Create: `docs/judge-hardening-runbook.md`
   - Modify: `README.md`

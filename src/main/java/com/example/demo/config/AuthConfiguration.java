@@ -19,6 +19,8 @@ public class AuthConfiguration {
      * 访问校验码
      */
     private String accessCode = "secure-access-code-2024";
+
+    private String defaultAccessCode = "123";
     
     /**
      * 记住我会话超时时间（30天）

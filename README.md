@@ -246,3 +246,8 @@ A: 点击失败的测试点，在弹窗中查看完整的输入输出对比。
 ---
 
 ⭐ 如果这个项目对你有帮助，请给个Star支持一下！
+## Judge hardening operation modes
+
+See `docs/judge-hardening-runbook.md` for trusted-local, local-large, and intranet-large startup commands, expected logs, curl checks, browser validation, risk notes, and rollback steps.
+
+Public exposure is unsupported unless a separate deployment adds strong authentication, mandatory sandbox enforcement, audit logging, tenant isolation, rate limiting, and host-level process isolation. The current configuration is intended for local trusted use or controlled intranet use only.

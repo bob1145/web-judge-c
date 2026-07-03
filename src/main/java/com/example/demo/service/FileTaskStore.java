@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.dto.JudgeProgress;
+import com.example.demo.dto.JudgeSummary;
 import com.example.demo.dto.TestCaseResult;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -56,6 +58,54 @@ public class FileTaskStore implements TaskStore {
         return directory;
     }
 
+    public Path storageBase() {
+        return storageBase;
+    }
+
+    public String relativeTaskPath(String judgeId) {
+        return storageBase.relativize(taskDirectory(judgeId)).toString();
+    }
+
+    public List<JudgeTask> findAll() throws IOException {
+        return loadAllTasks();
+    }
+
+    public boolean deleteTaskDirectory(String judgeId) throws IOException {
+        validateJudgeId(judgeId);
+        synchronized (lock(judgeId)) {
+            Path directory = taskDirectory(judgeId);
+            if (!Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
+                return false;
+            }
+
+            validateSafeDeleteTree(directory);
+            List<Path> paths;
+            try (Stream<Path> stream = Files.walk(directory)) {
+                paths = stream
+                        .sorted(Comparator.reverseOrder())
+                        .toList();
+            }
+
+            IOException failure = null;
+            for (Path path : paths) {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ex) {
+                    if (failure == null) {
+                        failure = ex;
+                    } else {
+                        failure.addSuppressed(ex);
+                    }
+                }
+            }
+            if (failure != null) {
+                throw failure;
+            }
+            locks.remove(judgeId);
+            return true;
+        }
+    }
+
     @Override
     public JudgeTask create(JudgeTask task) throws IOException {
         validateJudgeId(task.getJudgeId());
@@ -79,11 +129,13 @@ public class FileTaskStore implements TaskStore {
     @Override
     public Optional<JudgeTask> find(String judgeId) throws IOException {
         validateJudgeId(judgeId);
-        Path metadata = metadataFile(taskDirectory(judgeId));
-        if (!Files.exists(metadata)) {
-            return Optional.empty();
+        synchronized (lock(judgeId)) {
+            Path metadata = metadataFile(taskDirectory(judgeId));
+            if (!Files.exists(metadata)) {
+                return Optional.empty();
+            }
+            return Optional.of(objectMapper.readValue(metadata.toFile(), JudgeTask.class));
         }
-        return Optional.of(objectMapper.readValue(metadata.toFile(), JudgeTask.class));
     }
 
     @Override
@@ -128,17 +180,24 @@ public class FileTaskStore implements TaskStore {
     @Override
     public Optional<JudgeProgress> findSummary(String judgeId) throws IOException {
         validateJudgeId(judgeId);
-        Path summary = summaryFile(taskDirectory(judgeId));
-        if (!Files.exists(summary)) {
-            return Optional.empty();
-        }
+        synchronized (lock(judgeId)) {
+            Path summaryPath = summaryFile(taskDirectory(judgeId));
+            if (!Files.exists(summaryPath)) {
+                return Optional.empty();
+            }
 
-        JsonNode json = objectMapper.readTree(summary.toFile());
-        String status = json.path("status").asText();
-        String message = json.path("message").asText();
-        int progress = json.path("progress").asInt();
-        List<TestCaseResult> results = readResults(json.path("results"));
-        return Optional.of(new JudgeProgress(status, message, progress, results));
+            JsonNode json = objectMapper.readTree(summaryPath.toFile());
+            String status = json.path("status").asText();
+            String message = json.path("message").asText();
+            int progress = json.path("progress").asInt();
+            List<TestCaseResult> results = readResults(json.path("results"));
+            JudgeSummary judgeSummary = null;
+            JsonNode summaryNode = json.path("summary");
+            if (summaryNode != null && summaryNode.isObject()) {
+                judgeSummary = objectMapper.treeToValue(summaryNode, JudgeSummary.class);
+            }
+            return Optional.of(new JudgeProgress(status, message, progress, results, judgeSummary));
+        }
     }
 
     @Override
@@ -182,7 +241,7 @@ public class FileTaskStore implements TaskStore {
         }
         try (Stream<Path> stream = Files.list(storageBase)) {
             List<Path> metadataFiles = stream
-                    .filter(Files::isDirectory)
+                    .filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
                     .map(this::metadataFile)
                     .filter(Files::exists)
                     .sorted(Comparator.comparing(Path::toString))
@@ -192,6 +251,27 @@ public class FileTaskStore implements TaskStore {
                 tasks.add(objectMapper.readValue(metadata.toFile(), JudgeTask.class));
             }
             return tasks;
+        }
+    }
+
+    private void validateSafeDeleteTree(Path directory) throws IOException {
+        ensureInsideStorageBase(directory);
+        if (Files.isSymbolicLink(directory)) {
+            throw new SecurityException("Refusing to delete symbolic link task directory");
+        }
+        try (Stream<Path> stream = Files.walk(directory)) {
+            for (Path path : stream.toList()) {
+                ensureInsideStorageBase(path);
+                if (Files.isSymbolicLink(path)) {
+                    Path target = path.getParent()
+                            .resolve(Files.readSymbolicLink(path))
+                            .toAbsolutePath()
+                            .normalize();
+                    if (!target.startsWith(storageBase)) {
+                        throw new SecurityException("Refusing to delete symlink outside storage base");
+                    }
+                }
+            }
         }
     }
 

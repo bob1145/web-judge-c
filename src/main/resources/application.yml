@@ -18,6 +18,7 @@ app:
 judge:
   auth:
     access-code: "123"
+    default-access-code: "123"
     session-timeout: 30d
     normal-session-timeout: 24h
     max-attempts: 5
@@ -36,6 +37,11 @@ judge:
     max-concurrent-tasks: 1
     max-concurrent-cases-per-task: 4
     batch-size: 100
+    cleanup-interval: 30m
+    completed-retention: 24h
+    cancelled-retention: 24h
+    failed-retention: 24h
+    stale-retention: 1h
     default-time-limit: 2s
     min-time-limit: 100ms
     max-time-limit: 30s
