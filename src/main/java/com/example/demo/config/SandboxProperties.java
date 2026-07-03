@@ -17,6 +17,7 @@ public class SandboxProperties {
     private boolean capabilityProbePassed = false;
     private Worker worker = new Worker();
     private LinuxContainer linuxContainer = new LinuxContainer();
+    private WindowsContainer windowsContainer = new WindowsContainer();
 
     public enum Provider {
         DIRECT,
@@ -58,6 +59,21 @@ public class SandboxProperties {
         private String eventFile = "events.jsonl";
         private int pidsLimit = 64;
         private double cpus = 1.0;
+        private Duration commandTimeout = Duration.ofSeconds(30);
+    }
+
+    @Data
+    public static class WindowsContainer {
+        private String runtimeCommand = "docker";
+        private String image = "cpp-judge-runner-windows:latest";
+        private String containerUser = "ContainerUser";
+        private String workMount = "C:\\work";
+        private String runnerCommand = "C:\\judge-runner\\run-task.exe";
+        private String probeCommand = "C:\\judge-runner\\probe.cmd";
+        private String taskSpecFile = "sandbox-task.json";
+        private String eventFile = "events.jsonl";
+        private double cpus = 1.0;
+        private long probeMemoryBytes = 268435456L;
         private Duration commandTimeout = Duration.ofSeconds(30);
     }
 }

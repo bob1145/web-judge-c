@@ -211,7 +211,7 @@
     - Regression: `.\mvnw.cmd test`: 129 run, 0 failures, 0 errors, 2 skipped.
     - `git diff --check`: exit 0, no whitespace errors.
 
-- [ ] 9. 实现 WindowsHyperVContainerRunner capability probe 和执行
+- [x] 9. 实现 WindowsHyperVContainerRunner capability probe 和执行
   - Create: `src/main/java/com/example/demo/service/sandbox/WindowsHyperVContainerRunner.java`
   - Create: `src/test/java/com/example/demo/WindowsHyperVContainerRunnerTest.java`
   - Create: `docs/windows-sandbox-runbook.md`
@@ -231,6 +231,13 @@
     - Blocking failure: Passing test under process isolation without explicit non-production risk flag fails.
     - Blocking failure: Host direct execution path in windows-prod fails.
     - Evidence: Test logs include provider, isolation mode, container id, cleanup confirmation and skip reason if unavailable.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=WindowsHyperVContainerRunnerTest test` failed at testCompile because `WindowsHyperVContainerRunner` did not exist.
+    - Green/Strict: `.\mvnw.cmd -Dtest=WindowsHyperVContainerRunnerTest test`: 7 run, 0 failures, 0 errors, 1 skipped.
+    - Skip reason: live Windows Hyper-V container capability probe skipped on this Windows host with `container runtime unavailable: Cannot run program "docker"`; deterministic fake-runtime tests cover unavailable runtime, Hyper-V isolation, process-isolation rejection, network none, memory limit, Job Object/process-tree kill proof, output limit proof, detached run command, event polling, cancel cleanup, workdir-only mount, and no host fallback.
+    - Runbook: `docs/windows-sandbox-runbook.md` documents Windows Hyper-V deployment prerequisites, capability probe commands, Hyper-V/network/workdir/process-tree/memory/output/cleanup smoke checks, and Windows/Linux boundary notes.
+    - Regression: `.\mvnw.cmd test`: 136 run, 0 failures, 0 errors, 3 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
 
 - [ ] 10. 实现 RemoteWorkerRunner 和 Worker 协议
   - Create: `src/main/java/com/example/demo/service/sandbox/RemoteWorkerRunner.java`

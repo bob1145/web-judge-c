@@ -147,8 +147,21 @@ judge:
     production:
       provider: windows-container
       isolation: hyper-v
+      security-profile: hyper-v;job-object
       capability-probe-required: true
       capability-probe-passed: false
+      windows-container:
+        runtime-command: docker
+        image: cpp-judge-runner-windows:latest
+        container-user: ContainerUser
+        work-mount: "C:\\work"
+        runner-command: "C:\\judge-runner\\run-task.exe"
+        probe-command: "C:\\judge-runner\\probe.cmd"
+        task-spec-file: sandbox-task.json
+        event-file: events.jsonl
+        cpus: 1.0
+        probe-memory-bytes: 268435456
+        command-timeout: 30s
 
 ---
 spring:
