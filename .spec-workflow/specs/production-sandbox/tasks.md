@@ -60,7 +60,7 @@
     - Regression: `.\mvnw.cmd test`: 100 run, 0 failures, 0 errors, 1 skipped.
     - PowerShell note: the comma-separated `-Dtest` value must be quoted on Windows.
 
-- [ ] 3. 定义统一 SandboxRunner 合约和 DTO
+- [x] 3. 定义统一 SandboxRunner 合约和 DTO
   - Create: `src/main/java/com/example/demo/service/sandbox/SandboxRunner.java`
   - Create: `src/main/java/com/example/demo/dto/SandboxTaskSpec.java`
   - Create: `src/main/java/com/example/demo/dto/SandboxTaskEvent.java`
@@ -79,6 +79,11 @@
     - Expected: DTO JSON serialization is stable and excludes secrets.
     - Blocking failure: DTOs must not expose raw client-supplied paths or unrestricted command lines.
     - Evidence: Contract test includes serialization snapshot-like assertions for key fields.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=SandboxRunnerContractTest test` failed at testCompile because `SandboxRunner` and sandbox DTOs did not exist.
+    - Green: `.\mvnw.cmd -Dtest=SandboxRunnerContractTest test`: 6 run, 0 failures, 0 errors, 0 skipped.
+    - Regression: `.\mvnw.cmd "-Dtest=SandboxRunnerContractTest,ProductionSecurityStartupValidatorTest,ProductionSandboxBaselineTest" test`: 17 run, 0 failures, 0 errors, 0 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
 
 - [ ] 4. 把 JudgeService 改为任务级 runner 编排
   - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
