@@ -1,11 +1,13 @@
 package com.example.demo.service;
 
 import com.example.demo.config.ExecutionProperties;
+import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
+import com.example.demo.service.sandbox.SandboxRunner;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -14,14 +16,30 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class TaskCleanupService {
 
     private final FileTaskStore taskStore;
     private final ExecutionProperties executionProperties;
+    private final Optional<SandboxRunner> sandboxRunner;
+
+    public TaskCleanupService(FileTaskStore taskStore, ExecutionProperties executionProperties) {
+        this(taskStore, executionProperties, Optional.empty());
+    }
+
+    @Autowired
+    public TaskCleanupService(
+            FileTaskStore taskStore,
+            ExecutionProperties executionProperties,
+            Optional<SandboxRunner> sandboxRunner
+    ) {
+        this.taskStore = taskStore;
+        this.executionProperties = executionProperties;
+        this.sandboxRunner = sandboxRunner == null ? Optional.empty() : sandboxRunner;
+    }
 
     @PostConstruct
     public void reconcileAndCleanupOnStartup() {
@@ -37,7 +55,16 @@ public class TaskCleanupService {
     }
 
     public List<JudgeTask> reconcileStartup() throws IOException {
-        return taskStore.markStaleRunningTasksOnStartup();
+        List<JudgeTask> unfinishedTasks = taskStore.findAll().stream()
+                .filter(task -> task.getStatus() == JudgeStatus.RUNNING || task.getStatus() == JudgeStatus.QUEUED)
+                .toList();
+        List<String> residualCleanupFailures = cleanupResidualHandles(unfinishedTasks);
+        List<JudgeTask> staleTasks = taskStore.markStaleRunningTasksOnStartup();
+        if (!residualCleanupFailures.isEmpty()) {
+            throw new IOException("Residual sandbox cleanup failed for judgeIds: "
+                    + String.join(",", residualCleanupFailures));
+        }
+        return staleTasks;
     }
 
     @Scheduled(
@@ -67,6 +94,7 @@ public class TaskCleanupService {
             String judgeId = task.getJudgeId();
             String relativePath = relativeTaskPath(judgeId);
             try {
+                cleanupResidualHandle(task);
                 if (taskStore.deleteTaskDirectory(judgeId)) {
                     deletedJudgeIds.add(judgeId);
                     log.info("Cleaned expired judge task {} at {}", judgeId, relativePath);
@@ -78,6 +106,30 @@ public class TaskCleanupService {
         }
 
         return new CleanupReport(tasks.size(), deletedJudgeIds, failedJudgeIds);
+    }
+
+    private List<String> cleanupResidualHandles(List<JudgeTask> tasks) {
+        List<String> failedJudgeIds = new ArrayList<>();
+        for (JudgeTask task : tasks) {
+            try {
+                cleanupResidualHandle(task);
+            } catch (Exception ex) {
+                failedJudgeIds.add(task.getJudgeId());
+                log.warn("Failed to cleanup residual sandbox run for judge task {}: {}",
+                        task.getJudgeId(), ex.getMessage());
+            }
+        }
+        return failedJudgeIds;
+    }
+
+    private void cleanupResidualHandle(JudgeTask task) {
+        SandboxRunHandle handle = task.getSandboxRunHandle();
+        if (handle == null || handle.runId() == null || handle.runId().isBlank()) {
+            return;
+        }
+        SandboxRunner runner = sandboxRunner.orElseThrow(() ->
+                new IllegalStateException("SandboxRunner is required to cleanup residual run " + handle.runId()));
+        runner.cleanupResidual(handle);
     }
 
     private boolean isExpired(JudgeTask task, Instant now) {

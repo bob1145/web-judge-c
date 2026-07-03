@@ -16,4 +16,8 @@ public interface SandboxRunner {
     List<SandboxTaskEvent> pollEvents(SandboxRunHandle handle);
 
     void cancel(SandboxRunHandle handle);
+
+    default void cleanupResidual(SandboxRunHandle handle) {
+        cancel(handle);
+    }
 }

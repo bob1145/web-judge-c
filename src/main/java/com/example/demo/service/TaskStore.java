@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.dto.JudgeProgress;
+import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
 
@@ -20,6 +21,8 @@ public interface TaskStore {
     List<JudgeTask> findAll() throws IOException;
 
     JudgeTask updateStatus(String judgeId, JudgeStatus status, String message) throws IOException;
+
+    JudgeTask saveRunHandle(String judgeId, SandboxRunHandle handle) throws IOException;
 
     void saveSummary(String judgeId, JudgeProgress summary) throws IOException;
 

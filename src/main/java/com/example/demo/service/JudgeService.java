@@ -406,10 +406,11 @@ public class JudgeService {
         }
 
         SandboxRunHandle handle = null;
+        SandboxRunner runner = sandboxRunner.get();
         try {
             SandboxTaskSpec spec = buildSandboxTaskSpec(request, judgeId, policy, workDir);
-            SandboxRunner runner = sandboxRunner.get();
             handle = runner.start(spec);
+            persistRunnerHandle(judgeId, handle);
             boolean terminal = false;
             while (!terminal && !schedulerContext.cancellationToken().isCancellationRequested()) {
                 List<SandboxTaskEvent> events = runner.pollEvents(handle);
@@ -443,10 +444,34 @@ public class JudgeService {
                 ));
             }
         } catch (Exception e) {
+            cleanupStartedHandle(runner, handle, judgeId);
             rememberRunnerProgress(judgeId, eventSession.terminal(
                     JudgeStatus.SYSTEM_ERROR.name(),
                     "SandboxRunner failed: " + e.getMessage()
             ));
+        }
+    }
+
+    private void persistRunnerHandle(String judgeId, SandboxRunHandle handle) {
+        if (handle == null) {
+            return;
+        }
+        try {
+            taskStore.saveRunHandle(judgeId, handle);
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to persist sandbox run handle", ex);
+        }
+    }
+
+    private void cleanupStartedHandle(SandboxRunner runner, SandboxRunHandle handle, String judgeId) {
+        if (handle == null) {
+            return;
+        }
+        try {
+            runner.cleanupResidual(handle);
+        } catch (Exception cleanupFailure) {
+            log.warn("Failed to cleanup sandbox run after judge task {} error: {}",
+                    judgeId, cleanupFailure.getMessage());
         }
     }
 

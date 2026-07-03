@@ -340,7 +340,7 @@
     - `git diff --check`: exit 0, no whitespace errors; Git reported Windows CRLF conversion warnings for touched files.
     - Evidence: tests verify structured task create/start/cancel/download/security/quota audit events, admin-only `/admin/queue`, queue/running/provider/failure snapshots, and sanitized audit/admin payloads.
 
-- [ ] 14. 增加任务清理、启动对账和容器残留清理
+- [x] 14. 增加任务清理、启动对账和容器残留清理
   - Create: `src/main/java/com/example/demo/service/TaskCleanupService.java`
   - Modify: `src/main/java/com/example/demo/service/sandbox/SandboxRunner.java`
   - Modify: `src/main/java/com/example/demo/service/FileTaskStore.java`
@@ -358,6 +358,13 @@
     - Expected: symlink/junction/reparse escape is not deleted.
     - Blocking failure: Broad recursive delete over computed paths without base verification fails.
     - Evidence: Tests include canary outside storage base and fake provider residuals.
+
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd "-Dtest=ProductionCleanupTest,JudgeFileServiceProductionTest" test` failed at testCompile because task metadata did not persist `SandboxRunHandle`, `FileTaskStore.saveRunHandle` did not exist, `SandboxRunner.cleanupResidual` did not exist, and `TaskCleanupService` did not accept a runner dependency.
+    - Green/Strict: `.\mvnw.cmd "-Dtest=ProductionCleanupTest,JudgeFileServiceProductionTest" test`: 9 run, 0 failures, 0 errors, 1 skipped.
+    - Focused regression: `.\mvnw.cmd "-Dtest=ProductionCleanupTest,TaskCleanupServiceTest,FileTaskStoreTest,JudgeSandboxOrchestrationTest,JudgeFileServiceProductionTest" test`: 23 run, 0 failures, 0 errors, 2 skipped.
+    - Regression: `.\mvnw.cmd test`: 159 run, 0 failures, 0 errors, 4 skipped.
+    - Evidence: `ProductionCleanupTest` verifies startup cleanup of residual handles before STALE marking, handle persistence across restarts, retention cleanup for completed/cancelled/failed/stale tasks, preservation of active RUNNING tasks, cleanup failure reporting without deleting the task directory, and symlink/junction/reparse escape protection with an outside-storage canary.
 
 - [ ] 15. 高容量跨平台压测和回归
   - Create: `src/test/java/com/example/demo/ProductionHighVolumeIntegrationTest.java`
