@@ -18,6 +18,7 @@ import com.example.demo.service.FileTaskStore;
 import com.example.demo.service.JudgeScheduler;
 import com.example.demo.service.JudgeService;
 import com.example.demo.service.ProgressPublisher;
+import com.example.demo.service.QuotaService;
 import com.example.demo.service.ResolvedTaskPolicy;
 import com.example.demo.service.SandboxProcessRunner;
 import com.example.demo.service.SandboxEventIngestor;
@@ -186,6 +187,7 @@ class JudgeSandboxOrchestrationTest {
                 publisher,
                 new SandboxEventIngestor(publisher, execution),
                 policyResolver,
+                new QuotaService(execution, store),
                 store,
                 new CaseBatchRunner(caseExecutor),
                 scheduler,

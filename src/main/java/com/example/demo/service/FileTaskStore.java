@@ -66,6 +66,7 @@ public class FileTaskStore implements TaskStore {
         return storageBase.relativize(taskDirectory(judgeId)).toString();
     }
 
+    @Override
     public List<JudgeTask> findAll() throws IOException {
         return loadAllTasks();
     }
@@ -298,6 +299,7 @@ public class FileTaskStore implements TaskStore {
         copy.setRequestedCases(task.getRequestedCases());
         copy.setMode(task.getMode());
         copy.setPolicy(task.getPolicy());
+        copy.setOwnership(task.getOwnership());
         copy.setWorkDir(Path.of(task.getWorkDir()).toAbsolutePath().normalize().toString());
         copy.setCreatedAt(task.getCreatedAt());
         copy.setStartedAt(task.getStartedAt());

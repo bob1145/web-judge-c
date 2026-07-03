@@ -135,7 +135,7 @@
     - Regression: `.\mvnw.cmd test`: 111 run, 0 failures, 0 errors, 1 skipped.
     - `git diff --check`: exit 0, no whitespace errors.
 
-- [ ] 6. 实现生产配额和用户所有权保护
+- [x] 6. 实现生产配额和用户所有权保护
   - Create: `src/main/java/com/example/demo/service/QuotaService.java`
   - Create: `src/main/java/com/example/demo/model/JudgeOwnership.java`
   - Modify: `src/main/java/com/example/demo/controller/JudgeController.java`
@@ -153,6 +153,12 @@
     - Expected: Errors do not reveal other user's judgeId existence.
     - Blocking failure: Checking only session validity without task ownership fails.
     - Evidence: Tests cover same user, other user, anonymous user and admin user.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=QuotaAndAuthorizationTest test` failed at testCompile because quota properties, `JudgeOwnership`, and the user/admin session overload did not exist.
+    - Green: `.\mvnw.cmd -Dtest=QuotaAndAuthorizationTest test`: 7 run, 0 failures, 0 errors, 0 skipped.
+    - Strict: `.\mvnw.cmd "-Dtest=QuotaAndAuthorizationTest,JudgeSandboxOrchestrationTest" test`: 10 run, 0 failures, 0 errors, 0 skipped.
+    - Regression: `.\mvnw.cmd test`: 118 run, 0 failures, 0 errors, 1 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
 
 - [ ] 7. 加强认证模型，禁用生产共享访问码
   - Create: `src/main/java/com/example/demo/service/UserAccountService.java`

@@ -37,6 +37,10 @@ judge:
     max-concurrent-tasks: 1
     max-concurrent-cases-per-task: 4
     batch-size: 100
+    max-daily-cases-per-user: 200000
+    max-daily-runtime-millis-per-user: 1000000000
+    max-running-tasks-per-user: 1
+    max-queued-tasks-per-user: 5
     cleanup-interval: 30m
     completed-retention: 24h
     cancelled-retention: 24h

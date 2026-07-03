@@ -4,12 +4,14 @@ import com.example.demo.config.ExecutionProperties;
 import com.example.demo.controller.JudgeController;
 import com.example.demo.dto.CancelJudgeResponse;
 import com.example.demo.dto.JudgeProgress;
+import com.example.demo.model.UserSession;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
 import com.example.demo.service.FileTaskStore;
 import com.example.demo.service.JudgeFileService;
 import com.example.demo.service.JudgeScheduler;
 import com.example.demo.service.JudgeService;
+import com.example.demo.service.AccessCodeService;
 import com.example.demo.service.ResolvedTaskPolicy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -269,11 +271,18 @@ class JudgeSchedulerTest {
     @Test
     void cancelEndpointReturnsStructuredCancellationResponse() throws Exception {
         JudgeService judgeService = mock(JudgeService.class);
+        UserSession session = controllerSession();
+        when(judgeService.canAccessJudgeTask("abc", session)).thenReturn(true);
         when(judgeService.cancelJudgeTask("abc"))
                 .thenReturn(new CancelJudgeResponse("abc", true, "CANCELLED", "Cancellation requested", true, false, 7));
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new JudgeController(judgeService, mock(JudgeFileService.class))).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new JudgeController(
+                judgeService,
+                mock(JudgeFileService.class),
+                accessCodeService(session)
+        )).build();
 
-        mockMvc.perform(post("/judge/cancel/{judgeId}", "abc"))
+        mockMvc.perform(post("/judge/cancel/{judgeId}", "abc")
+                        .header("X-Session-ID", session.getSessionId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.judgeId").value("abc"))
                 .andExpect(jsonPath("$.accepted").value(true))
@@ -285,11 +294,18 @@ class JudgeSchedulerTest {
     @Test
     void startEndpointReturnsTooManyRequestsWhenSchedulerQueueIsFull() throws Exception {
         JudgeService judgeService = mock(JudgeService.class);
+        UserSession session = controllerSession();
+        when(judgeService.canAccessJudgeTask("full", session)).thenReturn(true);
         doThrow(new JudgeScheduler.QueueFullException(3, 3))
                 .when(judgeService).startJudgeTask("full");
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new JudgeController(judgeService, mock(JudgeFileService.class))).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new JudgeController(
+                judgeService,
+                mock(JudgeFileService.class),
+                accessCodeService(session)
+        )).build();
 
-        mockMvc.perform(post("/judge/start/{judgeId}", "full"))
+        mockMvc.perform(post("/judge/start/{judgeId}", "full")
+                        .header("X-Session-ID", session.getSessionId()))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value("JUDGE_QUEUE_FULL"))
                 .andExpect(jsonPath("$.queueCapacity").value(3))
@@ -301,6 +317,19 @@ class JudgeSchedulerTest {
         JudgeScheduler scheduler = new JudgeScheduler(properties, store, executor);
         schedulers.add(scheduler);
         return scheduler;
+    }
+
+    private UserSession controllerSession() {
+        return UserSession.builder()
+                .sessionId("controller-session")
+                .userId("controller-user")
+                .build();
+    }
+
+    private AccessCodeService accessCodeService(UserSession session) {
+        AccessCodeService accessCodeService = mock(AccessCodeService.class);
+        when(accessCodeService.getSession(session.getSessionId())).thenReturn(session);
+        return accessCodeService;
     }
 
     private ExecutorService executor(int threads) {

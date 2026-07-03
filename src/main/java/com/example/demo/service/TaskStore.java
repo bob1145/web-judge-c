@@ -17,6 +17,8 @@ public interface TaskStore {
 
     Optional<JudgeTask> find(String judgeId) throws IOException;
 
+    List<JudgeTask> findAll() throws IOException;
+
     JudgeTask updateStatus(String judgeId, JudgeStatus status, String message) throws IOException;
 
     void saveSummary(String judgeId, JudgeProgress summary) throws IOException;

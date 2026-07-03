@@ -19,6 +19,7 @@ public class JudgeTask {
     private int requestedCases;
     private String mode;
     private ResolvedTaskPolicy policy;
+    private JudgeOwnership ownership;
     private String workDir;
     private Instant createdAt;
     private Instant startedAt;

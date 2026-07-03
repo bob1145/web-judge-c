@@ -86,14 +86,21 @@ public class AccessCodeService {
      * @return 创建的会话对象
      */
     public UserSession createSession(boolean rememberMe, String ipAddress, String userAgent) {
+        return createSession(rememberMe, ipAddress, userAgent, null, false);
+    }
+
+    public UserSession createSession(boolean rememberMe, String ipAddress, String userAgent, String userId, boolean admin) {
         String sessionId = generateSessionId();
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expiresAt = rememberMe ? 
             now.plus(authConfig.getSessionTimeout()) : 
             now.plus(authConfig.getNormalSessionTimeout());
+        String stableUserId = userId == null || userId.isBlank() ? sessionId : userId.trim();
         
         UserSession session = UserSession.builder()
                 .sessionId(sessionId)
+                .userId(stableUserId)
+                .admin(admin)
                 .createdAt(now)
                 .expiresAt(expiresAt)
                 .rememberMe(rememberMe)

@@ -13,8 +13,10 @@ import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.dto.SandboxTaskEvent;
 import com.example.demo.dto.SandboxTaskSpec;
 import com.example.demo.dto.TestCaseResult;
+import com.example.demo.model.JudgeOwnership;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
+import com.example.demo.model.UserSession;
 import com.example.demo.service.sandbox.SandboxRunner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +49,7 @@ public class JudgeService {
     private final ProgressPublisher progressPublisher;
     private final SandboxEventIngestor sandboxEventIngestor;
     private final TaskPolicyResolver taskPolicyResolver;
+    private final QuotaService quotaService;
     private final TaskStore taskStore;
     private final CaseBatchRunner caseBatchRunner;
     private final JudgeScheduler judgeScheduler;
@@ -187,15 +190,26 @@ public class JudgeService {
      * 创建判题任务但不立即执行，等待WebSocket连接建立
      */
     public JudgeCreateResponse createJudgeTask(JudgeRequest request, String judgeId) {
+        return createJudgeTask(request, judgeId, null);
+    }
+
+    public JudgeCreateResponse createJudgeTask(JudgeRequest request, String judgeId, UserSession ownerSession) {
         securityModeStartupValidator.assertJudgeCreationAllowed();
         ResolvedTaskPolicy policy = taskPolicyResolver.resolve(request);
+        if (ownerSession != null) {
+            quotaService.assertCanCreate(ownerSession, policy);
+        }
         Path workDir = taskStore.taskDirectory(judgeId);
+        JudgeOwnership ownership = ownerSession == null
+                ? JudgeOwnership.anonymous()
+                : quotaService.ownershipFor(ownerSession);
         JudgeTask task = JudgeTask.builder()
                 .judgeId(judgeId)
                 .status(JudgeStatus.CREATED)
                 .requestedCases(policy.requestedCases())
                 .mode(policy.profile())
                 .policy(policy)
+                .ownership(ownership)
                 .workDir(workDir.toString())
                 .createdAt(Instant.now())
                 .build();
@@ -206,6 +220,10 @@ public class JudgeService {
         }
         pendingJudgeTasks.put(judgeId, new PendingJudgeTask(request, policy));
         return JudgeCreateResponse.created(judgeId, policy);
+    }
+
+    public boolean canAccessJudgeTask(String judgeId, UserSession session) {
+        return quotaService.canAccessTask(judgeId, session);
     }
 
     /**
@@ -449,7 +467,7 @@ public class JudgeService {
 
         SandboxTaskSpec.Builder builder = SandboxTaskSpec.builder()
                 .judgeId(judgeId)
-                .userId("anonymous")
+                .userId(userIdForTask(judgeId))
                 .profile(policy.profile())
                 .storageBase(storageBaseFor(workDir))
                 .workDir(workDir)
@@ -478,6 +496,18 @@ public class JudgeService {
             );
         }
         return builder.build();
+    }
+
+    private String userIdForTask(String judgeId) {
+        try {
+            return taskStore.find(judgeId)
+                    .map(JudgeTask::getOwnership)
+                    .map(JudgeOwnership::getUserId)
+                    .filter(userId -> userId != null && !userId.isBlank())
+                    .orElse("anonymous");
+        } catch (IOException ex) {
+            return "anonymous";
+        }
     }
 
     private Path writeSource(Path workDir, String filename, String source) throws IOException {
