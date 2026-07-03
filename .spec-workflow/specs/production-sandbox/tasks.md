@@ -85,7 +85,7 @@
     - Regression: `.\mvnw.cmd "-Dtest=SandboxRunnerContractTest,ProductionSecurityStartupValidatorTest,ProductionSandboxBaselineTest" test`: 17 run, 0 failures, 0 errors, 0 skipped.
     - `git diff --check`: exit 0, no whitespace errors.
 
-- [ ] 4. 把 JudgeService 改为任务级 runner 编排
+- [x] 4. 把 JudgeService 改为任务级 runner 编排
   - Modify: `src/main/java/com/example/demo/service/JudgeService.java`
   - Modify: `src/main/java/com/example/demo/service/JudgeScheduler.java`
   - Create: `src/main/java/com/example/demo/service/sandbox/LocalFakeSandboxRunner.java`
@@ -102,6 +102,12 @@
     - Expected: runner failure produces terminal `SYSTEM_ERROR` or `SANDBOX_UNAVAILABLE`.
     - Blocking failure: Keeping a production path that calls `new ProcessBuilder(g++)` from `JudgeService` fails this task.
     - Evidence: Test uses spy/fake runner to assert exactly one task-level `start()` call per judgeId.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=JudgeSandboxOrchestrationTest test` failed at testCompile because `LocalFakeSandboxRunner` and runner orchestration were not implemented.
+    - Green: `.\mvnw.cmd -Dtest=JudgeSandboxOrchestrationTest test`: 3 run, 0 failures, 0 errors, 0 skipped.
+    - Strict: `.\mvnw.cmd "-Dtest=JudgeSandboxOrchestrationTest,JudgeSchedulerTest,TaskPolicyResolverTest" test`: 17 run, 0 failures, 0 errors, 0 skipped.
+    - Regression: `.\mvnw.cmd test`: 109 run, 0 failures, 0 errors, 1 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
 
 - [ ] 5. 实现 runner 事件摄取、摘要持久化和节流推送
   - Create: `src/main/java/com/example/demo/service/SandboxEventIngestor.java`

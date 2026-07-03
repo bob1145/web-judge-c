@@ -22,6 +22,7 @@ public record SandboxTaskEvent(
         RUN_STARTED,
         RUN_FINISHED,
         SUMMARY,
+        COMPLETED,
         CANCELLED,
         BUDGET_EXCEEDED,
         SECURITY_VIOLATION,

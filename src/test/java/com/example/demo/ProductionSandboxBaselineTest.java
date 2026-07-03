@@ -108,7 +108,7 @@ class ProductionSandboxBaselineTest {
                 .contains("caseBatchRunner.run(")
                 .contains("private ProcessResult runProcess")
                 .contains(".command(List.of(executable.toAbsolutePath().toString()))")
-                .doesNotContain("SandboxRunner");
+                .contains("SandboxRunner");
     }
 
     private SecurityModeStartupValidator validator(

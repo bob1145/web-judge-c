@@ -17,6 +17,8 @@ public enum JudgeStatus {
     RE(true),
     COMPILATION_ERROR(true),
     SYSTEM_ERROR(true),
+    SECURITY_VIOLATION(true),
+    SANDBOX_UNAVAILABLE(true),
     CANCELLED(true),
     STALE(true),
     BUDGET_EXCEEDED(true);
