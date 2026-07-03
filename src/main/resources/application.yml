@@ -60,6 +60,16 @@ judge:
     base-directory: C:/temp/judge-sandbox  # Windows路径格式
     network-disabled: true
     max-processes: 10
+    production:
+      provider: direct
+      isolation: process
+      security-profile: ""
+      capability-probe-required: false
+      capability-probe-passed: false
+      worker:
+        endpoint: ""
+        auth-token: ""
+        mtls-certificate: ""
 
 logging:
   level:
@@ -115,3 +125,63 @@ judge:
     batch-size: 100
     max-task-runtime: 2h
     require-sandbox: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: windows-prod
+
+judge:
+  execution:
+    profile: windows-prod
+    require-sandbox: true
+  sandbox:
+    enabled: true
+    production:
+      provider: windows-container
+      isolation: hyper-v
+      capability-probe-required: true
+      capability-probe-passed: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: linux-prod
+
+judge:
+  execution:
+    profile: linux-prod
+    require-sandbox: true
+  sandbox:
+    enabled: true
+    production:
+      provider: linux-container
+      isolation: container
+      security-profile: seccomp:judge-linux
+      capability-probe-required: true
+      capability-probe-passed: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: worker-prod
+
+judge:
+  execution:
+    profile: worker-prod
+    require-sandbox: true
+  sandbox:
+    enabled: true
+    production:
+      provider: remote-worker
+      isolation: remote
+      security-profile: worker-policy
+      capability-probe-required: true
+      capability-probe-passed: false
+      worker:
+        endpoint: ""
+        auth-token: ""
+        mtls-certificate: ""

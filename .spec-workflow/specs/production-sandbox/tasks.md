@@ -36,7 +36,7 @@
     - `git diff -- src/main/java src/main/resources --exit-code`: exit 0, no production implementation changes.
     - `target/surefire-reports/com.example.demo.ProductionSandboxBaselineTest.txt` and `TEST-com.example.demo.ProductionSandboxBaselineTest.xml` generated.
 
-- [ ] 2. 增加生产沙箱配置模型和启动校验
+- [x] 2. 增加生产沙箱配置模型和启动校验
   - Create: `src/main/java/com/example/demo/config/SandboxProperties.java`
   - Create: `src/main/java/com/example/demo/config/ProductionSecurityStartupValidator.java`
   - Modify: `src/main/resources/application.yml`
@@ -54,6 +54,11 @@
     - Expected: Startup failure messages name the failed invariant without leaking secrets.
     - Blocking failure: Validator must not be bypassed by changing only Spring active profile names.
     - Evidence: Tests assert both pass and fail startup cases with exact failure reason fragments.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=ProductionSecurityStartupValidatorTest test` failed at testCompile because `ProductionSecurityStartupValidator` and `SandboxProperties` did not exist.
+    - Green: `.\mvnw.cmd "-Dtest=ProductionSecurityStartupValidatorTest,ProductionSandboxBaselineTest" test`: 11 run, 0 failures, 0 errors, 0 skipped.
+    - Regression: `.\mvnw.cmd test`: 100 run, 0 failures, 0 errors, 1 skipped.
+    - PowerShell note: the comma-separated `-Dtest` value must be quoted on Windows.
 
 - [ ] 3. 定义统一 SandboxRunner 合约和 DTO
   - Create: `src/main/java/com/example/demo/service/sandbox/SandboxRunner.java`
