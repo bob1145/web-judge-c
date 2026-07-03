@@ -239,7 +239,7 @@
     - Regression: `.\mvnw.cmd test`: 136 run, 0 failures, 0 errors, 3 skipped.
     - `git diff --check`: exit 0, no whitespace errors.
 
-- [ ] 10. 实现 RemoteWorkerRunner 和 Worker 协议
+- [x] 10. 实现 RemoteWorkerRunner 和 Worker 协议
   - Create: `src/main/java/com/example/demo/service/sandbox/RemoteWorkerRunner.java`
   - Create: `src/main/java/com/example/demo/config/WorkerProperties.java`
   - Test: `src/test/java/com/example/demo/RemoteWorkerRunnerTest.java`
@@ -256,6 +256,12 @@
     - Expected: worker unavailable returns `SANDBOX_UNAVAILABLE`.
     - Blocking failure: Remote worker without token/mTLS/signature in production fails validation.
     - Evidence: Fake worker asserts request auth headers and payload fields.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd -Dtest=RemoteWorkerRunnerTest test` failed at testCompile because `WorkerProperties` and `RemoteWorkerRunner` did not exist.
+    - Green/Strict: `.\mvnw.cmd -Dtest=RemoteWorkerRunnerTest test`: 6 run, 0 failures, 0 errors, 0 skipped.
+    - Fake worker evidence: tests assert Bearer auth headers, full `SandboxTaskSpec` payload fields, capabilities probe mapping, event polling by cursor, idempotent cancel, unauthenticated channel rejection, and `SANDBOX_UNAVAILABLE` events for unavailable workers.
+    - Regression: `.\mvnw.cmd test`: 142 run, 0 failures, 0 errors, 3 skipped.
+    - `git diff --check`: exit 0, no whitespace errors.
 
 - [ ] 11. 构建容器/Worker 内 Task Runner
   - Create: `runner/README.md`

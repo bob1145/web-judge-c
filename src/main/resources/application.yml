@@ -77,6 +77,14 @@ judge:
         auth-token: ""
         mtls-certificate: ""
 
+  worker:
+    endpoint: ""
+    auth-token: ""
+    signing-secret: ""
+    mtls-certificate: ""
+    connect-timeout: 5s
+    request-timeout: 30s
+
 logging:
   level:
     com.example.demo: INFO  # 改为INFO级别，减少debug输出
@@ -215,3 +223,10 @@ judge:
         endpoint: ""
         auth-token: ""
         mtls-certificate: ""
+  worker:
+    endpoint: ""
+    auth-token: ""
+    signing-secret: ""
+    mtls-certificate: ""
+    connect-timeout: 5s
+    request-timeout: 30s
