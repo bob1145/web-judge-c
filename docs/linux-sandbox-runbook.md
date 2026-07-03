@@ -206,9 +206,19 @@ Recommended starting point:
 - `judge.sandbox.production.linux-container.pids-limit=64`
 - Place `judge.sandbox.base-directory` on a dedicated filesystem with quota and monitoring.
 
-The high-volume smoke scripts are completed in Task 15. Until then, do not use
-100000+ production load as release evidence without manual monitoring of heap,
-workdir size, event file size, and container cleanup.
+Run the Linux high-volume smoke before serving 100000+ case tasks:
+
+```bash
+bash scripts/smoke/high-volume-smoke.sh --cases 100000
+```
+
+Expected output includes `HIGH_VOLUME_SMOKE` lines for 100, 10000, and the
+requested case count. Treat the run as passing only when `payloadBytes` stays
+below the configured WebSocket payload budget, `schedulerTasks=1`, `pollCount`
+is batched rather than equal to the case count, sample counts stay within
+configuration, and throughput is printed for the deployment record. Continue to
+monitor heap, workdir size, event file size, and residual container cleanup on
+the real host.
 
 ## Failure modes
 

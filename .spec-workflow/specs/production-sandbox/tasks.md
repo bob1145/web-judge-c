@@ -366,7 +366,7 @@
     - Regression: `.\mvnw.cmd test`: 159 run, 0 failures, 0 errors, 4 skipped.
     - Evidence: `ProductionCleanupTest` verifies startup cleanup of residual handles before STALE marking, handle persistence across restarts, retention cleanup for completed/cancelled/failed/stale tasks, preservation of active RUNNING tasks, cleanup failure reporting without deleting the task directory, and symlink/junction/reparse escape protection with an outside-storage canary.
 
-- [ ] 15. 高容量跨平台压测和回归
+- [x] 15. 高容量跨平台压测和回归
   - Create: `src/test/java/com/example/demo/ProductionHighVolumeIntegrationTest.java`
   - Create: `scripts/smoke/high-volume-smoke.ps1`
   - Create: `scripts/smoke/high-volume-smoke.sh`
@@ -389,6 +389,17 @@
     - Optional: 200000 case script documented with expected machine prerequisites.
     - Blocking failure: Testing only `TaskPolicyResolver` for 100000 support fails.
     - Evidence: Test output prints peak in-flight, payload bytes, samples, elapsed, throughput.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd "-Dtest=ProductionHighVolumeIntegrationTest" test` initially failed because `scripts/smoke/high-volume-smoke.ps1` did not exist.
+    - Red: `.\mvnw.cmd "-Dtest=ProductionHighVolumeIntegrationTest#highVolumeSmokeScriptsAndRunbooksExposeWindowsAndLinuxEntryPoints" test` failed after adding the WSL expectation because `docs/windows-sandbox-runbook.md` did not yet document `wsl.exe`.
+    - Green/Strict: `.\mvnw.cmd "-Dtest=ProductionHighVolumeIntegrationTest" test`: 2 run, 0 failures, 0 errors, 0 skipped. 100000-case evidence printed `schedulerTasks=1`, `peakInFlightSchedulerTasks=1`, `pollCount=196`, `payloadBytes=1069`, `websocketMessages=4`, `failureSamples=5`, `slowSamples=7`.
+    - Windows smoke: `powershell -ExecutionPolicy Bypass -File scripts/smoke/high-volume-smoke.ps1 -Cases 100000`: 2 run, 0 failures, 0 errors, 0 skipped; printed `HIGH_VOLUME_SMOKE` for 100, 10000, and 100000 cases.
+    - Linux smoke: `bash scripts/smoke/high-volume-smoke.sh --cases 100000`: 2 run, 0 failures, 0 errors, 0 skipped; printed `HIGH_VOLUME_SMOKE` for 100, 10000, and 100000 cases. Script avoids CRLF `mvnw` failures and can fall back to `mvnw.cmd` or `mvn`.
+    - WSL smoke: `wsl.exe -- bash -lc "cd /mnt/c/tmp/codex-production-sandbox-tasks && bash scripts/smoke/high-volume-smoke.sh --cases 100000"`: 2 run, 0 failures, 0 errors, 0 skipped.
+    - Focused regression: `.\mvnw.cmd "-Dtest=ProductionHighVolumeIntegrationTest,HighVolumeJudgeIntegrationTest,SandboxEventIngestorTest,ProgressPublisherTest" test`: 12 run, 0 failures, 0 errors, 0 skipped.
+    - Regression: `.\mvnw.cmd test`: 161 run, 0 failures, 0 errors, 4 skipped.
+    - `git diff --check`: exit 0, no whitespace errors; Git reported Windows CRLF conversion warnings for touched runbooks.
+    - Evidence: `ProductionHighVolumeIntegrationTest` verifies the production runner chain through policy, scheduler, fake sandbox runner, event ingestor, TaskStore, and ProgressPublisher; final progress omits the full result list and keeps payload/sample/WebSocket counts bounded.
 
 - [ ] 16. 平台 capability smoke 和生产部署 runbook
   - Create: `docs/production-sandbox-runbook.md`

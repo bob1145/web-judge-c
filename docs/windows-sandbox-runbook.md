@@ -228,9 +228,30 @@ Recommended starting point:
 - `judge.sandbox.production.windows-container.cpus=1.0`
 - Put `judge.sandbox.base-directory` on a dedicated disk with cleanup and quota.
 
-High-volume smoke scripts are completed in Task 15. Until then, release evidence
-for 100000+ Windows tasks requires manual monitoring of heap, task directory
-size, event file size, container count, and process cleanup.
+Run the Windows high-volume smoke before serving 100000+ case tasks:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/smoke/high-volume-smoke.ps1 -Cases 100000
+```
+
+If WSL is available on the Windows operator machine, also run the Linux
+high-volume entry point from the same checkout as an early cross-platform check:
+
+```powershell
+wsl.exe -- bash -lc "cd /mnt/c/path/to/cpp && bash scripts/smoke/high-volume-smoke.sh --cases 100000"
+```
+
+This WSL run is useful release-prep evidence for script portability and the
+Linux application path, but it does not replace running the Linux smoke on the
+actual Linux container host or worker host used for production.
+
+Expected output includes `HIGH_VOLUME_SMOKE` lines for 100, 10000, and the
+requested case count. Treat the run as passing only when `payloadBytes` stays
+below the configured WebSocket payload budget, `schedulerTasks=1`, `pollCount`
+is batched rather than equal to the case count, sample counts stay within
+configuration, and throughput is printed for the deployment record. Continue to
+monitor heap, task directory size, event file size, container count, and process
+cleanup on the real host.
 
 ## Failure modes
 
