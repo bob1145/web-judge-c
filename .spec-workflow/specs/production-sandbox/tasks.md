@@ -433,7 +433,7 @@
     - `git diff --check`: exit 0, no whitespace errors; Git reported a Windows CRLF conversion warning for `README.md`.
     - Evidence: `ProductionRunbookDocumentationTest` locks the required profile names, platform smoke entry points, rollback, default access code rejection, wildcard origin rejection, network disabled, resource limits, path isolation, process-tree kill, Hyper-V requirement, Job Object limitation, Linux cgroup/seccomp/AppArmor/non-root/network requirements, remote-worker authentication, and the statement that WSL smoke is not production release evidence.
 
-- [ ] 17. 最终安全审计和上线门禁
+- [x] 17. 最终安全审计和上线门禁
   - Test: all tests and smoke scripts
   - Purpose: 在标记规格完成前做逐项审计，确保每个 requirement 有强证据。
   - _Leverage: all tasks_
@@ -450,3 +450,15 @@
     - Expected: 100000 case high-volume evidence includes bounded payload, samples and in-flight counts.
     - Blocking failure: Any skipped platform test without documented environment reason and alternative production evidence blocks release.
     - Evidence: Final audit document saved under `docs/production-sandbox-acceptance.md`.
+  - Validation Evidence (2026-07-03):
+    - Red: `.\mvnw.cmd "-Dtest=ProductionSandboxAcceptanceDocumentationTest" test` failed because `docs/production-sandbox-acceptance.md` did not exist.
+    - Green: `.\mvnw.cmd "-Dtest=ProductionSandboxAcceptanceDocumentationTest" test`: 2 run, 0 failures, 0 errors, 0 skipped.
+    - High-volume strict: `.\mvnw.cmd "-Dtest=ProductionHighVolumeIntegrationTest" test`: 2 run, 0 failures, 0 errors, 0 skipped; 100000-case evidence printed `schedulerTasks=1`, `peakInFlightSchedulerTasks=1`, `pollCount=196`, `payloadBytes=1069`, `websocketMessages=4`, `failureSamples=5`, `slowSamples=7`.
+    - Windows high-volume smoke: `powershell -ExecutionPolicy Bypass -File scripts/smoke/high-volume-smoke.ps1 -Cases 100000`: 2 run, 0 failures, 0 errors, 0 skipped.
+    - Linux/WSL high-volume smoke: `bash scripts/smoke/high-volume-smoke.sh --cases 100000`: 2 run, 0 failures, 0 errors, 0 skipped.
+    - Windows capability precheck: `powershell -ExecutionPolicy Bypass -File scripts/smoke/windows-capability-smoke.ps1 -WhatIf`: exit 0; Docker CLI unavailable on this Windows workstation, so live Hyper-V container release evidence remains blocked until run on the deployment target.
+    - Linux capability syntax: `bash -n scripts/smoke/linux-capability-smoke.sh`: exit 0.
+    - WSL capability dry run: `wsl.exe -- bash -lc "cd /mnt/c/tmp/codex-production-sandbox-tasks && bash scripts/smoke/linux-capability-smoke.sh --dry-run --skip-maven"`: exit 0 and printed `--network none`, `--pids-limit`, `--read-only`, non-root user, seccomp, and AppArmor options.
+    - Regression: `.\mvnw.cmd test`: 167 run, 0 failures, 0 errors, 4 skipped.
+    - `git diff --check`: exit 0, no whitespace errors; Git reported a Windows CRLF conversion warning for `.spec-workflow/specs/production-sandbox/tasks.md`.
+    - Release decision: `docs/production-sandbox-acceptance.md` maps Requirement 1-10 to tests/docs/smoke evidence and explicitly blocks production traffic until live platform capability smoke passes on the actual Windows, Linux, or remote-worker host.
