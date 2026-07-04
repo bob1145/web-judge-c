@@ -27,6 +27,8 @@ class ProductionRunbookDocumentationTest {
                 .contains("wildcard origin")
                 .contains("network disabled")
                 .contains("resource limits")
+                .contains("judge.execution.max-output-bytes-per-case")
+                .contains("JUDGE_EXECUTION_MAX_OUTPUT_BYTES_PER_CASE")
                 .contains("path isolation")
                 .contains("process-tree kill");
     }

@@ -63,6 +63,17 @@ class JudgeBaselineTest {
             }
             """;
 
+    private static final String LARGE_OUTPUT_GENERATOR = """
+            #include <iostream>
+
+            int main() {
+                for (int i = 0; i < 2 * 1024 * 1024; ++i) {
+                    std::cout << 'x';
+                }
+                return 0;
+            }
+            """;
+
     private static final String RUNTIME_ERROR_SOLUTION = """
             int main() {
                 return 1;
@@ -159,7 +170,15 @@ class JudgeBaselineTest {
 
         JsonNode statusJson = awaitTerminalStatus(judgeId);
         assertThat(statusJson.path("status").asText()).isEqualTo("COMPILATION_ERROR");
-        assertThat(statusJson.path("message").asText()).contains("Compilation failed for user.cpp");
+        String message = statusJson.path("message").asText();
+        assertThat(message)
+                .contains("Compilation failed for user.cpp")
+                .contains("user.cpp")
+                .doesNotContain("RUNTIME_ERROR")
+                .doesNotContain("online-judge")
+                .doesNotContain("AppData")
+                .doesNotContain("\\judge-")
+                .doesNotContain("/judge-");
         assertThat(statusJson.path("progress").asInt()).isEqualTo(100);
         assertThat(statusJson.path("results").isNull()).isTrue();
     }
@@ -181,6 +200,31 @@ class JudgeBaselineTest {
         assertThat(results.get(0).path("status").asText()).isEqualTo("RE");
         assertThat(results.get(0).path("timeUsed").asLong()).isGreaterThanOrEqualTo(0);
         assertThat(results.get(0).path("memoryUsed").asLong()).isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
+    void generatorOutputLimitIsReportedAsOutputLimitExceededInsteadOfSystemError() throws Exception {
+        String judgeId = createJudgeTask(request(1, ECHO_SOLUTION, LARGE_OUTPUT_GENERATOR, ECHO_SOLUTION));
+
+        startJudgeTask(judgeId);
+
+        JsonNode statusJson = awaitTerminalStatus(judgeId);
+        assertThat(statusJson.path("status").asText()).isEqualTo("OUTPUT_LIMIT_EXCEEDED");
+        assertThat(statusJson.path("message").asText()).isEqualTo("OUTPUT_LIMIT_EXCEEDED on Test Case #1");
+        assertThat(statusJson.path("summary").path("outputLimitExceeded").asInt()).isEqualTo(1);
+        assertThat(statusJson.path("summary").path("systemError").asInt()).isZero();
+        assertThat(statusJson.path("results").get(0).path("status").asText()).isEqualTo("OUTPUT_LIMIT_EXCEEDED");
+
+        MvcResult detailsResult = mockMvc.perform(get("/details/{judgeId}/{caseNumber}", judgeId, 1)
+                        .header("X-Session-ID", sessionId)
+                        .header("User-Agent", TEST_USER_AGENT)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode detailsJson = objectMapper.readTree(detailsResult.getResponse().getContentAsString());
+        assertThat(detailsJson.path("input").asText()).hasSize(1_048_576);
+        assertThat(detailsJson.path("userOutput").asText()).isEmpty();
+        assertThat(detailsJson.path("correctOutput").asText()).isEmpty();
     }
 
     private String createJudgeTask(Map<String, Object> request) throws Exception {

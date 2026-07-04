@@ -54,6 +54,7 @@ judge:
     max-cases-per-task: 100000
     max-concurrent-tasks: 1
     max-concurrent-cases-per-task: 4
+    max-output-bytes-per-case: 16777216
   sandbox:
     enabled: true
     production:
@@ -203,8 +204,19 @@ Recommended starting point:
 - `judge.execution.batch-size=100`
 - `judge.execution.max-concurrent-tasks=1`
 - `judge.execution.max-concurrent-cases-per-task=4`
+- `judge.execution.max-output-bytes-per-case=16777216`
 - `judge.sandbox.production.linux-container.pids-limit=64`
 - Place `judge.sandbox.base-directory` on a dedicated filesystem with quota and monitoring.
+
+Override the output cap on Linux or WSL with:
+
+```bash
+export JUDGE_EXECUTION_MAX_OUTPUT_BYTES_PER_CASE=16777216
+```
+
+This is a per-case cap, not a total task cap. Keep enough free disk for
+`testCases * max-output-bytes-per-case` plus output and event files, or lower
+the cap before accepting public traffic.
 
 Run the Linux high-volume smoke before serving 100000+ case tasks:
 

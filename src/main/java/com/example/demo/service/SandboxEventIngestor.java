@@ -48,7 +48,7 @@ public class SandboxEventIngestor {
             String message = event.message() == null ? event.type().name() : event.message();
             return switch (event.type()) {
                 case COMPILE_STARTED -> publishStatus("COMPILING", message, 5);
-                case COMPILE_FINISHED -> publishStatus("COMPILING", message, 15);
+                case COMPILE_FINISHED -> acceptCompileFinished(event, message);
                 case RUN_STARTED -> publishStatus("RUNNING", message, 15);
                 case RUN_FINISHED -> acceptCaseResult(event);
                 case SUMMARY -> publishSummary(event, message);
@@ -96,6 +96,15 @@ public class SandboxEventIngestor {
 
         private JudgeProgress publishStatus(String status, String message, int progress) {
             return publish(new JudgeProgress(status, message, progress, null, aggregator.toSummary()));
+        }
+
+        private JudgeProgress acceptCompileFinished(SandboxTaskEvent event, String message) {
+            if (JudgeStatus.fromProgressStatus(event.status())
+                    .filter(status -> status == JudgeStatus.COMPILATION_ERROR)
+                    .isPresent()) {
+                return terminal(JudgeStatus.COMPILATION_ERROR.name(), message);
+            }
+            return publishStatus("COMPILING", message, 15);
         }
 
         private JudgeProgress publishSummary(SandboxTaskEvent event, String message) {

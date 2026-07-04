@@ -8,7 +8,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+    <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/codemirror-github-light/lib/codemirror-github-light-theme.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -399,7 +400,8 @@
         }
 
         .status-se,
-        .status-system-error {
+        .status-system-error,
+        .status-output-limit-exceeded {
             background: linear-gradient(135deg, #6b7280, #4b5563);
         }
 
@@ -556,17 +558,1612 @@
                 padding: 8px 4px;
             }
         }
+
+        /* Production workspace redesign */
+        :root {
+            --surface-bg: #080a0f;
+            --surface-panel: #10131a;
+            --surface-panel-2: #151a24;
+            --surface-elevated: #1b2130;
+            --surface-muted: #0d1017;
+            --border-color: #293241;
+            --border-strong: #3a465a;
+            --text-primary: #f4f7fb;
+            --text-secondary: #aab4c3;
+            --text-muted: #788397;
+            --primary-color: #3b82f6;
+            --primary-dark: #2563eb;
+            --secondary-color: #ec4899;
+            --success-color: #22c55e;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --info-color: #06b6d4;
+            --dark-color: var(--text-primary);
+            --light-color: #111827;
+            --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.2);
+            --shadow-md: 0 12px 32px rgb(0 0 0 / 0.28);
+            --shadow-lg: 0 28px 80px rgb(0 0 0 / 0.38);
+            --gradient-primary: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            --focus-ring: 0 0 0 3px rgb(59 130 246 / 0.22);
+        }
+
+        html {
+            background: var(--surface-bg);
+        }
+
+        body {
+            background: var(--surface-bg);
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        .main-container {
+            background: transparent;
+            backdrop-filter: none;
+            border-radius: 0;
+            box-shadow: none;
+            margin: 0;
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        .header {
+            align-items: flex-start;
+            background: var(--surface-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: var(--shadow-md);
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 18px;
+            padding: 18px 20px;
+            text-align: left;
+        }
+
+        .header::before {
+            display: none;
+        }
+
+        .header h1 {
+            background: none;
+            -webkit-text-fill-color: currentColor;
+            color: var(--text-primary);
+            font-size: 1.65rem;
+            letter-spacing: 0;
+            line-height: 1.15;
+            margin-bottom: 0.35rem;
+        }
+
+        .header h1 i {
+            color: var(--primary-color);
+            margin-right: 0.45rem;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            max-width: 760px;
+        }
+
+        .row {
+            --bs-gutter-x: 18px;
+            --bs-gutter-y: 18px;
+        }
+
+        .settings-card,
+        .code-section,
+        .results-section,
+        .modal-content {
+            background: var(--surface-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: var(--shadow-md);
+        }
+
+        .settings-card {
+            padding: 16px;
+            top: 16px;
+        }
+
+        .settings-card h4,
+        .results-section h4,
+        .progress-section h4 {
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            letter-spacing: 0;
+            margin-bottom: 14px;
+        }
+
+        .settings-card h4 i,
+        .results-section h4 i,
+        .progress-section h4 i,
+        .form-label i,
+        .code-header h5 i {
+            color: var(--primary-color);
+        }
+
+        .form-label {
+            color: var(--text-secondary);
+            font-size: 0.84rem;
+            font-weight: 650;
+        }
+
+        .form-control {
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            min-height: 42px;
+            padding: 0.65rem 0.75rem;
+        }
+
+        .form-control:focus {
+            background: #0f1420;
+            border-color: var(--primary-color);
+            box-shadow: var(--focus-ring);
+            color: var(--text-primary);
+        }
+
+        .form-control::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-check {
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem 0.75rem 0.75rem 2.25rem;
+        }
+
+        .form-check-input {
+            background-color: var(--surface-panel-2);
+            border-color: var(--border-strong);
+        }
+
+        .form-check-input:checked {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .form-check-label,
+        .text-muted {
+            color: var(--text-secondary) !important;
+        }
+
+        .btn {
+            border-radius: 8px;
+            font-weight: 650;
+            letter-spacing: 0;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            border: 1px solid var(--primary-color);
+            box-shadow: 0 10px 28px rgb(59 130 246 / 0.28);
+        }
+
+        .btn-primary:hover,
+        .btn-primary:focus {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+            box-shadow: 0 12px 32px rgb(37 99 235 / 0.32);
+            transform: translateY(-1px);
+        }
+
+        .btn-outline-secondary,
+        .btn-outline-info,
+        .btn-outline-primary,
+        .btn-secondary {
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .btn-outline-secondary:hover,
+        .btn-outline-info:hover,
+        .btn-outline-primary:hover,
+        .btn-secondary:hover {
+            background: var(--surface-elevated);
+            border-color: var(--border-strong);
+            color: var(--text-primary);
+            transform: translateY(-1px);
+        }
+
+        .btn-upload {
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+            min-width: 94px;
+            white-space: nowrap;
+        }
+
+        .btn-upload:hover {
+            background: var(--surface-elevated);
+            border-color: var(--primary-color);
+            color: var(--text-primary);
+        }
+
+        .code-section {
+            margin-bottom: 18px;
+            padding: 14px;
+        }
+
+        .code-header {
+            align-items: center;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .code-header h5 {
+            color: var(--text-primary);
+            font-size: 0.94rem;
+            letter-spacing: 0;
+        }
+
+        .CodeMirror {
+            background: #0b0f16;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.03);
+            height: 340px;
+        }
+
+        .CodeMirror-focused {
+            border-color: var(--primary-color);
+            box-shadow: var(--focus-ring);
+        }
+
+        .progress-section {
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            margin-top: 16px;
+            padding: 0;
+        }
+
+        .progress {
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            height: 12px;
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+        }
+
+        #result-summary {
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-secondary) !important;
+            padding: 10px;
+        }
+
+        .results-section {
+            margin-top: 18px;
+            padding: 16px;
+        }
+
+        .results-grid {
+            grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+        }
+
+        #results-grid > .text-center {
+            grid-column: 1 / -1;
+            justify-self: stretch;
+            max-width: 520px;
+            text-align: left !important;
+        }
+
+        #results-grid > .text-center p {
+            margin: 0;
+            max-width: 440px;
+        }
+
+        .code-section.fade-in,
+        .results-section.fade-in {
+            animation: none;
+        }
+
+        .result-case {
+            border-radius: 8px;
+            min-height: 72px;
+            padding: 10px 8px;
+        }
+
+        .summary-card {
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .summary-label {
+            color: var(--text-muted);
+            letter-spacing: 0;
+        }
+
+        .summary-value {
+            color: var(--text-primary);
+        }
+
+        .failure-sample-row,
+        pre {
+            background: var(--surface-muted);
+            border-color: var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+        }
+
+        .modal-header {
+            background: var(--surface-elevated);
+            border-bottom: 1px solid var(--border-color);
+            border-radius: 8px 8px 0 0;
+            color: var(--text-primary);
+        }
+
+        .modal-body,
+        .modal-footer {
+            background: var(--surface-panel);
+            color: var(--text-primary);
+        }
+
+        .modal-footer {
+            border-top: 1px solid var(--border-color);
+        }
+
+        .alert {
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-secondary);
+        }
+
+        .toast {
+            background: var(--surface-panel);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .toast-header {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .solution-card {
+            background: var(--surface-muted);
+            border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .solution-card .card-text {
+            color: var(--text-secondary);
+        }
+
+        @media (max-width: 991px) {
+            .settings-card {
+                position: static;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 12px;
+            }
+
+            .header {
+                display: block;
+                padding: 16px;
+            }
+
+            .header h1 {
+                font-size: 1.35rem;
+            }
+
+            .CodeMirror {
+                height: 280px;
+            }
+
+            .results-grid {
+                grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                scroll-behavior: auto !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* Light layout rebuild */
+        :root {
+            --surface-bg: #f4f7fb;
+            --surface-panel: #ffffff;
+            --surface-panel-2: #f8fafc;
+            --surface-elevated: #eef4ff;
+            --surface-muted: #f1f5f9;
+            --border-color: #d8e2ef;
+            --border-strong: #b7c4d6;
+            --text-primary: #162033;
+            --text-secondary: #526174;
+            --text-muted: #7b8797;
+            --primary-color: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary-color: #0f766e;
+            --success-color: #16a34a;
+            --warning-color: #d97706;
+            --danger-color: #dc2626;
+            --info-color: #0284c7;
+            --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.05);
+            --shadow-md: 0 12px 28px rgb(15 23 42 / 0.08);
+            --shadow-lg: 0 28px 70px rgb(15 23 42 / 0.12);
+            --gradient-primary: linear-gradient(135deg, #2563eb, #0f766e);
+            --focus-ring: 0 0 0 4px rgb(37 99 235 / 0.14);
+        }
+
+        html,
+        body {
+            background: var(--surface-bg);
+        }
+
+        body {
+            color: var(--text-primary);
+        }
+
+        .main-container {
+            margin: 0 auto;
+            max-width: 1480px;
+            padding: 24px;
+        }
+
+        .header {
+            align-items: center;
+            background: var(--surface-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            gap: 20px;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding: 18px 20px;
+        }
+
+        .brand-lockup {
+            align-items: center;
+            display: flex;
+            gap: 14px;
+            min-width: 0;
+        }
+
+        .brand-mark {
+            align-items: center;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            color: var(--primary-color);
+            display: inline-flex;
+            flex: 0 0 auto;
+            height: 44px;
+            justify-content: center;
+            width: 44px;
+        }
+
+        .header h1 {
+            color: var(--text-primary);
+            font-size: 1.45rem;
+            margin: 0 0 4px;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 0.94rem;
+            margin: 0;
+        }
+
+        .topbar-actions {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .status-pill {
+            background: var(--surface-panel-2);
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: 650;
+            padding: 7px 10px;
+            white-space: nowrap;
+        }
+
+        .workspace-layout {
+            align-items: start;
+            display: grid;
+            gap: 16px;
+            grid-template-columns: 320px minmax(0, 1fr);
+            margin-left: 0;
+            margin-right: 0;
+        }
+
+        .workspace-layout > [class*="col-"] {
+            flex: initial;
+            max-width: none;
+            padding-left: 0;
+            padding-right: 0;
+            width: auto;
+        }
+
+        .settings-card,
+        .code-section,
+        .results-section,
+        .modal-content {
+            background: var(--surface-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .settings-card {
+            padding: 16px;
+            position: sticky;
+            top: 16px;
+        }
+
+        .panel-kicker {
+            color: var(--text-muted);
+            display: block;
+            font-size: 0.74rem;
+            font-weight: 750;
+            letter-spacing: 0.08em;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .settings-card h4,
+        .section-heading h4,
+        .results-section h4,
+        .progress-section h4 {
+            color: var(--text-primary);
+            font-size: 1rem;
+            margin: 0;
+        }
+
+        .settings-card h4 {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            color: var(--text-secondary);
+            font-size: 0.84rem;
+            font-weight: 700;
+            margin-bottom: 7px;
+        }
+
+        .form-control {
+            background: var(--surface-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            min-height: 42px;
+        }
+
+        .form-control:focus {
+            background: #ffffff;
+            border-color: var(--primary-color);
+            box-shadow: var(--focus-ring);
+            color: var(--text-primary);
+        }
+
+        .form-check {
+            background: var(--surface-panel-2);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.72rem 0.75rem 0.72rem 2.25rem;
+        }
+
+        .form-check-label,
+        .text-muted {
+            color: var(--text-secondary) !important;
+        }
+
+        .btn {
+            border-radius: 8px;
+            font-weight: 700;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            box-shadow: 0 10px 22px rgb(37 99 235 / 0.18);
+        }
+
+        .btn-primary:hover,
+        .btn-primary:focus {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+            box-shadow: 0 12px 26px rgb(29 78 216 / 0.2);
+            transform: translateY(-1px);
+        }
+
+        .btn-outline-secondary,
+        .btn-outline-info,
+        .btn-outline-primary,
+        .btn-secondary,
+        .btn-upload {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .btn-outline-secondary:hover,
+        .btn-outline-info:hover,
+        .btn-outline-primary:hover,
+        .btn-secondary:hover,
+        .btn-upload:hover {
+            background: #eff6ff;
+            border-color: #93c5fd;
+            color: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .editor-board {
+            min-width: 0;
+        }
+
+        .workspace-layout .col-lg-9 {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            min-width: 0;
+        }
+
+        .section-heading {
+            align-items: flex-end;
+            display: flex;
+            gap: 16px;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .section-heading p {
+            color: var(--text-secondary);
+            margin: 4px 0 0;
+        }
+
+        .editor-grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .code-section {
+            margin: 0;
+            min-width: 0;
+            padding: 14px;
+        }
+
+        .workspace-layout .col-lg-9 > .code-section:first-child,
+        .code-section.is-wide,
+        .results-section {
+            grid-column: 1 / -1;
+        }
+
+        .workspace-layout .col-lg-9 > .code-section:nth-of-type(3) {
+            grid-column: 1 / -1;
+        }
+
+        .code-header {
+            align-items: center;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .code-header h5 {
+            color: var(--text-primary);
+            font-size: 0.94rem;
+            line-height: 1.25;
+            margin: 0;
+        }
+
+        .btn-upload {
+            flex: 0 0 auto;
+            min-width: 96px;
+            white-space: nowrap;
+        }
+
+        .CodeMirror {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: none;
+            color: var(--text-primary);
+            height: 300px;
+        }
+
+        .CodeMirror-scroll,
+        .CodeMirror-sizer {
+            background: #ffffff;
+        }
+
+        .CodeMirror pre.CodeMirror-line,
+        .CodeMirror pre.CodeMirror-line-like {
+            color: #1e293b;
+        }
+
+        .code-section.is-wide .CodeMirror {
+            height: 270px;
+        }
+
+        .workspace-layout .col-lg-9 > .code-section:first-child .CodeMirror {
+            height: 270px;
+        }
+
+        .CodeMirror-gutters {
+            background: #eef2f7;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .CodeMirror-linenumber {
+            color: #94a3b8;
+        }
+
+        .CodeMirror-focused {
+            border-color: var(--primary-color);
+            box-shadow: var(--focus-ring);
+        }
+
+        .progress-section {
+            background: var(--surface-panel-2);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: none;
+            margin-top: 16px;
+            padding: 12px;
+        }
+
+        .progress {
+            background: #e2e8f0;
+            border: 0;
+            height: 10px;
+        }
+
+        .progress-bar {
+            background: var(--gradient-primary);
+        }
+
+        #result-summary {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary) !important;
+        }
+
+        .results-section {
+            margin-top: 0;
+            padding: 16px;
+        }
+
+        .main-container > .results-section {
+            margin-top: 16px;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+        }
+
+        #results-grid > .text-center {
+            align-items: center;
+            background: var(--surface-panel-2);
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            display: flex;
+            gap: 12px;
+            grid-column: 1 / -1;
+            justify-self: stretch;
+            max-width: none;
+            min-height: 92px;
+            padding: 18px !important;
+            text-align: left !important;
+        }
+
+        #results-grid > .text-center i {
+            color: var(--primary-color);
+            margin: 0 !important;
+        }
+
+        #results-grid > .text-center p {
+            color: var(--text-secondary);
+            margin: 0;
+            max-width: none;
+        }
+
+        .summary-card,
+        .failure-sample-row,
+        pre {
+            background: var(--surface-panel-2);
+            border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .modal-header {
+            background: var(--surface-panel);
+            color: var(--text-primary);
+        }
+
+        .modal-body,
+        .modal-footer {
+            background: #ffffff;
+            color: var(--text-primary);
+        }
+
+        .toast {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .code-section.fade-in,
+        .results-section.fade-in {
+            animation: none;
+        }
+
+        @media (max-width: 1180px) {
+            .workspace-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .settings-card {
+                position: static;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .workspace-layout .col-lg-9,
+            .editor-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .workspace-layout .col-lg-9 > .code-section:first-child,
+            .workspace-layout .col-lg-9 > .code-section:nth-of-type(3),
+            .code-section.is-wide,
+            .results-section {
+                grid-column: auto;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .main-container {
+                padding: 12px;
+            }
+
+            .header,
+            .section-heading {
+                align-items: flex-start;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .topbar-actions {
+                justify-content: flex-start;
+            }
+
+            .CodeMirror,
+            .code-section.is-wide .CodeMirror {
+                height: 260px;
+            }
+        }
+
+        /* Workspace v2: light navigation layout and GitHub-style editor chrome */
+        :root {
+            --surface-bg: #f6f8fa;
+            --surface-panel: #ffffff;
+            --surface-panel-2: #f6f8fa;
+            --surface-elevated: #ddf4ff;
+            --surface-muted: #eaeef2;
+            --border-color: #d0d7de;
+            --border-strong: #8c959f;
+            --text-primary: #24292f;
+            --text-secondary: #57606a;
+            --text-muted: #6e7781;
+            --primary-color: #0969da;
+            --primary-dark: #0550ae;
+            --secondary-color: #8250df;
+            --success-color: #1a7f37;
+            --warning-color: #9a6700;
+            --danger-color: #cf222e;
+            --info-color: #0969da;
+            --shadow-sm: 0 1px 2px rgb(27 31 36 / 0.04);
+            --shadow-md: 0 8px 24px rgb(140 149 159 / 0.18);
+            --shadow-lg: 0 18px 48px rgb(140 149 159 / 0.2);
+            --gradient-primary: linear-gradient(135deg, #0969da, #1a7f37);
+            --focus-ring: 0 0 0 3px rgb(9 105 218 / 0.18);
+        }
+
+        html,
+        body {
+            background: var(--surface-bg);
+        }
+
+        body {
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            background: transparent;
+            border-radius: 0;
+            box-shadow: none;
+            margin: 0 auto;
+            max-width: 1480px;
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        .header {
+            align-items: center;
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+            display: flex;
+            gap: 16px;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            padding: 0;
+            text-align: left;
+        }
+
+        .header::before {
+            display: none;
+        }
+
+        .brand-lockup {
+            align-items: center;
+            display: flex;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .brand-mark {
+            align-items: center;
+            background: #ddf4ff;
+            border: 1px solid #54aeef;
+            border-radius: 8px;
+            color: var(--primary-dark);
+            display: inline-flex;
+            flex: 0 0 auto;
+            height: 42px;
+            justify-content: center;
+            width: 42px;
+        }
+
+        .header h1 {
+            background: none;
+            color: var(--text-primary);
+            font-size: 1.35rem;
+            font-weight: 700;
+            line-height: 1.25;
+            margin: 0 0 3px;
+            -webkit-text-fill-color: currentColor;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 0.92rem;
+            margin: 0;
+        }
+
+        .topbar-actions {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .status-pill {
+            background: var(--surface-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: 650;
+            padding: 7px 10px;
+            white-space: nowrap;
+        }
+
+        .workspace-nav {
+            align-items: center;
+            background: var(--surface-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            gap: 4px;
+            margin-bottom: 16px;
+            overflow-x: auto;
+            padding: 6px;
+        }
+
+        .workspace-tab {
+            align-items: center;
+            background: transparent;
+            border: 0;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            display: inline-flex;
+            flex: 0 0 auto;
+            font-size: 0.92rem;
+            font-weight: 700;
+            gap: 8px;
+            min-height: 38px;
+            padding: 9px 12px;
+            transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+            white-space: nowrap;
+        }
+
+        .workspace-tab:hover {
+            background: var(--surface-panel-2);
+            color: var(--text-primary);
+        }
+
+        .workspace-tab:focus-visible {
+            box-shadow: var(--focus-ring);
+            outline: 0;
+        }
+
+        .workspace-tab.active {
+            background: #0969da;
+            color: #ffffff;
+        }
+
+        .nav-badge {
+            background: rgb(255 255 255 / 0.22);
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 750;
+            line-height: 1;
+            padding: 4px 7px;
+        }
+
+        .workspace-tab:not(.active) .nav-badge {
+            background: var(--surface-muted);
+            color: var(--text-muted);
+        }
+
+        .nav-badge[data-state="running"] {
+            background: #fff8c5;
+            color: #7d4e00;
+        }
+
+        .nav-badge[data-state="done"] {
+            background: #dafbe1;
+            color: #116329;
+        }
+
+        .nav-badge[data-state="failed"] {
+            background: #ffebe9;
+            color: #82071e;
+        }
+
+        .workspace-view[hidden] {
+            display: none !important;
+        }
+
+        .workspace-view.is-active {
+            display: block;
+        }
+
+        .workspace-layout {
+            align-items: start;
+            display: grid;
+            gap: 16px;
+            grid-template-columns: 300px minmax(0, 1fr);
+            margin: 0;
+        }
+
+        .workspace-layout > [class*="col-"] {
+            flex: initial;
+            max-width: none;
+            padding: 0;
+            width: auto;
+        }
+
+        .settings-card,
+        .code-section,
+        .results-section,
+        .progress-section,
+        .modal-content {
+            background: var(--surface-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .settings-card {
+            padding: 16px;
+            position: sticky;
+            top: 16px;
+        }
+
+        .settings-card h4,
+        .results-section h4,
+        .progress-section h4 {
+            color: var(--text-primary);
+            font-size: 1rem;
+            font-weight: 700;
+            margin: 0 0 14px;
+        }
+
+        .form-label {
+            color: var(--text-secondary);
+            font-size: 0.84rem;
+            font-weight: 700;
+        }
+
+        .form-control {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            min-height: 40px;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: var(--focus-ring);
+        }
+
+        .form-check {
+            background: var(--surface-panel-2);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .btn {
+            border-radius: 6px;
+            font-weight: 700;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            box-shadow: none;
+        }
+
+        .btn-primary:hover,
+        .btn-primary:focus {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+            box-shadow: var(--focus-ring);
+            transform: none;
+        }
+
+        .btn-outline-secondary,
+        .btn-outline-info,
+        .btn-outline-primary,
+        .btn-secondary,
+        .btn-upload {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .btn-outline-secondary:hover,
+        .btn-outline-info:hover,
+        .btn-outline-primary:hover,
+        .btn-secondary:hover,
+        .btn-upload:hover {
+            background: #ddf4ff;
+            border-color: #54aeef;
+            color: var(--primary-dark);
+            transform: none;
+        }
+
+        .workspace-layout .col-lg-9 {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            min-width: 0;
+        }
+
+        .workspace-layout .col-lg-9 > .code-section:first-child,
+        .workspace-layout .col-lg-9 > .code-section:nth-of-type(3) {
+            grid-column: 1 / -1;
+        }
+
+        .code-section {
+            margin: 0;
+            min-width: 0;
+            overflow: hidden;
+            padding: 0;
+        }
+
+        .code-header {
+            align-items: center;
+            background: var(--surface-panel-2);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+            margin: 0;
+            min-height: 46px;
+            padding: 10px 12px;
+        }
+
+        .code-header h5 {
+            color: var(--text-primary);
+            font-size: 0.94rem;
+            font-weight: 700;
+            line-height: 1.3;
+            margin: 0;
+            min-width: 0;
+        }
+
+        .btn-upload {
+            flex: 0 0 auto;
+            font-size: 0.82rem;
+            min-height: 32px;
+            min-width: 88px;
+            padding: 5px 9px;
+        }
+
+        .CodeMirror.cm-s-github-light {
+            background: #ffffff;
+            border: 0;
+            border-radius: 0;
+            color: #24292f;
+            font-size: 13px;
+            height: 320px;
+            line-height: 1.55;
+        }
+
+        .CodeMirror.cm-s-github-light.CodeMirror-focused {
+            box-shadow: inset 0 0 0 2px rgb(9 105 218 / 0.22);
+        }
+
+        .cm-s-github-light .CodeMirror-lines {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            font-size: 13px;
+            line-height: 1.55;
+            padding: 12px 0;
+        }
+
+        .cm-s-github-light .CodeMirror-gutters {
+            background: #ffffff;
+            border-right: 1px solid #d8dee4;
+        }
+
+        .cm-s-github-light .CodeMirror-linenumber {
+            color: #8c959f;
+            padding: 0 10px 0 12px;
+        }
+
+        .cm-s-github-light pre.CodeMirror-line,
+        .cm-s-github-light pre.CodeMirror-line-like {
+            color: #24292f;
+        }
+
+        .results-view-layout {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: 320px minmax(0, 1fr);
+        }
+
+        .results-view-layout .progress-section {
+            align-self: start;
+            margin: 0;
+            padding: 16px;
+            position: sticky;
+            top: 16px;
+        }
+
+        .results-view-layout .progress-section[style*="display: none"] + .results-section {
+            grid-column: 1 / -1;
+        }
+
+        .progress {
+            background: #eaeef2;
+            border-radius: 999px;
+            height: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            background: var(--gradient-primary);
+        }
+
+        #result-summary {
+            background: var(--surface-panel-2);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-secondary) !important;
+            font-size: 0.88rem;
+            line-height: 1.5;
+            min-height: 42px;
+            padding: 10px;
+        }
+
+        .results-view-layout .results-section {
+            grid-column: auto;
+            margin: 0;
+            min-width: 0;
+            overflow: hidden;
+            padding: 0;
+        }
+
+        .results-section > .d-flex {
+            background: var(--surface-panel-2);
+            border-bottom: 1px solid var(--border-color);
+            margin: 0 !important;
+            min-height: 52px;
+            padding: 12px 14px;
+        }
+
+        .results-grid {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+            padding: 14px;
+        }
+
+        #results-grid > .text-center {
+            align-items: center;
+            background: var(--surface-panel-2);
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            display: flex;
+            gap: 12px;
+            grid-column: 1 / -1;
+            justify-self: stretch;
+            min-height: 112px;
+            padding: 18px !important;
+            text-align: left !important;
+        }
+
+        #results-grid > .text-center i {
+            color: var(--primary-color);
+            margin: 0 !important;
+        }
+
+        #results-grid > .text-center p {
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        .result-case {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--border-strong);
+            border-radius: 8px;
+            box-shadow: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            min-height: 96px;
+            padding: 12px;
+            transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+        }
+
+        .result-case:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .status-ac {
+            border-left-color: var(--success-color);
+        }
+
+        .status-wa,
+        .status-re,
+        .status-system-error,
+        .status-output-limit-exceeded,
+        .status-compilation-error {
+            border-left-color: var(--danger-color);
+        }
+
+        .status-tle,
+        .status-mle,
+        .status-budget-exceeded {
+            border-left-color: var(--warning-color);
+        }
+
+        .case-number {
+            color: var(--text-muted);
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 750;
+            margin-bottom: 8px;
+        }
+
+        .case-status {
+            color: var(--text-primary);
+            display: block;
+            font-size: 0.94rem;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+
+        .case-details {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .summary-grid {
+            display: grid;
+            gap: 10px;
+            grid-column: 1 / -1;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        }
+
+        .summary-card,
+        .failure-sample-row,
+        pre {
+            background: var(--surface-panel-2);
+            border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .summary-card {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .summary-label {
+            color: var(--text-muted);
+            display: block;
+            font-size: 0.74rem;
+            font-weight: 750;
+            margin-bottom: 4px;
+        }
+
+        .summary-value {
+            color: var(--text-primary);
+            display: block;
+            font-size: 1.2rem;
+            font-weight: 800;
+        }
+
+        .failure-samples {
+            grid-column: 1 / -1;
+        }
+
+        .failure-sample-row {
+            align-items: center;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 10px 12px;
+        }
+
+        #results-grid > .alert {
+            grid-column: 1 / -1;
+        }
+
+        .modal-header,
+        .modal-body,
+        .modal-footer,
+        .toast {
+            background: #ffffff;
+            color: var(--text-primary);
+        }
+
+        @media (max-width: 1180px) {
+            .workspace-layout,
+            .results-view-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .settings-card,
+            .results-view-layout .progress-section {
+                position: static;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .workspace-layout .col-lg-9 {
+                grid-template-columns: 1fr;
+            }
+
+            .workspace-layout .col-lg-9 > .code-section:first-child,
+            .workspace-layout .col-lg-9 > .code-section:nth-of-type(3),
+            .results-view-layout .results-section {
+                grid-column: auto;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .main-container {
+                padding: 14px;
+            }
+
+            .header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .topbar-actions {
+                justify-content: flex-start;
+            }
+
+            .workspace-tab {
+                min-height: 36px;
+                padding: 8px 10px;
+            }
+
+            .code-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .btn-upload {
+                width: 100%;
+            }
+
+            .CodeMirror.cm-s-github-light {
+                height: 260px;
+            }
+
+            .results-grid {
+                grid-template-columns: 1fr;
+                padding: 12px;
+            }
+        }
     </style>
 </head>
 
 <body>
     <div class="main-container">
         <div class="header">
-            <h1><i class="fas fa-code"></i> C++ 在线对拍工具</h1>
-            <p>高效、准确、实时的算法代码测试平台</p>
+            <div class="brand-lockup">
+                <span class="brand-mark" aria-hidden="true">
+                    <i class="fas fa-code-branch"></i>
+                </span>
+                <div>
+                    <h1>C++ 在线对拍工具</h1>
+                    <p>代码编辑与测试结果分区管理</p>
+                </div>
+            </div>
+            <div class="topbar-actions" aria-label="运行环境">
+                <span class="status-pill"><i class="fas fa-server"></i> Spring Boot</span>
+                <span class="status-pill"><i class="fas fa-terminal"></i> C++ Runner</span>
+            </div>
         </div>
 
-        <div class="row">
+        <nav class="workspace-nav" aria-label="工作台导航">
+            <button type="button" id="code-view-tab" class="workspace-tab active" data-workspace-view="code"
+                aria-selected="true" aria-controls="code-view">
+                <i class="fas fa-code"></i>
+                <span>代码编辑</span>
+            </button>
+            <button type="button" id="results-view-tab" class="workspace-tab" data-workspace-view="results"
+                aria-selected="false" aria-controls="results-view">
+                <i class="fas fa-chart-simple"></i>
+                <span>测试结果</span>
+                <span class="nav-badge" id="results-tab-badge" data-state="idle">待运行</span>
+            </button>
+        </nav>
+
+        <section id="code-view" class="workspace-view is-active" aria-labelledby="code-view-tab">
+            <div class="row workspace-layout">
             <div class="col-lg-3">
                 <div class="settings-card">
                     <h4><i class="fas fa-cog"></i> 判题设置</h4>
@@ -575,7 +2172,7 @@
                             <label for="test-cases" class="form-label">
                                 <i class="fas fa-list-ol"></i> 测试点数量
                             </label>
-                            <input type="number" class="form-control" id="test-cases" value="100" min="1" max="50000">
+                            <input type="number" class="form-control" id="test-cases" value="100" min="1" max="200000">
                         </div>
                         <div class="mb-3">
                             <label for="time-limit" class="form-label">
@@ -616,17 +2213,6 @@
                             <i class="fas fa-dice"></i> 随机数方案
                         </button>
                     </form>
-
-                    <div id="progress-container" class="progress-section" style="display: none;">
-                        <h4><i class="fas fa-chart-line"></i> 判题状态</h4>
-                        <div class="progress">
-                            <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated"
-                                role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0"
-                                aria-valuemax="100">
-                            </div>
-                        </div>
-                        <div id="result-summary" class="mt-3 text-center text-muted"></div>
-                    </div>
                 </div>
             </div>
 
@@ -680,22 +2266,38 @@
                     <textarea id="user-code" class="form-control code-textarea"></textarea>
                 </div>
             </div>
-        </div>
-
-        <div class="results-section fade-in">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 class="mb-0"><i class="fas fa-chart-bar"></i> 测试点详情</h4>
-                <a href="#" id="download-all-btn" class="btn btn-outline-primary d-none" download>
-                    <i class="fas fa-file-archive"></i> 下载全部测试点
-                </a>
             </div>
-            <div id="results-grid" class="results-grid">
-                <div class="text-center text-muted py-4">
-                    <i class="fas fa-info-circle fa-2x mb-2"></i>
-                    <p>点击"开始对拍"按钮开始测试，结果将在这里显示</p>
+        </section>
+
+        <section id="results-view" class="workspace-view" hidden aria-labelledby="results-view-tab">
+            <div class="results-view-layout">
+                <div id="progress-container" class="progress-section">
+                    <h4><i class="fas fa-chart-line"></i> 判题状态</h4>
+                    <div class="progress">
+                        <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated"
+                            role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0"
+                            aria-valuemax="100">
+                        </div>
+                    </div>
+                    <div id="result-summary" class="mt-3 text-center text-muted">等待运行</div>
+                </div>
+
+                <div class="results-section fade-in">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <h4 class="mb-0"><i class="fas fa-chart-bar"></i> 测试点详情</h4>
+                        <a href="#" id="download-all-btn" class="btn btn-outline-primary d-none" download>
+                            <i class="fas fa-file-archive"></i> 下载全部测试点
+                        </a>
+                    </div>
+                    <div id="results-grid" class="results-grid">
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-info-circle fa-2x mb-2"></i>
+                            <p>暂无测试点结果</p>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 
     <!-- Details Modal -->
@@ -738,6 +2340,7 @@
     <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <script src="/examples.js"></script>
 
     <script>
@@ -752,6 +2355,12 @@
         const detailsModalLabel = document.getElementById('detailsModalLabel');
         const downloadInputBtn = document.getElementById('download-input-btn');
         const downloadAllBtn = document.getElementById('download-all-btn');
+        const workspaceTabs = Array.from(document.querySelectorAll('[data-workspace-view]'));
+        const workspaceViews = {
+            code: document.getElementById('code-view'),
+            results: document.getElementById('results-view')
+        };
+        const resultsTabBadge = document.getElementById('results-tab-badge');
 
         // Toast elements
         const successToast = new bootstrap.Toast(document.getElementById('success-toast'));
@@ -762,23 +2371,51 @@
         let stompClient = null;
         let currentJudgeId = null;
         const MAX_RENDERED_RESULT_CARDS = 200;
+        const DEFAULT_WORKSPACE_VIEW = 'code';
+        const ACTIVE_WORKSPACE_VIEW_KEY = 'cppJudge.activeWorkspaceView';
+        const LAST_JUDGE_ID_KEY = 'cppJudge.lastJudgeId';
+        const LAST_PROGRESS_KEY = 'cppJudge.lastProgress';
         const TERMINAL_STATUSES = new Set([
             'AC',
             'WA',
             'TLE',
             'MLE',
             'RE',
+            'CE',
+            'SE',
+            'COMPILE_ERROR',
+            'COMPILATION_FAILED',
             'SYSTEM_ERROR',
-            'SYSTEM ERROR',
             'COMPILATION_ERROR',
+            'OUTPUT_LIMIT_EXCEEDED',
+            'OLE',
+            'SECURITY_VIOLATION',
+            'SANDBOX_UNAVAILABLE',
             'CANCELLED',
-            'BUDGET_EXCEEDED'
+            'BUDGET_EXCEEDED',
+            'STALE',
+            'COMPLETED'
+        ]);
+        const FAILED_TERMINAL_STATUSES = new Set([
+            'CE',
+            'SE',
+            'COMPILE_ERROR',
+            'COMPILATION_FAILED',
+            'SYSTEM_ERROR',
+            'COMPILATION_ERROR',
+            'OUTPUT_LIMIT_EXCEEDED',
+            'OLE',
+            'SECURITY_VIOLATION',
+            'SANDBOX_UNAVAILABLE',
+            'CANCELLED',
+            'BUDGET_EXCEEDED',
+            'STALE'
         ]);
 
         // --- CodeMirror Setup ---
         const editorSettings = {
             mode: "text/x-c++src",
-            theme: "dracula",
+            theme: "github-light",
             lineNumbers: true,
             matchBrackets: true,
             indentUnit: 4,
@@ -796,30 +2433,230 @@
             'user': userEditor
         };
 
+        function refreshEditors() {
+            Object.values(editors).forEach(editor => {
+                window.setTimeout(() => editor.refresh(), 0);
+            });
+        }
+
+        function setResultsBadge(text, state) {
+            if (!resultsTabBadge) {
+                return;
+            }
+            resultsTabBadge.textContent = text;
+            resultsTabBadge.dataset.state = state;
+        }
+
+        function isKnownWorkspaceView(viewName) {
+            return Object.prototype.hasOwnProperty.call(workspaceViews, viewName) && Boolean(workspaceViews[viewName]);
+        }
+
+        function savedWorkspaceView() {
+            const savedView = localStorage.getItem(ACTIVE_WORKSPACE_VIEW_KEY);
+            return isKnownWorkspaceView(savedView) ? savedView : DEFAULT_WORKSPACE_VIEW;
+        }
+
+        function showWorkspaceView(viewName, options = {}) {
+            if (!isKnownWorkspaceView(viewName)) {
+                viewName = DEFAULT_WORKSPACE_VIEW;
+            }
+
+            Object.entries(workspaceViews).forEach(([name, view]) => {
+                if (!view) {
+                    return;
+                }
+                const active = name === viewName;
+                view.hidden = !active;
+                view.classList.toggle('is-active', active);
+            });
+
+            workspaceTabs.forEach(tab => {
+                const active = tab.dataset.workspaceView === viewName;
+                tab.classList.toggle('active', active);
+                tab.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+
+            if (viewName === 'code') {
+                refreshEditors();
+            }
+
+            if (options.persist !== false) {
+                localStorage.setItem(ACTIVE_WORKSPACE_VIEW_KEY, viewName);
+            }
+        }
+
+        workspaceTabs.forEach(tab => {
+            tab.addEventListener('click', () => showWorkspaceView(tab.dataset.workspaceView));
+        });
+
+        function initWorkspaceMotion() {
+            if (!window.gsap) {
+                return;
+            }
+
+            const mm = gsap.matchMedia();
+            mm.add({
+                reduceMotion: '(prefers-reduced-motion: reduce)'
+            }, (context) => {
+                if (context.conditions.reduceMotion) {
+                    gsap.set(['.header', '.settings-card', '.code-section', '.results-section'], {
+                        autoAlpha: 1,
+                        clearProps: 'transform'
+                    });
+                    return;
+                }
+
+                gsap.from('.header', {
+                    y: -12,
+                    autoAlpha: 0,
+                    duration: 0.45,
+                    ease: 'power2.out'
+                });
+                gsap.from('.settings-card', {
+                    x: -14,
+                    autoAlpha: 0,
+                    duration: 0.45,
+                    delay: 0.05,
+                    ease: 'power2.out'
+                });
+                gsap.from('.code-section', {
+                    y: 16,
+                    autoAlpha: 0,
+                    duration: 0.45,
+                    stagger: 0.06,
+                    delay: 0.08,
+                    ease: 'power2.out'
+                });
+                gsap.from('.results-section', {
+                    y: 16,
+                    autoAlpha: 0,
+                    duration: 0.45,
+                    delay: 0.18,
+                    ease: 'power2.out'
+                });
+            });
+        }
+
+        initWorkspaceMotion();
+
         // --- Local Storage ---
-        function saveCode() {
+        let isRestoringWorkspaceState = false;
+
+        function saveWorkspaceState() {
+            if (isRestoringWorkspaceState) {
+                return;
+            }
             localStorage.setItem('generatorCode', generatorEditor.getValue());
             localStorage.setItem('bruteForceCode', bruteForceEditor.getValue());
             localStorage.setItem('specialJudgeCode', specialJudgeEditor.getValue());
             localStorage.setItem('userCode', userEditor.getValue());
             localStorage.setItem('useSpecialJudge', document.getElementById('use-special-judge').checked);
+            localStorage.setItem('timeLimit', document.getElementById('time-limit').value);
+            localStorage.setItem('memoryLimit', document.getElementById('memory-limit').value);
+            localStorage.setItem('testCases', document.getElementById('test-cases').value);
+            localStorage.setItem('precision', document.getElementById('precision').value);
+        }
+
+        function saveCode() {
+            saveWorkspaceState();
+        }
+
+        function loadWorkspaceState() {
+            try {
+                isRestoringWorkspaceState = true;
+                generatorEditor.setValue(localStorage.getItem('generatorCode') || '');
+                bruteForceEditor.setValue(localStorage.getItem('bruteForceCode') || '');
+                specialJudgeEditor.setValue(localStorage.getItem('specialJudgeCode') || '');
+                userEditor.setValue(localStorage.getItem('userCode') || '');
+
+                setSavedInputValue('time-limit', 'timeLimit');
+                setSavedInputValue('memory-limit', 'memoryLimit');
+                setSavedInputValue('test-cases', 'testCases');
+                setSavedInputValue('precision', 'precision');
+
+                const useSpj = localStorage.getItem('useSpecialJudge') === 'true';
+                document.getElementById('use-special-judge').checked = useSpj;
+                toggleSpecialJudgeSection(useSpj);
+            } finally {
+                isRestoringWorkspaceState = false;
+            }
+            return savedWorkspaceView();
         }
 
         function loadCode() {
-            generatorEditor.setValue(localStorage.getItem('generatorCode') || '');
-            bruteForceEditor.setValue(localStorage.getItem('bruteForceCode') || '');
-            specialJudgeEditor.setValue(localStorage.getItem('specialJudgeCode') || '');
-            userEditor.setValue(localStorage.getItem('userCode') || '');
-            
-            const useSpj = localStorage.getItem('useSpecialJudge') === 'true';
-            document.getElementById('use-special-judge').checked = useSpj;
-            toggleSpecialJudgeSection(useSpj);
+            loadWorkspaceState();
         }
 
-        generatorEditor.on('change', saveCode);
-        bruteForceEditor.on('change', saveCode);
-        specialJudgeEditor.on('change', saveCode);
-        userEditor.on('change', saveCode);
+        function setSavedInputValue(elementId, storageKey) {
+            const savedValue = localStorage.getItem(storageKey);
+            if (savedValue !== null) {
+                document.getElementById(elementId).value = savedValue;
+            }
+        }
+
+        function rememberJudgeProgress(progress) {
+            if (!progress || typeof progress !== 'object') {
+                return;
+            }
+            if (currentJudgeId) {
+                localStorage.setItem(LAST_JUDGE_ID_KEY, currentJudgeId);
+            }
+            localStorage.setItem(LAST_PROGRESS_KEY, JSON.stringify(progress));
+        }
+
+        function forgetLatestJudgeResult() {
+            localStorage.removeItem(LAST_JUDGE_ID_KEY);
+            localStorage.removeItem(LAST_PROGRESS_KEY);
+        }
+
+        async function restoreLatestJudgeResult() {
+            currentJudgeId = localStorage.getItem(LAST_JUDGE_ID_KEY);
+            if (!currentJudgeId) {
+                return;
+            }
+
+            const cachedRaw = localStorage.getItem(LAST_PROGRESS_KEY);
+            if (cachedRaw) {
+                try {
+                    const cachedProgress = JSON.parse(cachedRaw);
+                    progressContainer.style.display = 'block';
+                    handleProgress(cachedProgress, { silent: true, switchView: false });
+                } catch (error) {
+                    localStorage.removeItem(LAST_PROGRESS_KEY);
+                }
+            }
+
+            try {
+                const response = await fetch(`/judge/status/${currentJudgeId}`);
+                if (!response.ok) {
+                    forgetLatestJudgeResult();
+                    return;
+                }
+                const progressData = await response.json();
+                progressContainer.style.display = 'block';
+                handleProgress(progressData, { silent: true, switchView: false });
+                if (!isTerminalProgress(progressData)) {
+                    startPollingProgress(currentJudgeId, { switchView: false });
+                }
+            } catch (error) {
+                console.error('恢复最近判题结果失败:', error);
+            }
+        }
+
+        generatorEditor.on('change', saveWorkspaceState);
+        bruteForceEditor.on('change', saveWorkspaceState);
+        specialJudgeEditor.on('change', saveWorkspaceState);
+        userEditor.on('change', saveWorkspaceState);
+        ['time-limit', 'memory-limit', 'test-cases', 'precision'].forEach(id => {
+            document.getElementById(id).addEventListener('input', saveWorkspaceState);
+        });
+        window.addEventListener('beforeunload', saveWorkspaceState);
+        window.addEventListener('pagehide', saveWorkspaceState);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                saveWorkspaceState();
+            }
+        });
 
         // --- Special Judge Toggle ---
         function toggleSpecialJudgeSection(enabled) {
@@ -829,9 +2666,11 @@
             if (enabled) {
                 spjSection.style.display = 'block';
                 bruteForceSection.style.display = 'none';
+                window.setTimeout(() => specialJudgeEditor.refresh(), 0);
             } else {
                 spjSection.style.display = 'none';
                 bruteForceSection.style.display = 'block';
+                window.setTimeout(() => bruteForceEditor.refresh(), 0);
             }
         }
 
@@ -839,11 +2678,14 @@
         document.getElementById('use-special-judge').addEventListener('change', function(e) {
             const enabled = e.target.checked;
             toggleSpecialJudgeSection(enabled);
-            saveCode();
+            saveWorkspaceState();
         });
 
-        window.addEventListener('load', () => {
-            loadCode();
+        window.addEventListener('load', async () => {
+            const initialView = loadWorkspaceState();
+            showWorkspaceView(initialView, { persist: false });
+            refreshEditors();
+            await restoreLatestJudgeResult();
             // 添加页面加载动画
             document.querySelectorAll('.fade-in').forEach((el, index) => {
                 el.style.animationDelay = `${index * 0.1}s`;
@@ -870,6 +2712,8 @@
 
         form.addEventListener('submit', async function (event) {
             event.preventDefault();
+            saveWorkspaceState();
+            forgetLatestJudgeResult();
 
             // 验证输入
             if (!generatorEditor.getValue().trim()) {
@@ -895,6 +2739,9 @@
                 return;
             }
 
+            showWorkspaceView('results');
+            setResultsBadge('运行中', 'running');
+
             if (downloadAllBtn) {
                 downloadAllBtn.classList.add('d-none');
                 downloadAllBtn.removeAttribute('href');
@@ -903,7 +2750,7 @@
 
             startButton.disabled = true;
             startButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在运行...';
-            resultSummary.innerHTML = '';
+            resultSummary.textContent = '';
             resultsGrid.innerHTML = `
             <div class="text-center text-muted py-4 pulse">
                 <i class="fas fa-cog fa-spin fa-2x mb-2"></i>
@@ -945,6 +2792,7 @@
 
                 const createResponse = await parseCreateResponse(response);
                 currentJudgeId = createResponse.judgeId;
+                localStorage.setItem(LAST_JUDGE_ID_KEY, currentJudgeId);
                 renderCreatePolicy(createResponse);
                 // 先建立WebSocket连接，等待连接成功后再通知后端开始处理
                 try {
@@ -958,6 +2806,7 @@
             } catch (error) {
                 console.error('提交判题请求失败:', error);
                 showError('提交判题请求失败，请检查网络连接或稍后重试');
+                setResultsBadge('失败', 'failed');
                 startButton.disabled = false;
                 startButton.innerHTML = '<i class="fas fa-play"></i> 开始对拍';
                 progressContainer.style.display = 'none';
@@ -1190,18 +3039,35 @@
         function renderCreatePolicy(createResponse) {
             const parts = [];
             if (createResponse.mode) {
-                parts.push(`mode: ${createResponse.mode}`);
+                parts.push(`模式: ${createResponse.mode}`);
             }
             if (createResponse.requestedCases) {
-                parts.push(`cases: ${createResponse.requestedCases}`);
+                parts.push(`测试点: ${createResponse.requestedCases}`);
             }
             if (createResponse.maxCasesPerTask) {
-                parts.push(`limit: ${createResponse.maxCasesPerTask}`);
+                parts.push(`上限: ${createResponse.maxCasesPerTask}`);
+            }
+            if (createResponse.maxOutputBytesPerCase) {
+                parts.push(`单点输出上限: ${formatByteLimit(createResponse.maxOutputBytesPerCase)}`);
             }
             if (createResponse.highVolume) {
-                parts.push('high-volume summary mode');
+                parts.push('大样例摘要模式');
             }
             setElementText(resultSummary, parts.join(' | '));
+        }
+
+        function formatByteLimit(bytes) {
+            const value = Number(bytes);
+            if (!Number.isFinite(value) || value <= 0) {
+                return '';
+            }
+            if (value >= 1024 * 1024) {
+                return `${(value / 1024 / 1024).toFixed(1)} MiB`;
+            }
+            if (value >= 1024) {
+                return `${(value / 1024).toFixed(1)} KiB`;
+            }
+            return `${value} B`;
         }
 
         function setElementText(element, text) {
@@ -1214,10 +3080,79 @@
             if (!progress || !progress.status) {
                 return false;
             }
-            return TERMINAL_STATUSES.has(String(progress.status).toUpperCase());
+            return TERMINAL_STATUSES.has(normalizeStatus(progress.status));
         }
 
-        function completeProgressUi() {
+        function isActiveProgress(progress) {
+            if (!progress || !progress.status) {
+                return false;
+            }
+            return !isTerminalProgress(progress);
+        }
+
+        function normalizeStatus(status) {
+            return String(status || '').trim().replace(/[\s-]+/g, '_').toUpperCase();
+        }
+
+        function resultStatusKey(result) {
+            return normalizeStatus(result && result.status);
+        }
+
+        function isAcceptedStatus(status) {
+            return normalizeStatus(status) === 'AC';
+        }
+
+        function hasFailedResults(results) {
+            return Array.isArray(results) && results.some(result => !isAcceptedStatus(result.status));
+        }
+
+        function collectResultStats(results) {
+            const stats = {
+                AC: 0,
+                WA: 0,
+                TLE: 0,
+                MLE: 0,
+                RE: 0,
+                CE: 0,
+                COMPILATION_ERROR: 0,
+                SYSTEM_ERROR: 0,
+                OUTPUT_LIMIT_EXCEEDED: 0,
+                OTHER: 0
+            };
+            for (const result of results) {
+                const statusKey = resultStatusKey(result);
+                if (Object.prototype.hasOwnProperty.call(stats, statusKey)) {
+                    stats[statusKey]++;
+                } else {
+                    stats.OTHER++;
+                }
+            }
+            return stats;
+        }
+
+        function isFailedTerminalProgress(progress) {
+            return progress && FAILED_TERMINAL_STATUSES.has(normalizeStatus(progress.status));
+        }
+
+        function restoreRunningUiState(options = {}) {
+            if (options.switchView !== false) {
+                showWorkspaceView('results');
+            }
+            setResultsBadge('运行中', 'running');
+            progressContainer.style.display = 'block';
+            startButton.disabled = true;
+            startButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在运行...';
+            if (progressBar && !progressBar.classList.contains('progress-bar-animated')) {
+                progressBar.classList.add('progress-bar-animated');
+            }
+            if (downloadAllBtn) {
+                downloadAllBtn.classList.add('d-none');
+                downloadAllBtn.removeAttribute('href');
+                downloadAllBtn.removeAttribute('download');
+            }
+        }
+
+        function completeProgressUi(badgeText = '已完成', badgeState = 'done') {
             if (progressAnimationId) {
                 cancelAnimationFrame(progressAnimationId);
                 progressAnimationId = null;
@@ -1230,20 +3165,49 @@
             }
             startButton.disabled = false;
             startButton.innerHTML = '<i class="fas fa-play"></i> 开始对拍';
+            setResultsBadge(badgeText, badgeState);
             progressBar.classList.remove('progress-bar-animated');
-            progressBar.style.background = 'linear-gradient(135deg, var(--success-color), #059669)';
+            progressBar.style.background = badgeState === 'failed'
+                ? 'linear-gradient(135deg, var(--danger-color), #dc2626)'
+                : 'linear-gradient(135deg, var(--success-color), #059669)';
             setTimeout(() => {
                 progressBar.style.background = 'var(--gradient-primary)';
             }, 2000);
         }
 
-        function handleProgress(progress) {
+        function renderTerminalProgress(progress, displayText, options = {}) {
+            resultsGrid.innerHTML = '';
+            if (downloadAllBtn) {
+                downloadAllBtn.classList.add('d-none');
+                downloadAllBtn.removeAttribute('href');
+                downloadAllBtn.removeAttribute('download');
+            }
+            const status = normalizeStatus(progress.status);
+            const terminalText = displayText || status;
+            setElementText(resultSummary, terminalText);
+            const failed = isFailedTerminalProgress(progress);
+            completeProgressUi(failed ? '失败' : '已完成', failed ? 'failed' : 'done');
+            if (options.silent) {
+                return;
+            }
+            if (failed) {
+                showError(terminalText);
+            } else {
+                showSuccess('判题完成！');
+            }
+        }
+
+        function handleProgress(progress, options = {}) {
             console.log("Received progress:", progress);
 
             // 验证进度数据的有效性
             if (!progress || typeof progress !== 'object') {
                 console.error('Invalid progress data:', progress);
                 return;
+            }
+            rememberJudgeProgress(progress);
+            if (isActiveProgress(progress)) {
+                restoreRunningUiState({ switchView: options.switchView !== false });
             }
 
             const { status, message, progress: percent, results, summary } = progress;
@@ -1262,22 +3226,39 @@
             resultSummary.textContent = displayText;
 
             if (Array.isArray(results) && results.length > 0) { // Final result with bounded test case cards
-                renderResultGrid(results);
-                completeProgressUi();
+                const failed = hasFailedResults(results) || isFailedTerminalProgress(progress);
+                renderResultGrid(results, failed);
+                completeProgressUi(failed ? '失败' : '已完成', failed ? 'failed' : 'done');
 
                 // 显示完成通知
                 const totalTests = results.length;
-                const acCount = results.filter(r => r.status === 'AC').length;
+                const acCount = results.filter(r => isAcceptedStatus(r.status)).length;
                 const acRate = ((acCount / totalTests) * 100).toFixed(1);
-                showSuccess(`判题完成！通过率: ${acRate}% (${acCount}/${totalTests})`);
+                if (!options.silent) {
+                    if (failed) {
+                        showError(`判题未通过：${displayText}`);
+                    } else {
+                        showSuccess(`判题完成！AC率: ${acRate}% (${acCount}/${totalTests})`);
+                    }
+                }
             } else if (progress.summary) {
                 renderSummaryProgress(progress);
                 if (isTerminalProgress(progress)) {
-                    completeProgressUi();
+                    const failed = isFailedTerminalProgress(progress);
+                    completeProgressUi(failed ? '失败' : '已完成', failed ? 'failed' : 'done');
                     const completed = progress.summary.completedCases || 0;
                     const total = progress.summary.totalCases || completed;
-                    showSuccess(`判题完成！已汇总 ${completed}/${total} 个测试点`);
+                    if (options.silent) {
+                        return;
+                    } else if (failed) {
+                        showError(progress.message || progress.summary.stoppedReason || progress.status);
+                    } else {
+                        showSuccess(`判题完成！已汇总 ${completed}/${total} 个测试点`);
+                    }
                 }
+            } else if (isTerminalProgress(progress)) {
+                renderTerminalProgress(progress, displayText, options);
+                return;
             } else {
                 if (!progressBar.classList.contains('progress-bar-animated')) {
                     progressBar.classList.add('progress-bar-animated');
@@ -1305,29 +3286,22 @@
                 .replace(/'/g, '&#039;');
         }
 
-        function renderResultGrid(results) {
+        function renderResultGrid(results, failed = hasFailedResults(results)) {
             resultsGrid.innerHTML = '';
             const renderedResults = results.slice(0, MAX_RENDERED_RESULT_CARDS);
-
-            // 统计结果
-            const stats = {
-                AC: 0, WA: 0, TLE: 0, MLE: 0, RE: 0, CE: 0, SE: 0
-            };
+            const stats = collectResultStats(results);
 
             renderedResults.forEach(result => {
                 const caseDiv = document.createElement('div');
-                const statusClass = 'status-' + result.status.toLowerCase().replace(/_/g, '-');
+                const statusKey = resultStatusKey(result);
+                const displayStatus = result.status || statusKey || 'UNKNOWN';
+                const statusClass = `status-${statusKey.toLowerCase().replace(/_/g, '-')}`;
                 caseDiv.className = `result-case ${statusClass} fade-in`;
-
-                // 统计
-                if (stats.hasOwnProperty(result.status)) {
-                    stats[result.status]++;
-                }
 
                 let detailsHtml = '';
                 let statusIcon = '';
 
-                switch (result.status) {
+                switch (statusKey) {
                     case 'AC':
                         detailsHtml = `<span class="case-details">${result.timeUsed} ms</span>`;
                         if (result.memoryUsed > 0) {
@@ -1360,7 +3334,14 @@
                         statusIcon = '<i class="fas fa-exclamation"></i>';
                         break;
                     case 'CE':
+                    case 'COMPILATION_ERROR':
                         statusIcon = '<i class="fas fa-code"></i>';
+                        break;
+                    case 'SYSTEM_ERROR':
+                        statusIcon = '<i class="fas fa-triangle-exclamation"></i>';
+                        break;
+                    case 'OUTPUT_LIMIT_EXCEEDED':
+                        statusIcon = '<i class="fas fa-file-circle-exclamation"></i>';
                         break;
                     default:
                         statusIcon = '<i class="fas fa-question"></i>';
@@ -1368,7 +3349,7 @@
 
                 caseDiv.innerHTML = `
                 <span class="case-number">#${result.caseNumber}</span>
-                <span class="case-status">${statusIcon} ${result.status}</span>
+                <span class="case-status">${statusIcon} ${escapeHtml(displayStatus)}</span>
                 ${detailsHtml}
             `;
 
@@ -1386,15 +3367,20 @@
             // 显示统计信息
             const totalTests = results.length;
             const acRate = ((stats.AC / totalTests) * 100).toFixed(1);
+            const title = failed ? '测试未通过!' : '测试通过!';
+            const rateClass = failed ? 'text-danger' : 'text-success';
 
             resultSummary.innerHTML = `
             <div class="mt-3 p-3 bg-light rounded">
-                <strong>测试完成!</strong> 
-                通过率: <span class="text-success">${acRate}%</span> 
+                <strong>${title}</strong>
+                AC率: <span class="${rateClass}">${acRate}%</span>
                 (${stats.AC}/${totalTests})
                 ${stats.WA > 0 ? `<span class="text-danger ms-2">WA: ${stats.WA}</span>` : ''}
                 ${stats.TLE > 0 ? `<span class="text-warning ms-2">TLE: ${stats.TLE}</span>` : ''}
                 ${stats.RE > 0 ? `<span class="text-info ms-2">RE: ${stats.RE}</span>` : ''}
+                ${stats.SYSTEM_ERROR > 0 ? `<span class="text-danger ms-2">System Error: ${stats.SYSTEM_ERROR}</span>` : ''}
+                ${stats.OUTPUT_LIMIT_EXCEEDED > 0 ? `<span class="text-danger ms-2">输出超限: ${stats.OUTPUT_LIMIT_EXCEEDED}</span>` : ''}
+                ${stats.OTHER > 0 ? `<span class="text-danger ms-2">其他: ${stats.OTHER}</span>` : ''}
             </div>
         `;
 
@@ -1417,16 +3403,16 @@
 
             const summaryGrid = document.createElement('div');
             summaryGrid.className = 'summary-grid';
-            appendSummaryCard(summaryGrid, 'Total', summary.totalCases);
-            appendSummaryCard(summaryGrid, 'Completed', summary.completedCases);
+            appendSummaryCard(summaryGrid, '总数', summary.totalCases);
+            appendSummaryCard(summaryGrid, '已完成', summary.completedCases);
             appendSummaryCard(summaryGrid, 'AC', summary.ac);
             appendSummaryCard(summaryGrid, 'WA', summary.wa);
             appendSummaryCard(summaryGrid, 'TLE', summary.tle);
             appendSummaryCard(summaryGrid, 'MLE', summary.mle);
             appendSummaryCard(summaryGrid, 'RE', summary.re);
-            appendSummaryCard(summaryGrid, 'System Error', summary.systemError);
-            appendSummaryCard(summaryGrid, 'Output Limit', summary.outputLimitExceeded);
-            appendSummaryCard(summaryGrid, 'First Failed', summary.firstFailedCase || '-');
+            appendSummaryCard(summaryGrid, '系统错误', summary.systemError);
+            appendSummaryCard(summaryGrid, '输出超限', summary.outputLimitExceeded);
+            appendSummaryCard(summaryGrid, '首个失败', summary.firstFailedCase || '-');
             resultsGrid.appendChild(summaryGrid);
 
             const samples = summary.failureSamples || [];
@@ -1466,13 +3452,13 @@
             section.className = 'failure-samples';
 
             const title = document.createElement('h5');
-            title.textContent = 'Failure samples';
+            title.textContent = '失败样本';
             section.appendChild(title);
 
             if (!samples.length) {
                 const empty = document.createElement('p');
                 empty.className = 'text-muted';
-                empty.textContent = 'No failure samples.';
+                empty.textContent = '暂无失败样本。';
                 section.appendChild(empty);
                 container.appendChild(section);
                 return;
@@ -1489,7 +3475,7 @@
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'btn btn-sm btn-outline-primary';
-                button.textContent = 'Details';
+                button.textContent = '详情';
                 button.addEventListener('click', () => showDetailsModal(sample));
                 row.appendChild(button);
 
@@ -1528,6 +3514,9 @@
                     return;
                 }
                 const details = await response.json();
+                const inputNotice = truncationNotice(details.inputTruncated);
+                const userOutputNotice = truncationNotice(details.userOutputTruncated);
+                const correctOutputNotice = truncationNotice(details.correctOutputTruncated);
 
                 if (status === 'WA') {
                     const diffString = Diff.createTwoFilesPatch(
@@ -1542,6 +3531,7 @@
 
                     modalBodyContent.innerHTML = `
                     <h5>输入数据</h5>
+                    ${inputNotice}
                     <pre><code>${escapeHtml(details.input)}</code></pre>
                     <div id="diff-container"></div>
                 `;
@@ -1556,10 +3546,13 @@
                 } else {
                     modalBodyContent.innerHTML = `
                     <h5>输入数据</h5>
+                    ${inputNotice}
                     <pre><code>${escapeHtml(details.input)}</code></pre>
                     <h5>你的输出</h5>
+                    ${userOutputNotice}
                     <pre><code>${escapeHtml(details.userOutput || '')}</code></pre>
                     <h5>标准输出</h5>
+                    ${correctOutputNotice}
                     <pre><code>${escapeHtml(details.correctOutput || '')}</code></pre>
                 `;
                 }
@@ -1567,6 +3560,10 @@
                 console.error('Failed to fetch details:', error);
                 modalBodyContent.innerHTML = `<div class="alert alert-danger">加载详情时发生网络错误。</div>`;
             }
+        }
+
+        function truncationNotice(truncated) {
+            return truncated ? '<div class="alert alert-warning py-2">文件较大，仅显示前 1 MiB 预览。</div>' : '';
         }
 
         // Toast 通知函数
@@ -1606,13 +3603,13 @@
         }
 
         // 轮询备用方案，当WebSocket连接失败时使用
-        function startPollingProgress(judgeId) {
+        function startPollingProgress(judgeId, options = {}) {
             const pollInterval = setInterval(async () => {
                 try {
                     const response = await fetch(`/judge/status/${judgeId}`);
                     if (response.ok) {
                         const progressData = await response.json();
-                        handleProgress(progressData);
+                        handleProgress(progressData, options);
                         
                         // 如果判题完成，停止轮询
                         if (isTerminalProgress(progressData)) {

@@ -7,6 +7,7 @@ public record JudgeCreateResponse(
         String mode,
         int requestedCases,
         int maxCasesPerTask,
+        long maxOutputBytesPerCase,
         boolean highVolume,
         String status
 ) {
@@ -17,6 +18,7 @@ public record JudgeCreateResponse(
                 policy.profile(),
                 policy.requestedCases(),
                 policy.maxCasesPerTask(),
+                policy.maxOutputBytesPerCase(),
                 policy.highVolume(),
                 "CREATED"
         );

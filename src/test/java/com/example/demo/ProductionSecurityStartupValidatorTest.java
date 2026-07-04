@@ -158,6 +158,28 @@ class ProductionSecurityStartupValidatorTest {
                 .doesNotThrowAnyException();
     }
 
+    @Test
+    void productionProfilesRejectNonPositiveOutputLimitAtStartup() {
+        SandboxProperties sandbox = sandboxProperties(
+                SandboxProperties.Provider.LINUX_CONTAINER,
+                SandboxProperties.Isolation.CONTAINER,
+                "seccomp:judge-linux",
+                true
+        );
+
+        assertThatThrownBy(() -> validator(
+                "linux-prod",
+                "changed-secret",
+                "https://safe.example.com",
+                true,
+                true,
+                sandbox,
+                0
+        ).validateNow())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("maxOutputBytesPerCase");
+    }
+
     private ProductionSecurityStartupValidator validator(
             String profile,
             String accessCode,
@@ -165,6 +187,26 @@ class ProductionSecurityStartupValidatorTest {
             boolean sandboxEnabled,
             boolean requireSandbox,
             SandboxProperties sandboxProperties
+    ) {
+        return validator(
+                profile,
+                accessCode,
+                allowedOrigins,
+                sandboxEnabled,
+                requireSandbox,
+                sandboxProperties,
+                1_048_576L
+        );
+    }
+
+    private ProductionSecurityStartupValidator validator(
+            String profile,
+            String accessCode,
+            String allowedOrigins,
+            boolean sandboxEnabled,
+            boolean requireSandbox,
+            SandboxProperties sandboxProperties,
+            long maxOutputBytesPerCase
     ) {
         AuthConfiguration auth = new AuthConfiguration();
         auth.setAccessCode(accessCode);
@@ -177,6 +219,7 @@ class ProductionSecurityStartupValidatorTest {
         ExecutionProperties execution = new ExecutionProperties();
         execution.setProfile(profile);
         execution.setRequireSandbox(requireSandbox);
+        execution.setMaxOutputBytesPerCase(maxOutputBytesPerCase);
 
         SandboxConfiguration sandbox = new SandboxConfiguration();
         sandbox.setEnabled(sandboxEnabled);

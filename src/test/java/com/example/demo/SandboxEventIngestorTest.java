@@ -126,6 +126,35 @@ class SandboxEventIngestorTest {
         verify(messagingTemplate, atMost(2)).convertAndSend(anyString(), any(Object.class));
     }
 
+    @Test
+    void compileFinishedCompileErrorBecomesTerminalCompilationError() throws Exception {
+        String judgeId = "ingest-compile-error";
+        ResolvedTaskPolicy policy = policy(100_000, true);
+        createTask(judgeId, policy);
+        SandboxEventIngestor.Session session = ingestor.start(judgeId, policy);
+
+        JudgeProgress progress = session.accept(new SandboxTaskEvent(
+                judgeId,
+                SandboxTaskEvent.Type.COMPILE_FINISHED,
+                Instant.parse("2026-07-03T00:00:00Z"),
+                null,
+                "COMPILE_ERROR",
+                "compile failed for USER: /work/user.cpp:1:1: error: 'aa' does not name a type",
+                null,
+                null
+        ));
+
+        assertThat(progress.getStatus()).isEqualTo("COMPILATION_ERROR");
+        assertThat(progress.getProgress()).isEqualTo(100);
+        assertThat(progress.getMessage())
+                .contains("user.cpp:1:1")
+                .doesNotContain("/work/");
+        assertThat(taskStore.find(judgeId)).isPresent().get()
+                .extracting(JudgeTask::getStatus)
+                .isEqualTo(JudgeStatus.COMPILATION_ERROR);
+        assertThat(session.isTerminal(progress)).isTrue();
+    }
+
     private SandboxTaskEvent runFinished(String judgeId, int caseNumber, String status) {
         return new SandboxTaskEvent(
                 judgeId,

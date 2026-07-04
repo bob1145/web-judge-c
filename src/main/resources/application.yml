@@ -53,6 +53,8 @@ judge:
     max-time-limit: 30s
     max-task-runtime: 30m
     min-memory-limit-bytes: 16777216
+    # Per-case cap for generated input, stdout, and stderr. Override with
+    # JUDGE_EXECUTION_MAX_OUTPUT_BYTES_PER_CASE when deployment data is larger.
     max-output-bytes-per-case: 1048576
     require-sandbox: false
   
@@ -120,6 +122,7 @@ judge:
     max-concurrent-cases-per-task: 4
     batch-size: 100
     max-task-runtime: 2h
+    max-output-bytes-per-case: 56777216
     require-sandbox: false
 
 ---
@@ -138,6 +141,7 @@ judge:
     max-concurrent-cases-per-task: 4
     batch-size: 100
     max-task-runtime: 2h
+    max-output-bytes-per-case: 16777216
     require-sandbox: true
 
 ---
@@ -149,6 +153,14 @@ spring:
 judge:
   execution:
     profile: windows-prod
+    max-cases-per-task: 100000
+    large-mode-threshold: 5000
+    task-queue-capacity: 10
+    max-concurrent-tasks: 1
+    max-concurrent-cases-per-task: 4
+    batch-size: 100
+    max-task-runtime: 2h
+    max-output-bytes-per-case: 16777216
     require-sandbox: true
   sandbox:
     enabled: true
@@ -180,6 +192,14 @@ spring:
 judge:
   execution:
     profile: linux-prod
+    max-cases-per-task: 100000
+    large-mode-threshold: 5000
+    task-queue-capacity: 10
+    max-concurrent-tasks: 1
+    max-concurrent-cases-per-task: 4
+    batch-size: 100
+    max-task-runtime: 2h
+    max-output-bytes-per-case: 16777216
     require-sandbox: true
   sandbox:
     enabled: true
@@ -210,6 +230,14 @@ spring:
 judge:
   execution:
     profile: worker-prod
+    max-cases-per-task: 100000
+    large-mode-threshold: 5000
+    task-queue-capacity: 10
+    max-concurrent-tasks: 1
+    max-concurrent-cases-per-task: 4
+    batch-size: 100
+    max-task-runtime: 2h
+    max-output-bytes-per-case: 16777216
     require-sandbox: true
   sandbox:
     enabled: true

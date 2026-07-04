@@ -1,6 +1,7 @@
 package com.example.demo.model;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 public enum JudgeStatus {
@@ -24,6 +25,12 @@ public enum JudgeStatus {
     BUDGET_EXCEEDED(true);
 
     private final boolean terminal;
+    private static final Map<String, JudgeStatus> ALIASES = Map.of(
+            "CE", COMPILATION_ERROR,
+            "COMPILE_ERROR", COMPILATION_ERROR,
+            "COMPILATION_FAILED", COMPILATION_ERROR,
+            "SE", SYSTEM_ERROR
+    );
 
     JudgeStatus(boolean terminal) {
         this.terminal = terminal;
@@ -41,6 +48,10 @@ public enum JudgeStatus {
                 .replace(' ', '_')
                 .replace('-', '_')
                 .toUpperCase(Locale.ROOT);
+        JudgeStatus alias = ALIASES.get(normalized);
+        if (alias != null) {
+            return Optional.of(alias);
+        }
         try {
             return Optional.of(JudgeStatus.valueOf(normalized));
         } catch (IllegalArgumentException ex) {

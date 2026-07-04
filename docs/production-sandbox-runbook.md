@@ -31,6 +31,8 @@ isolation.
 spring.profiles.active: windows-prod
 judge.execution.profile: windows-prod
 judge.execution.require-sandbox: true
+judge.execution.max-cases-per-task: 100000
+judge.execution.max-output-bytes-per-case: 16777216
 judge.sandbox.enabled: true
 judge.sandbox.production.provider: windows-container
 judge.sandbox.production.isolation: hyper-v
@@ -66,6 +68,8 @@ boundary.
 spring.profiles.active: linux-prod
 judge.execution.profile: linux-prod
 judge.execution.require-sandbox: true
+judge.execution.max-cases-per-task: 100000
+judge.execution.max-output-bytes-per-case: 16777216
 judge.sandbox.enabled: true
 judge.sandbox.production.provider: linux-container
 judge.sandbox.production.isolation: container
@@ -99,6 +103,8 @@ Use when the web service submits tasks to authenticated remote workers.
 spring.profiles.active: worker-prod
 judge.execution.profile: worker-prod
 judge.execution.require-sandbox: true
+judge.execution.max-cases-per-task: 100000
+judge.execution.max-output-bytes-per-case: 16777216
 judge.sandbox.enabled: true
 judge.sandbox.production.provider: remote-worker
 judge.worker.endpoint: https://worker.example.internal
@@ -140,6 +146,30 @@ wsl.exe -- bash -lc "cd /mnt/c/path/to/cpp && bash scripts/smoke/high-volume-smo
 
 WSL prechecks do not replace evidence from the actual Linux container host or
 remote worker host.
+
+## Large Output Tuning
+
+The production profiles keep the per-case captured input/output cap explicit:
+
+```yaml
+judge:
+  execution:
+    max-output-bytes-per-case: 16777216
+```
+
+For one-off deployment overrides, use the Spring environment variable form:
+
+```powershell
+$env:JUDGE_EXECUTION_MAX_OUTPUT_BYTES_PER_CASE = "16777216"
+```
+
+```bash
+export JUDGE_EXECUTION_MAX_OUTPUT_BYTES_PER_CASE=16777216
+```
+
+If a generator creates a single test case larger than this cap, the task should
+finish as an output-limit failure instead of staying `RUNNING`. Increase this
+only with disk quota, cleanup, and sandbox evidence in place.
 
 ## Failure Modes
 

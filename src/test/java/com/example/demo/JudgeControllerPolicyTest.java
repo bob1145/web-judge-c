@@ -65,6 +65,7 @@ class JudgeControllerPolicyTest {
     private String originalProfile;
     private int originalMaxCasesPerTask;
     private int originalLargeModeThreshold;
+    private long originalMaxOutputBytesPerCase;
 
     @BeforeEach
     void setUp() {
@@ -73,6 +74,7 @@ class JudgeControllerPolicyTest {
         originalProfile = executionProperties.getProfile();
         originalMaxCasesPerTask = executionProperties.getMaxCasesPerTask();
         originalLargeModeThreshold = executionProperties.getLargeModeThreshold();
+        originalMaxOutputBytesPerCase = executionProperties.getMaxOutputBytesPerCase();
     }
 
     @AfterEach
@@ -80,6 +82,7 @@ class JudgeControllerPolicyTest {
         executionProperties.setProfile(originalProfile);
         executionProperties.setMaxCasesPerTask(originalMaxCasesPerTask);
         executionProperties.setLargeModeThreshold(originalLargeModeThreshold);
+        executionProperties.setMaxOutputBytesPerCase(originalMaxOutputBytesPerCase);
     }
 
     @Test
@@ -93,6 +96,7 @@ class JudgeControllerPolicyTest {
         assertThat(json.path("mode").asText()).isEqualTo(executionProperties.getProfile());
         assertThat(json.path("requestedCases").asInt()).isEqualTo(3);
         assertThat(json.path("maxCasesPerTask").asInt()).isEqualTo(executionProperties.getMaxCasesPerTask());
+        assertThat(json.path("maxOutputBytesPerCase").asLong()).isEqualTo(executionProperties.getMaxOutputBytesPerCase());
         assertThat(json.path("highVolume").asBoolean()).isFalse();
         assertThat(json.path("status").asText()).isEqualTo("CREATED");
     }
@@ -102,6 +106,7 @@ class JudgeControllerPolicyTest {
         executionProperties.setProfile("local-large");
         executionProperties.setMaxCasesPerTask(100_000);
         executionProperties.setLargeModeThreshold(5_000);
+        executionProperties.setMaxOutputBytesPerCase(967_772_160L);
 
         MvcResult result = postJudge(request(100_000), MediaType.APPLICATION_JSON)
                 .andExpect(status().isOk())
@@ -110,6 +115,7 @@ class JudgeControllerPolicyTest {
         JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
         assertThat(json.path("requestedCases").asInt()).isEqualTo(100_000);
         assertThat(json.path("maxCasesPerTask").asInt()).isGreaterThanOrEqualTo(100_000);
+        assertThat(json.path("maxOutputBytesPerCase").asLong()).isEqualTo(967_772_160L);
         assertThat(json.path("highVolume").asBoolean()).isTrue();
         assertThat(json.path("mode").asText()).isEqualTo("local-large");
     }

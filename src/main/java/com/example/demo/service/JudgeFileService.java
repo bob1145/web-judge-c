@@ -38,11 +38,17 @@ public class JudgeFileService {
         Path userOutputFile = caseFile(workDir, caseNumber, ".out");
         Path correctOutputFile = caseFile(workDir, caseNumber, ".ans");
         long maxBytes = detailLimit(task);
+        FilePreview input = readRequiredUtf8(inputFile, maxBytes, "input");
+        FilePreview userOutput = readOptionalUtf8(userOutputFile, maxBytes);
+        FilePreview correctOutput = readOptionalUtf8(correctOutputFile, maxBytes);
 
         return new TestCaseDetail(
-                readRequiredUtf8(inputFile, maxBytes, "input"),
-                readRequiredUtf8(userOutputFile, maxBytes, "user output"),
-                readRequiredUtf8(correctOutputFile, maxBytes, "correct output")
+                input.content(),
+                userOutput.content(),
+                correctOutput.content(),
+                input.truncated(),
+                userOutput.truncated(),
+                correctOutput.truncated()
         );
     }
 
@@ -142,21 +148,36 @@ public class JudgeFileService {
         return file;
     }
 
-    private String readRequiredUtf8(Path file, long maxBytes, String label) throws IOException {
+    private FilePreview readRequiredUtf8(Path file, long maxBytes, String label) throws IOException {
         if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
             throw new IOException(label + " file not found");
         }
-        if (Files.size(file) > maxBytes) {
-            throw new IOException(label + " file exceeds configured byte limit");
+        return readUtf8Preview(file, maxBytes);
+    }
+
+    private FilePreview readOptionalUtf8(Path file, long maxBytes) throws IOException {
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            return new FilePreview("", false);
         }
-        return Files.readString(file, StandardCharsets.UTF_8);
+        return readUtf8Preview(file, maxBytes);
     }
 
     private long detailLimit(JudgeTask task) {
         if (task.getPolicy() == null || task.getPolicy().maxOutputBytesPerCase() <= 0) {
             return DEFAULT_DETAIL_LIMIT_BYTES;
         }
-        return task.getPolicy().maxOutputBytesPerCase();
+        return Math.min(DEFAULT_DETAIL_LIMIT_BYTES, task.getPolicy().maxOutputBytesPerCase());
+    }
+
+    private FilePreview readUtf8Preview(Path file, long maxBytes) throws IOException {
+        long safeLimit = Math.max(0, maxBytes);
+        long size = Files.size(file);
+        int bytesToRead = (int) Math.min(size, safeLimit);
+        byte[] bytes;
+        try (InputStream inputStream = Files.newInputStream(file)) {
+            bytes = inputStream.readNBytes(bytesToRead);
+        }
+        return new FilePreview(new String(bytes, StandardCharsets.UTF_8), size > safeLimit);
     }
 
     private List<Path> listInputFiles(JudgeTask task, Path workDir) throws IOException {
@@ -201,5 +222,8 @@ public class JudgeFileService {
         } catch (NumberFormatException ex) {
             return Integer.MAX_VALUE;
         }
+    }
+
+    private record FilePreview(String content, boolean truncated) {
     }
 }

@@ -19,12 +19,19 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 
 @Service
 @Slf4j
 public class ProgressPublisher {
 
     private static final int MAX_INLINE_RESULTS = 1_000;
+    private static final Pattern WINDOWS_SOURCE_PATH = Pattern.compile(
+            "(?i)(?:[A-Z]:[\\\\/](?:[^\\\\/\\r\\n:]+[\\\\/])*)(generator|user|bruteforce|oracle|special_judge)\\.cpp"
+    );
+    private static final Pattern UNIX_SOURCE_PATH = Pattern.compile(
+            "(?i)(?<!\\S)/(?:[^\\s:]+/)*(generator|user|bruteforce|oracle|special_judge)\\.cpp"
+    );
 
     private final SimpMessagingTemplate messagingTemplate;
     private final TaskStore taskStore;
@@ -109,10 +116,15 @@ public class ProgressPublisher {
         if (progress == null) {
             return new JudgeProgress("UNKNOWN", "", 0);
         }
+        String message = sanitizeMessage(progress.getMessage());
+        JudgeSummary summary = sanitizeSummary(progress.getSummary());
         if (shouldDropResults(progress)) {
-            return progress.withoutResults();
+            return new JudgeProgress(progress.getStatus(), message, progress.getProgress(), null, summary);
         }
-        return progress;
+        if (Objects.equals(message, progress.getMessage()) && summary == progress.getSummary()) {
+            return progress;
+        }
+        return new JudgeProgress(progress.getStatus(), message, progress.getProgress(), progress.getResults(), summary);
     }
 
     private boolean shouldDropResults(JudgeProgress progress) {
@@ -122,6 +134,39 @@ public class ProgressPublisher {
         JudgeSummary summary = progress.getSummary();
         return progress.getResults().size() > MAX_INLINE_RESULTS
                 || (summary != null && summary.getTotalCases() > MAX_INLINE_RESULTS);
+    }
+
+    private JudgeSummary sanitizeSummary(JudgeSummary summary) {
+        if (summary == null) {
+            return null;
+        }
+        String stoppedReason = sanitizeMessage(summary.getStoppedReason());
+        if (Objects.equals(stoppedReason, summary.getStoppedReason())) {
+            return summary;
+        }
+        return new JudgeSummary(
+                summary.getTotalCases(),
+                summary.getCompletedCases(),
+                summary.getAc(),
+                summary.getWa(),
+                summary.getTle(),
+                summary.getMle(),
+                summary.getRe(),
+                summary.getSystemError(),
+                summary.getOutputLimitExceeded(),
+                summary.getFirstFailedCase(),
+                summary.getFailureSamples(),
+                summary.getSlowSamples(),
+                stoppedReason
+        );
+    }
+
+    private String sanitizeMessage(String message) {
+        if (message == null || message.isBlank()) {
+            return message;
+        }
+        String sanitized = WINDOWS_SOURCE_PATH.matcher(message).replaceAll("$1.cpp");
+        return UNIX_SOURCE_PATH.matcher(sanitized).replaceAll("$1.cpp");
     }
 
     private boolean isTerminal(String status) {

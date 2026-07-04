@@ -108,6 +108,9 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
         if (sandboxProperties.isCapabilityProbeRequired() && !sandboxProperties.isCapabilityProbePassed()) {
             risks.add("sandbox capability probe has not passed");
         }
+        if (executionProperties.getMaxOutputBytesPerCase() <= 0) {
+            risks.add("maxOutputBytesPerCase must be positive");
+        }
         return risks;
     }
 

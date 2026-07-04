@@ -95,15 +95,20 @@ class JudgeFileServiceTest {
     }
 
     @Test
-    void rejectsDetailFilesLargerThanPolicyLimit() throws Exception {
+    void previewsDetailFilesLargerThanPolicyLimitInsteadOfFailing() throws Exception {
         Path workDir = createTask("too-large-detail", 1, false, 4);
         Files.writeString(workDir.resolve("1.in"), "12345");
         Files.writeString(workDir.resolve("1.out"), "ok");
         Files.writeString(workDir.resolve("1.ans"), "ok");
 
-        assertThatThrownBy(() -> service.getTestCaseDetails("too-large-detail", 1))
-                .isInstanceOf(IOException.class)
-                .hasMessageContaining("configured");
+        TestCaseDetail detail = service.getTestCaseDetails("too-large-detail", 1);
+
+        assertThat(detail.getInput()).isEqualTo("1234");
+        assertThat(detail.isInputTruncated()).isTrue();
+        assertThat(detail.getUserOutput()).isEqualTo("ok");
+        assertThat(detail.isUserOutputTruncated()).isFalse();
+        assertThat(detail.getCorrectOutput()).isEqualTo("ok");
+        assertThat(detail.isCorrectOutputTruncated()).isFalse();
     }
 
     @Test

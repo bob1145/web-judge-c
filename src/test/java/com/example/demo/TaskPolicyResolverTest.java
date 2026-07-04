@@ -103,6 +103,15 @@ class TaskPolicyResolverTest {
         assertThat(resolver.resolve(request(50)).highVolume()).isTrue();
     }
 
+    @Test
+    void rejectsNonPositiveConfiguredOutputLimitBeforeTaskStarts() {
+        ExecutionProperties properties = ordinaryProperties(12);
+        properties.setMaxOutputBytesPerCase(0);
+        TaskPolicyResolver resolver = resolver(properties, memoryConfiguration());
+
+        assertRejectedWithPolicyContext(resolver, request(1), "maxOutputBytesPerCase");
+    }
+
     private TaskPolicyResolver resolver(ExecutionProperties properties, MemoryConfiguration memoryConfiguration) {
         return new TaskPolicyResolver(properties, memoryConfiguration);
     }

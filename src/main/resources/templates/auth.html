@@ -242,6 +242,299 @@
                 font-size: 1.5rem;
             }
         }
+
+        /* Production workspace auth redesign */
+        :root {
+            --surface-bg: #080a0f;
+            --surface-panel: #10131a;
+            --surface-elevated: #1b2130;
+            --surface-muted: #0d1017;
+            --border-color: #293241;
+            --border-strong: #3a465a;
+            --text-primary: #f4f7fb;
+            --text-secondary: #aab4c3;
+            --text-muted: #788397;
+            --primary-color: #3b82f6;
+            --primary-dark: #2563eb;
+            --secondary-color: #ec4899;
+            --success-color: #22c55e;
+            --danger-color: #ef4444;
+            --dark-color: var(--text-primary);
+            --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.2);
+            --shadow-md: 0 12px 32px rgb(0 0 0 / 0.28);
+            --shadow-lg: 0 28px 80px rgb(0 0 0 / 0.38);
+            --gradient-primary: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            --focus-ring: 0 0 0 3px rgb(59 130 246 / 0.22);
+        }
+
+        html {
+            background: var(--surface-bg);
+        }
+
+        body {
+            background: var(--surface-bg);
+            color: var(--text-primary);
+            line-height: 1.5;
+            padding: 18px;
+        }
+
+        .auth-container {
+            background: var(--surface-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: var(--shadow-lg);
+            max-width: 440px;
+            padding: 30px;
+        }
+
+        .auth-container::before {
+            background: var(--gradient-primary);
+            height: 3px;
+        }
+
+        .auth-header {
+            margin-bottom: 24px;
+        }
+
+        .auth-header .logo {
+            background: var(--surface-elevated);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: var(--shadow-md);
+            height: 64px;
+            margin-bottom: 18px;
+            width: 64px;
+        }
+
+        .auth-header .logo i {
+            color: var(--primary-color);
+            font-size: 1.55rem;
+        }
+
+        .auth-header h1 {
+            background: none;
+            -webkit-text-fill-color: currentColor;
+            color: var(--text-primary);
+            font-size: 1.55rem;
+            letter-spacing: 0;
+        }
+
+        .auth-header p,
+        .footer-text {
+            color: var(--text-secondary);
+        }
+
+        .form-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            letter-spacing: 0;
+        }
+
+        .form-label i {
+            color: var(--primary-color);
+        }
+
+        .form-control {
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            min-height: 48px;
+        }
+
+        .form-control:focus {
+            background: #0f1420;
+            border-color: var(--primary-color);
+            box-shadow: var(--focus-ring);
+            color: var(--text-primary);
+        }
+
+        .form-control::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-check {
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin: 18px 0;
+            padding: 0.75rem 0.75rem 0.75rem 2.25rem;
+        }
+
+        .form-check-input {
+            background-color: var(--surface-elevated);
+            border-color: var(--border-strong);
+        }
+
+        .form-check-input:checked {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .form-check-label {
+            color: var(--text-secondary);
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            border: 1px solid var(--primary-color);
+            border-radius: 8px;
+            box-shadow: 0 10px 28px rgb(59 130 246 / 0.28);
+            min-height: 48px;
+        }
+
+        .btn-primary:hover:not(:disabled),
+        .btn-primary:focus:not(:disabled) {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+            box-shadow: 0 12px 32px rgb(37 99 235 / 0.32);
+            transform: translateY(-1px);
+        }
+
+        .alert {
+            background: var(--surface-muted);
+            border-radius: 8px;
+            box-shadow: none;
+        }
+
+        .alert-danger {
+            border: 1px solid rgb(239 68 68 / 0.34);
+            border-left: 3px solid var(--danger-color);
+            color: #fca5a5;
+        }
+
+        .alert-success {
+            border: 1px solid rgb(34 197 94 / 0.34);
+            border-left: 3px solid var(--success-color);
+            color: #86efac;
+        }
+
+        .footer-text {
+            border-top: 1px solid var(--border-color);
+        }
+
+        @media (max-width: 576px) {
+            body {
+                align-items: stretch;
+                padding: 12px;
+            }
+
+            .auth-container {
+                margin: auto 0;
+                padding: 24px 18px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                scroll-behavior: auto !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+        /* Light auth rebuild */
+        :root {
+            --surface-bg: #f4f7fb;
+            --surface-panel: #ffffff;
+            --surface-muted: #f1f5f9;
+            --surface-elevated: #eff6ff;
+            --border-color: #d8e2ef;
+            --border-strong: #b7c4d6;
+            --text-primary: #162033;
+            --text-secondary: #526174;
+            --text-muted: #7b8797;
+            --primary-color: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary-color: #0f766e;
+            --success-color: #16a34a;
+            --danger-color: #dc2626;
+            --dark-color: var(--text-primary);
+            --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.05);
+            --shadow-md: 0 12px 28px rgb(15 23 42 / 0.08);
+            --shadow-lg: 0 28px 70px rgb(15 23 42 / 0.12);
+            --gradient-primary: linear-gradient(135deg, #2563eb, #0f766e);
+            --focus-ring: 0 0 0 4px rgb(37 99 235 / 0.14);
+        }
+
+        html,
+        body {
+            background:
+                    radial-gradient(circle at top left, rgb(37 99 235 / 0.10), transparent 34%),
+                    radial-gradient(circle at bottom right, rgb(15 118 110 / 0.08), transparent 32%),
+                    var(--surface-bg);
+        }
+
+        body {
+            color: var(--text-primary);
+        }
+
+        .auth-container {
+            background: var(--surface-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .auth-header .logo {
+            background: var(--surface-elevated);
+            border: 1px solid #bfdbfe;
+            color: var(--primary-color);
+        }
+
+        .auth-header .logo i {
+            color: var(--primary-color);
+        }
+
+        .auth-header h1 {
+            color: var(--text-primary);
+        }
+
+        .auth-header p,
+        .footer-text,
+        .form-check-label {
+            color: var(--text-secondary);
+        }
+
+        .form-label {
+            color: var(--text-secondary);
+        }
+
+        .form-control,
+        .form-check {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+        }
+
+        .form-control {
+            color: var(--text-primary);
+        }
+
+        .form-control:focus {
+            background: #ffffff;
+            border-color: var(--primary-color);
+            box-shadow: var(--focus-ring);
+            color: var(--text-primary);
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            box-shadow: 0 10px 22px rgb(37 99 235 / 0.18);
+        }
+
+        .btn-primary:hover:not(:disabled),
+        .btn-primary:focus:not(:disabled) {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+            box-shadow: 0 12px 26px rgb(29 78 216 / 0.2);
+        }
+
+        .footer-text {
+            border-top: 1px solid var(--border-color);
+        }
     </style>
 </head>
 
@@ -285,6 +578,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <script>
         const form = document.getElementById('auth-form');
         const submitBtn = document.getElementById('submit-btn');
@@ -292,6 +586,41 @@
         const rememberMeCheckbox = document.getElementById('remember-me');
         const alertContainer = document.getElementById('alert-container');
         const authContainer = document.querySelector('.auth-container');
+
+        function initAuthMotion() {
+            if (!window.gsap) {
+                return;
+            }
+
+            const mm = gsap.matchMedia();
+            mm.add({
+                reduceMotion: '(prefers-reduced-motion: reduce)'
+            }, (context) => {
+                if (context.conditions.reduceMotion) {
+                    gsap.set('.auth-container', {
+                        autoAlpha: 1,
+                        clearProps: 'transform'
+                    });
+                    return;
+                }
+
+                gsap.from('.auth-container', {
+                    y: 18,
+                    autoAlpha: 0,
+                    duration: 0.45,
+                    ease: 'power2.out'
+                });
+                gsap.from('.auth-header .logo', {
+                    scale: 0.92,
+                    autoAlpha: 0,
+                    duration: 0.4,
+                    delay: 0.1,
+                    ease: 'back.out(1.4)'
+                });
+            });
+        }
+
+        initAuthMotion();
 
         // 自动聚焦到输入框
         window.addEventListener('load', () => {

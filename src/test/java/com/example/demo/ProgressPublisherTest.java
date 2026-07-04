@@ -111,6 +111,33 @@ class ProgressPublisherTest {
     }
 
     @Test
+    void compileErrorAliasPersistsAsCompilationErrorAndHidesHostPaths() throws Exception {
+        createTask("compile-error-task", 1, false);
+        String compilerMessage = "Compilation failed for user.cpp with status RUNTIME_ERROR and exit code 1:\n"
+                + "C:\\Users\\ywy\\AppData\\Local\\Temp\\online-judge\\judge-123\\user.cpp:1:1: "
+                + "error: 'aa' does not name a type\n"
+                + "/tmp/online-judge/judge-123/generator.cpp:2:1: error: expected declaration";
+
+        publisher.publish("compile-error-task", new JudgeProgress("CE", compilerMessage, 100));
+
+        assertThat(taskStore.find("compile-error-task")).isPresent().get()
+                .extracting(JudgeTask::getStatus)
+                .isEqualTo(JudgeStatus.COMPILATION_ERROR);
+        JudgeProgress persisted = taskStore.findSummary("compile-error-task").orElseThrow();
+        assertThat(persisted.getMessage())
+                .contains("user.cpp:1:1")
+                .contains("generator.cpp:2:1")
+                .doesNotContain("C:\\Users")
+                .doesNotContain("/tmp/online-judge")
+                .doesNotContain("AppData");
+
+        ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate).convertAndSend(anyString(), payloadCaptor.capture());
+        JudgeProgress sent = (JudgeProgress) payloadCaptor.getValue();
+        assertThat(sent.getMessage()).isEqualTo(persisted.getMessage());
+    }
+
+    @Test
     void highVolumeFinalPayloadDoesNotContainFullResults() throws Exception {
         createTask("large-final-task", 100_000, true);
         List<TestCaseResult> fullResults = new ArrayList<>(100_000);

@@ -54,6 +54,7 @@ judge:
     max-concurrent-cases-per-task: 4
     batch-size: 100
     max-task-runtime: 2h
+    max-output-bytes-per-case: 16777216
     require-sandbox: false
 ```
 
@@ -93,6 +94,7 @@ judge:
     max-concurrent-cases-per-task: 4
     batch-size: 100
     max-task-runtime: 2h
+    max-output-bytes-per-case: 16777216
     require-sandbox: true
   sandbox:
     enabled: true
@@ -112,6 +114,30 @@ Started Demo18Application
 No HIGH RISK trusted-local configuration warnings
 Sandbox process runner selected for judge execution
 ```
+
+## Output Limit Tuning
+
+`judge.execution.max-output-bytes-per-case` controls the maximum captured bytes
+for one test case's generated input, stdout, and stderr. The default profile
+keeps this at `1048576` bytes. The large-case profiles in `application.yml`
+raise it to `16777216` bytes.
+
+Override it per deployment when cases are larger:
+
+```powershell
+$env:JUDGE_EXECUTION_MAX_OUTPUT_BYTES_PER_CASE = "16777216"
+.\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=local-large"
+```
+
+```bash
+export JUDGE_EXECUTION_MAX_OUTPUT_BYTES_PER_CASE=16777216
+./mvnw spring-boot:run -Dspring-boot.run.profiles=linux-prod
+```
+
+Do not set this to an unbounded value. Worst-case temporary disk pressure is
+roughly `testCases * max-output-bytes-per-case * generated artifacts per case`.
+For public or intranet deployments, pair a larger cap with a sandbox, cleanup,
+disk quota, and monitoring.
 
 ## Validation
 

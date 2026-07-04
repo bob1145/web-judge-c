@@ -36,6 +36,10 @@ public class TaskPolicyResolver {
 
         Duration caseTimeLimit = resolveTimeLimit(request);
         long memoryLimitBytes = resolveMemoryLimit(request);
+        long maxOutputBytesPerCase = executionProperties.getMaxOutputBytesPerCase();
+        if (maxOutputBytesPerCase <= 0) {
+            throw reject(requestedCases, "maxOutputBytesPerCase must be positive for profile " + profile());
+        }
         boolean highVolume = requestedCases >= Math.max(1, executionProperties.getLargeModeThreshold());
 
         return new ResolvedTaskPolicy(
@@ -48,7 +52,7 @@ public class TaskPolicyResolver {
                 caseTimeLimit,
                 executionProperties.getMaxTaskRuntime(),
                 memoryLimitBytes,
-                executionProperties.getMaxOutputBytesPerCase(),
+                maxOutputBytesPerCase,
                 executionProperties.isRequireSandbox()
         );
     }

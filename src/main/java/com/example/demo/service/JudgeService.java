@@ -556,7 +556,7 @@ public class JudgeService {
 
             ProcessResult genResult = runProcess(genExecutable, null, inputFile, 5000, memoryConfiguration.getDefaultLimit(), policy);
             if (genResult.status() != ProcessResult.Status.SUCCESS) {
-                return new TestCaseResult(caseNumber, "System Error", 0, 0);
+                return new TestCaseResult(caseNumber, generatorFailureStatus(genResult.status()), 0, 0);
             }
 
             // 使用创建任务时解析出的策略快照，避免启动时被新配置覆盖。
@@ -586,6 +586,13 @@ public class JudgeService {
             e.printStackTrace();
             return new TestCaseResult(caseNumber, "System Error", 0, 0);
         }
+    }
+
+    private String generatorFailureStatus(ProcessResult.Status status) {
+        if (status == ProcessResult.Status.OUTPUT_LIMIT_EXCEEDED) {
+            return "OUTPUT_LIMIT_EXCEEDED";
+        }
+        return "System Error";
     }
     
     /**
@@ -721,10 +728,9 @@ public class JudgeService {
             if (result.status() == ProcessResult.Status.TIME_LIMIT_EXCEEDED) {
                 throw new CompilationException("Compilation timed out for " + sourceFile.getFileName());
             }
-            throw new CompilationException("Compilation failed for " + sourceFile.getFileName()
-                    + " with status " + result.status()
-                    + " and exit code " + result.exitCode()
-                    + ":\n" + result.error());
+            String compilerOutput = result.error().isBlank() ? result.output() : result.error();
+            String detail = compilerOutput.isBlank() ? "" : ":\n" + compilerOutput;
+            throw new CompilationException("Compilation failed for " + sourceFile.getFileName() + detail);
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
