@@ -107,7 +107,7 @@ class FrontendTemplateContractTest {
         assertThat(normalizedHtml)
                 .contains("function isActiveProgress(progress)")
                 .contains("function restoreRunningUiState(options = {})")
-                .contains("if (isActiveProgress(progress)) {\n                restoreRunningUiState({ switchView: options.switchView !== false });\n            }");
+                .contains("if (isActiveProgress(progress)) {\n                restoreRunningUiState({ switchView: options.switchView === true });\n            }");
         assertThat(normalizedHtml)
                 .contains("window.addEventListener('beforeunload', saveWorkspaceState)")
                 .contains("window.addEventListener('pagehide', saveWorkspaceState)")
@@ -144,7 +144,17 @@ class FrontendTemplateContractTest {
                 .contains("handleProgress(cachedProgress, { silent: true, switchView: false })")
                 .contains("handleProgress(progressData, { silent: true, switchView: false })")
                 .contains("startPollingProgress(currentJudgeId, { switchView: false })")
-                .contains("restoreRunningUiState({ switchView: options.switchView !== false })");
+                .contains("restoreRunningUiState({ switchView: options.switchView === true })");
+    }
+
+    @Test
+    void liveRunningProgressDoesNotForceResultsViewAfterManualNavigation() {
+        String normalizedHtml = html.replace("\r\n", "\n");
+
+        assertThat(normalizedHtml)
+                .contains("showWorkspaceView('results');")
+                .contains("restoreRunningUiState({ switchView: options.switchView === true })")
+                .doesNotContain("restoreRunningUiState({ switchView: options.switchView !== false })");
     }
 
     @Test
@@ -167,12 +177,86 @@ class FrontendTemplateContractTest {
     }
 
     @Test
-    void caseDetailsRenderTruncatedPreviewWarnings() {
+    void caseDetailsAcceptTruncationFlagsWithoutNoisyBackendPreviewWarnings() {
         assertThat(html)
                 .contains("details.inputTruncated")
                 .contains("details.userOutputTruncated")
                 .contains("details.correctOutputTruncated")
                 .contains("function truncationNotice(truncated)")
-                .contains("仅显示前 1 MiB 预览");
+                .doesNotContain("仅显示配置上限内的预览内容");
+    }
+
+    @Test
+    void caseDetailsUseReadableJudgeFocusedLayoutInsteadOfRawPatchChrome() {
+        assertThat(html)
+                .contains("case-detail-modal")
+                .contains("case-detail-compare")
+                .contains("function renderCaseDetailCard")
+                .contains("function renderOutputDiffTable")
+                .contains("function updateDetailsHeader")
+                .doesNotContain("Diff.createTwoFilesPatch")
+                .doesNotContain("new Diff2HtmlUI");
+    }
+
+    @Test
+    void caseDiffShowsOnlyMismatchedRowsWithExpectedAndActualColumns() {
+        assertThat(html)
+                .contains("const MAX_RENDERED_DIFF_ROWS = 80")
+                .contains("const differingRows = []")
+                .contains("lineNumber: index + 1")
+                .contains("differingRows.slice(0, MAX_RENDERED_DIFF_ROWS)")
+                .contains("<span>错误行</span>")
+                .contains("<span>标准答案</span>")
+                .contains("<span>你的输出</span>")
+                .contains("const expectedLines = splitOutputLines(expectedOutput)")
+                .contains("const actualLines = splitOutputLines(actualOutput)")
+                .doesNotContain("clipDetailText(expectedOutput")
+                .doesNotContain("clipDetailText(actualOutput")
+                .doesNotContain("MAX_DETAIL_DIFF_CHARS")
+                .doesNotContain("差异对比仅分析前")
+                .doesNotContain("const rowClass = expectedLine === actualLine ? 'is-same' : 'is-different';");
+    }
+
+    @Test
+    void caseDetailsClipLargeTextBeforeRenderingInBrowser() {
+        assertThat(html)
+                .contains("const MAX_DETAIL_CARD_CHARS = 2000")
+                .contains("const MAX_DIFF_CELL_CHARS = 2000")
+                .contains("function clipDetailText(value, maxChars)")
+                .contains("仅渲染前")
+                .contains("clipDetailText(content, MAX_DETAIL_CARD_CHARS)")
+                .contains("clipDetailText(value, MAX_DIFF_CELL_CHARS)")
+                .doesNotContain("MAX_DETAIL_DIFF_CHARS");
+    }
+
+    @Test
+    void runningProgressDoesNotDuplicateServerSuppliedCaseCounts() {
+        assertThat(html)
+                .contains("function hasExplicitCaseCount(text)")
+                .contains("function runningDisplayText(progress, displayText, totalTestCases)")
+                .contains("if (hasExplicitCaseCount(displayText)) {\n                return displayText;\n            }")
+                .doesNotContain("displayText = `${message || status} (${completedCases}/${totalTestCases})`");
+    }
+
+    @Test
+    void frontendDefaultsToStopOnFirstNonAcceptedAndOffersFailedCaseDownload() {
+        assertThat(html)
+                .contains("id=\"stop-on-first-non-ac\"")
+                .contains("stopOnFirstNonAc: document.getElementById('stop-on-first-non-ac').checked")
+                .contains("localStorage.setItem('stopOnFirstNonAc'")
+                .contains("id=\"download-failed-btn\"")
+                .contains("function updateFailedDownloadButton(hasFailures)")
+                .contains("downloadFailedBtn.href = `/download/${currentJudgeId}/failed`")
+                .contains("updateFailedDownloadButton(failed)")
+                .contains("updateFailedDownloadButton(Boolean(summary.firstFailedCase))");
+    }
+
+    @Test
+    void summaryProgressHidesAllCaseDownloadBecauseArchiveMayBeUnavailable() {
+        assertThat(html)
+                .contains("function updateAllDownloadButton(canDownload)")
+                .contains("updateAllDownloadButton(false)")
+                .contains("updateAllDownloadButton(results && results.length > 0)")
+                .doesNotContain("if (downloadAllBtn && currentJudgeId) {\n                downloadAllBtn.href = `/download/${currentJudgeId}/all`");
     }
 }

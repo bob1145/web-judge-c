@@ -341,7 +341,8 @@ public class JudgeService {
                                 int progress = Math.min(99, 15 + (int) ((double) done / totalTestCases * 85));
                                 safeSendMessage(topic, new JudgeProgress("RUNNING", String.format("已完成 %d / %d", done, totalTestCases), progress));
                             }
-                        }
+                        },
+                        result -> request.isStopOnFirstNonAc() && !isAcceptedStatus(result.getStatus())
                 );
 
                 if (cancellationToken.isBudgetExceeded()) {
@@ -354,6 +355,12 @@ public class JudgeService {
                     summary.setStoppedReason("Cancellation requested");
                     int progress = 15 + (int) ((double) runOutcome.getCompletedCases() / totalTestCases * 85);
                     safeSendMessage(topic, new JudgeProgress("CANCELLED", "Task cancelled", progress, null, summary));
+                } else if (runOutcome.isStoppedAfterResult()) {
+                    JudgeProgress finalProgress = resultAggregator.toFinalProgress();
+                    if (finalProgress.getSummary() != null) {
+                        finalProgress.getSummary().setStoppedReason("Stopped after first non-AC test case");
+                    }
+                    safeSendMessage(topic, finalProgress);
                 } else {
                     safeSendMessage(topic, resultAggregator.toFinalProgress());
                 }
@@ -503,6 +510,7 @@ public class JudgeService {
                 .maxTaskRuntime(policy.maxTaskRuntime())
                 .memoryLimitBytes(policy.memoryLimitBytes())
                 .maxOutputBytesPerCase(policy.maxOutputBytesPerCase())
+                .stopOnFirstNonAc(request.isStopOnFirstNonAc())
                 .retention(new SandboxTaskSpec.Retention(
                         executionProperties.getCompletedRetention(),
                         executionProperties.getFailedRetention(),
@@ -521,6 +529,20 @@ public class JudgeService {
             );
         }
         return builder.build();
+    }
+
+    private boolean isAcceptedStatus(String status) {
+        return "AC".equals(normalizeStatus(status));
+    }
+
+    private String normalizeStatus(String status) {
+        if (status == null) {
+            return "";
+        }
+        return status.trim()
+                .toUpperCase()
+                .replace(' ', '_')
+                .replace('-', '_');
     }
 
     private String userIdForTask(String judgeId) {

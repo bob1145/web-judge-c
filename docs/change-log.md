@@ -71,3 +71,59 @@
 - Data Sources: Existing browser `localStorage` keys, existing CodeMirror editor instances, existing workspace navigation, and existing `/judge/status/{judgeId}` recovery flow.
 - Integration Status: No backend API changes and no mocked data added. Restored judge results still reconcile with the real status endpoint.
 - Test Results: `.\mvnw.cmd "-Dtest=FrontendTemplateContractTest" test` passed with 11 tests, 0 failures.
+
+## 2026-07-04
+
+- Scope: Stop-on-first-non-AC workflow and failed-case artifact download.
+- Summary: Added a persisted frontend switch for stopping after the first non-AC result, wired the flag through local and sandbox judge execution, exposed a failed-case ZIP download, removed duplicated running case counts in the progress text, and made the sandbox runner keep `.in`, `.out`, and `.ans` artifacts for non-AC cases with consistent LF line endings.
+- Data Sources: Existing judge request payload, task policy snapshot, sandbox task spec, persisted judge summaries, and existing `/download/{judgeId}/...` artifact endpoints.
+- Integration Status: Backward compatible request extension. The new `stopOnFirstNonAc` field defaults to false for missing backend/sandbox specs, while the frontend switch defaults on for the differential-testing workflow.
+- Test Results: `.\mvnw.cmd "-Dtest=CaseBatchRunnerTest,JudgeFileServiceTest,FrontendTemplateContractTest,TaskRunnerArtifactContractTest,JudgeBaselineTest,JudgeSandboxOrchestrationTest" test` passed with 53 tests, 0 failures. `python -m unittest runner.tests.test_task_runner_contract` passed with 2 tests. Inline script parse passed with 1 script.
+
+## 2026-07-04
+
+- Scope: Running-progress workspace navigation behavior.
+- Summary: Stopped live RUNNING progress updates from forcing the workspace back to the Test Results page after the user manually navigates elsewhere. Submitting a new judge run still switches to Test Results once at the start.
+- Data Sources: Existing frontend workspace navigation state, WebSocket progress handler, and polling progress handler.
+- Integration Status: No backend API changes. Existing progress payloads continue to update the running UI and result badge without taking over navigation.
+- Test Results: `.\mvnw.cmd "-Dtest=FrontendTemplateContractTest" test` passed with 14 tests, 0 failures.
+
+## 2026-07-04
+
+- Scope: Failed/high-volume result download button behavior.
+- Summary: Hid the "download all test cases" action for summary-style results where the backend archive may be unavailable, such as high-volume or stopped-early runs, while keeping the non-AC case ZIP download available when a failed case exists.
+- Data Sources: Existing frontend result summary payloads and existing `/download/{judgeId}/failed` and `/download/{judgeId}/all` endpoints.
+- Integration Status: No backend API changes. The frontend now only exposes the full archive action for ordinary rendered result arrays.
+- Test Results: `.\mvnw.cmd "-Dtest=FrontendTemplateContractTest" test` passed with 15 tests, 0 failures.
+
+## 2026-07-04
+
+- Scope: Test case detail modal readability.
+- Summary: Reworked the case detail modal into a judge-focused layout with a clear status header, input/output cards, side-by-side expected versus actual output, and a bounded line-by-line diff table for WA cases. Removed the old diff2html/jsdiff patch viewer resources.
+- Data Sources: Existing `/details/{judgeId}/{caseNumber}` payload fields and existing test case result metadata.
+- Integration Status: No backend API changes. The modal still consumes the same detail endpoint and preserves input download behavior.
+- Test Results: `.\mvnw.cmd "-Dtest=FrontendTemplateContractTest" test` passed with 16 tests, 0 failures. Inline script parse passed with 1 script.
+
+## 2026-07-04
+
+- Scope: Configurable test-case detail preview limit.
+- Summary: Added `judge.execution.max-detail-preview-bytes` / `JUDGE_EXECUTION_MAX_DETAIL_PREVIEW_BYTES` so the details modal preview cap is configurable instead of hard-coded to 1 MiB, while still respecting each task's `max-output-bytes-per-case`. Updated the truncation notice to avoid a stale fixed-size label.
+- Data Sources: Existing `/details/{judgeId}/{caseNumber}` endpoint, `ExecutionProperties`, production startup validation, and Windows/Linux/WSL deployment runbooks.
+- Integration Status: Backward compatible configuration addition. Default preview remains 1 MiB to protect the browser; full large files should still be obtained through failed-case downloads.
+- Test Results: `.\mvnw.cmd "-Dtest=JudgeFileServiceTest,JudgeFileServiceProductionTest,ApplicationYamlExecutionProfileTest,ProductionSecurityStartupValidatorTest,FrontendTemplateContractTest" test` passed with 47 tests, 0 failures, and 1 platform-dependent skip. Inline script parse passed with 1 script. `git diff --check` passed with Windows CRLF warnings.
+
+## 2026-07-04
+
+- Scope: Test-case detail diff readability and browser render limits.
+- Summary: Changed the output diff table to show only mismatched rows with the failing line number, expected answer, and user output. Reduced the default detail preview cap from 1 MiB to 64 KiB and added frontend-side clipping for large detail cards and diff analysis to avoid freezing the browser.
+- Data Sources: Existing `/details/{judgeId}/{caseNumber}` payload fields, frontend case detail modal renderer, and `judge.execution.max-detail-preview-bytes` configuration.
+- Integration Status: No API shape changes. Full large data points remain available through failed-case downloads while the modal focuses on bounded diagnosis.
+- Test Results: `.\mvnw.cmd "-Dtest=JudgeFileServiceTest,JudgeFileServiceProductionTest,ApplicationYamlExecutionProfileTest,ProductionSecurityStartupValidatorTest,FrontendTemplateContractTest" test` passed with 49 tests, 0 failures, and 1 platform-dependent skip.
+
+## 2026-07-05
+
+- Scope: Output diff comparison order.
+- Summary: Changed the WA output diff flow to compare the full backend-provided preview first, then truncate only the displayed diff rows/cells. Removed the misleading `差异对比仅分析前 ... 字符` warning and kept the 2000-character per-cell render cap.
+- Data Sources: Existing frontend case detail modal renderer and `/details/{judgeId}/{caseNumber}` payload fields.
+- Integration Status: No API changes. The modal still uses bounded backend previews and failed-case downloads remain the path for full large artifacts.
+- Test Results: `.\mvnw.cmd "-Dtest=FrontendTemplateContractTest" test` passed with 18 tests, 0 failures.

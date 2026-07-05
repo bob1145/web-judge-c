@@ -55,6 +55,7 @@ judge:
     batch-size: 100
     max-task-runtime: 2h
     max-output-bytes-per-case: 16777216
+    max-detail-preview-bytes: 65536
     require-sandbox: false
 ```
 
@@ -95,6 +96,7 @@ judge:
     batch-size: 100
     max-task-runtime: 2h
     max-output-bytes-per-case: 16777216
+    max-detail-preview-bytes: 65536
     require-sandbox: true
   sandbox:
     enabled: true
@@ -122,15 +124,21 @@ for one test case's generated input, stdout, and stderr. The default profile
 keeps this at `1048576` bytes. The large-case profiles in `application.yml`
 raise it to `16777216` bytes.
 
+`judge.execution.max-detail-preview-bytes` separately controls how much of each
+case file the browser details modal previews. Increase this only when the page
+must show more inline text; use failed-case downloads for full large files.
+
 Override it per deployment when cases are larger:
 
 ```powershell
 $env:JUDGE_EXECUTION_MAX_OUTPUT_BYTES_PER_CASE = "16777216"
+$env:JUDGE_EXECUTION_MAX_DETAIL_PREVIEW_BYTES = "65536"
 .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=local-large"
 ```
 
 ```bash
 export JUDGE_EXECUTION_MAX_OUTPUT_BYTES_PER_CASE=16777216
+export JUDGE_EXECUTION_MAX_DETAIL_PREVIEW_BYTES=65536
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=linux-prod
 ```
 

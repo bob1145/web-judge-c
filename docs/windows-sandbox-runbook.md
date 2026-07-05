@@ -56,6 +56,7 @@ judge:
     require-sandbox: true
     max-cases-per-task: 100000
     max-output-bytes-per-case: 16777216
+    max-detail-preview-bytes: 65536
   sandbox:
     enabled: true
     production:
@@ -227,6 +228,7 @@ Recommended starting point:
 - `judge.execution.max-concurrent-tasks=1`
 - `judge.execution.max-concurrent-cases-per-task=4`
 - `judge.execution.max-output-bytes-per-case=16777216`
+- `judge.execution.max-detail-preview-bytes=65536`
 - `judge.sandbox.production.windows-container.cpus=1.0`
 - Put `judge.sandbox.base-directory` on a dedicated disk with cleanup and quota.
 
@@ -234,10 +236,13 @@ Override the output cap on Windows with:
 
 ```powershell
 $env:JUDGE_EXECUTION_MAX_OUTPUT_BYTES_PER_CASE = "16777216"
+$env:JUDGE_EXECUTION_MAX_DETAIL_PREVIEW_BYTES = "65536"
 ```
 
 This is a per-case cap for generated input, stdout, and stderr. It should be
 raised only with disk quota, cleanup, and sandbox evidence in place.
+The detail preview cap only affects the browser details modal; use failed-case
+downloads for full large data points.
 
 Run the Windows high-volume smoke before serving 100000+ case tasks:
 

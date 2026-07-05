@@ -11,6 +11,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 
 EXIT_COMPLETED = 0
@@ -149,8 +150,12 @@ class TaskRunner:
         for case_number in range(1, total + 1):
             self.check_control_files()
             input_bytes = self.run_generator(executables["GENERATOR"], case_number)
+            self.write_case_artifacts(case_number, input_bytes=input_bytes)
             case_status, elapsed_ms, peak_memory_kb = self.run_user_and_judge(executables, case_number, input_bytes)
             self.accept_case_result(case_number, case_status, elapsed_ms, peak_memory_kb)
+            if self.should_stop_after_result(case_status):
+                self.summary["stoppedReason"] = "Stopped after first non-AC test case"
+                break
         self.write_summary()
         self.emit("SUMMARY", "summary", status="DONE", summary=self.summary)
         self.emit("COMPLETED", "completed")
@@ -183,6 +188,7 @@ class TaskRunner:
             cancel_path=self.cancel_path,
         )
         self.raise_control_outcome(user)
+        self.write_case_artifacts(case_number, user_output=user.stdout)
         if user.status == "TIME_LIMIT_EXCEEDED":
             return "TLE", user.elapsed_ms, user.peak_memory_kb
         if user.status == "MEMORY_LIMIT_EXCEEDED":
@@ -194,10 +200,11 @@ class TaskRunner:
         if "SPECIAL_JUDGE" in executables:
             status = self.run_special_judge(executables["SPECIAL_JUDGE"], case_number, input_bytes, user.stdout)
         else:
-            status = self.run_oracle(executables["ORACLE"], input_bytes, user.stdout)
+            status, oracle_output = self.run_oracle(executables["ORACLE"], input_bytes, user.stdout)
+            self.write_case_artifacts(case_number, answer_output=oracle_output)
         return status, user.elapsed_ms, user.peak_memory_kb
 
-    def run_oracle(self, executable: Path, input_bytes: bytes, user_output: bytes) -> str:
+    def run_oracle(self, executable: Path, input_bytes: bytes, user_output: bytes) -> tuple[str, bytes]:
         oracle = run_process(
             command=[str(executable)],
             stdin=input_bytes,
@@ -209,14 +216,13 @@ class TaskRunner:
         )
         self.raise_control_outcome(oracle)
         if oracle.status != "SUCCESS" or oracle.exit_code != 0:
-            return "System Error"
-        return "AC" if normalize_output(user_output) == normalize_output(oracle.stdout) else "WA"
+            return "System Error", oracle.stdout
+        status = "AC" if normalize_output(user_output) == normalize_output(oracle.stdout) else "WA"
+        return status, oracle.stdout
 
     def run_special_judge(self, executable: Path, case_number: int, input_bytes: bytes, user_output: bytes) -> str:
         input_path = self.work_dir / f"{case_number}.in"
         user_path = self.work_dir / f"{case_number}.out"
-        input_path.write_bytes(input_bytes)
-        user_path.write_bytes(user_output)
         spj = run_process(
             command=[str(executable), str(input_path), str(user_path)],
             stdin=b"",
@@ -263,6 +269,28 @@ class TaskRunner:
             result=result,
         )
         self.write_summary()
+
+    def should_stop_after_result(self, status: str) -> bool:
+        enabled = self.spec.get("stopOnFirstNonAc", False)
+        if isinstance(enabled, str):
+            enabled = enabled.strip().lower() == "true"
+        return bool(enabled) and status != "AC"
+
+    def write_case_artifacts(
+        self,
+        case_number: int,
+        input_bytes: Optional[bytes] = None,
+        user_output: Optional[bytes] = None,
+        answer_output: Optional[bytes] = None,
+    ) -> None:
+        artifacts = (
+            (".in", input_bytes),
+            (".out", user_output),
+            (".ans", answer_output),
+        )
+        for extension, content in artifacts:
+            if content is not None:
+                (self.work_dir / f"{case_number}{extension}").write_bytes(normalize_artifact_bytes(content))
 
     def raise_control_outcome(self, outcome: ProcessOutcome) -> None:
         if outcome.status == "CANCELLED":
@@ -448,6 +476,10 @@ def parse_duration_seconds(value) -> float:
 
 def normalize_output(value: bytes) -> str:
     return value.decode("utf-8", errors="replace").strip()
+
+
+def normalize_artifact_bytes(value: bytes) -> bytes:
+    return value.replace(b"\r\n", b"\n")
 
 
 def decode_limited(value: bytes, limit: int) -> str:

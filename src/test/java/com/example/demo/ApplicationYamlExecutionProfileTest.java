@@ -17,6 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ApplicationYamlExecutionProfileTest {
 
     private static final long DEFAULT_OUTPUT_BYTES_PER_CASE = 1_048_576L;
+    private static final long DEFAULT_DETAIL_PREVIEW_BYTES = 65_536L;
     private static final long PRODUCTION_OUTPUT_BYTES_PER_CASE = 16_777_216L;
 
     @Test
@@ -26,6 +27,7 @@ class ApplicationYamlExecutionProfileTest {
         assertThat(properties.getProfile()).isEqualTo("trusted-local");
         assertThat(properties.getMaxCasesPerTask()).isEqualTo(10_000);
         assertThat(properties.getMaxOutputBytesPerCase()).isEqualTo(DEFAULT_OUTPUT_BYTES_PER_CASE);
+        assertThat(properties.getMaxDetailPreviewBytes()).isEqualTo(DEFAULT_DETAIL_PREVIEW_BYTES);
         assertThat(properties.isRequireSandbox()).isFalse();
     }
 
@@ -44,6 +46,7 @@ class ApplicationYamlExecutionProfileTest {
         assertThat(properties.getProfile()).isEqualTo("local-large");
         assertThat(properties.getMaxCasesPerTask()).isEqualTo(100_000);
         assertThat(properties.getMaxOutputBytesPerCase()).isGreaterThan(DEFAULT_OUTPUT_BYTES_PER_CASE);
+        assertThat(properties.getMaxDetailPreviewBytes()).isEqualTo(DEFAULT_DETAIL_PREVIEW_BYTES);
         assertThat(properties.getMaxTaskRuntime()).isEqualTo(Duration.ofHours(2));
         assertThat(properties.isRequireSandbox()).isFalse();
     }
@@ -54,6 +57,7 @@ class ApplicationYamlExecutionProfileTest {
         assertThat(properties.getProfile()).isEqualTo(profile);
         assertThat(properties.getMaxCasesPerTask()).isEqualTo(100_000);
         assertThat(properties.getMaxOutputBytesPerCase()).isEqualTo(maxOutputBytesPerCase);
+        assertThat(properties.getMaxDetailPreviewBytes()).isEqualTo(DEFAULT_DETAIL_PREVIEW_BYTES);
         assertThat(properties.getMaxTaskRuntime()).isEqualTo(Duration.ofHours(2));
         assertThat(properties.isRequireSandbox()).isEqualTo(requireSandbox);
     }

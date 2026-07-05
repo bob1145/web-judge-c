@@ -135,6 +135,33 @@ class TaskRunnerArtifactContractTest {
     }
 
     @Test
+    void taskRunnerStopsAfterFirstNonAcceptedCaseWhenRequestedAndKeepsArtifacts() throws Exception {
+        Path workDir = workDir("stop-first-wa");
+        writeDefaultSources(workDir, """
+                #include <bits/stdc++.h>
+                int main(){ long long x; if(std::cin>>x) std::cout << (x + 1) << "\\n"; }
+                """, """
+                #include <bits/stdc++.h>
+                int main(){ long long x; if(std::cin>>x) std::cout << x << "\\n"; }
+                """);
+        Path spec = writeSpec(workDir, validSpec(workDir, 5)
+                .stopOnFirstNonAc(true)
+                .build());
+
+        RunnerResult result = runRunner(spec);
+
+        assertThat(result.exitCode()).isEqualTo(EXIT_COMPLETED);
+        JudgeSummary summary = readSummary(workDir);
+        assertThat(summary.getCompletedCases()).isEqualTo(1);
+        assertThat(summary.getFirstFailedCase()).isEqualTo(1);
+        assertThat(summary.getStoppedReason()).contains("first non-AC");
+        assertThat(Files.readString(workDir.resolve("1.in"))).isEqualTo("1\n");
+        assertThat(Files.readString(workDir.resolve("1.out"))).isEqualTo("2\n");
+        assertThat(Files.readString(workDir.resolve("1.ans"))).isEqualTo("1\n");
+        assertThat(workDir.resolve("2.in")).doesNotExist();
+    }
+
+    @Test
     void taskRunnerReportsMemoryLimitExceededStatus() throws Exception {
         Path workDir = workDir("mle");
         writeDefaultSources(workDir, """

@@ -96,6 +96,28 @@ class CaseBatchRunnerTest {
         assertThat(outcome.getCompletedCases()).isEqualTo(outcome.getSubmittedCases());
     }
 
+    @Test
+    void stopPredicateStopsDispatchingAfterFirstNonAcceptedResult() {
+        ResolvedTaskPolicy policy = policy(10, 10, 1);
+        List<TestCaseResult> results = new ArrayList<>();
+        CaseBatchRunner runner = new CaseBatchRunner(Runnable::run);
+
+        CaseBatchRunner.RunOutcome outcome = runner.run(
+                policy.requestedCases(),
+                policy,
+                new CancellationToken(),
+                caseNumber -> new TestCaseResult(caseNumber, caseNumber == 2 ? "WA" : "AC", 1, 1),
+                results::add,
+                result -> !"AC".equals(result.getStatus())
+        );
+
+        assertThat(outcome.isCancelled()).isFalse();
+        assertThat(outcome.isStoppedAfterResult()).isTrue();
+        assertThat(outcome.getSubmittedCases()).isEqualTo(2);
+        assertThat(outcome.getCompletedCases()).isEqualTo(2);
+        assertThat(results).extracting(TestCaseResult::getCaseNumber).containsExactly(1, 2);
+    }
+
     @ParameterizedTest
     @ValueSource(ints = {1, 4, 5, 6, 100_000})
     void batchBoundariesExecuteEveryCaseExactlyOnce(int totalCases) {

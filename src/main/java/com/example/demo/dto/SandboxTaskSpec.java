@@ -21,6 +21,7 @@ public record SandboxTaskSpec(
         Duration maxTaskRuntime,
         long memoryLimitBytes,
         long maxOutputBytesPerCase,
+        boolean stopOnFirstNonAc,
         Retention retention
 ) {
 
@@ -87,6 +88,7 @@ public record SandboxTaskSpec(
         private Duration maxTaskRuntime = Duration.ofMinutes(30);
         private long memoryLimitBytes;
         private long maxOutputBytesPerCase;
+        private boolean stopOnFirstNonAc;
         private Retention retention = Retention.defaultRetention();
 
         public Builder judgeId(String judgeId) {
@@ -151,6 +153,11 @@ public record SandboxTaskSpec(
             return this;
         }
 
+        public Builder stopOnFirstNonAc(boolean stopOnFirstNonAc) {
+            this.stopOnFirstNonAc = stopOnFirstNonAc;
+            return this;
+        }
+
         public Builder retention(Retention retention) {
             this.retention = retention;
             return this;
@@ -176,6 +183,7 @@ public record SandboxTaskSpec(
                     maxTaskRuntime,
                     memoryLimitBytes,
                     maxOutputBytesPerCase,
+                    stopOnFirstNonAc,
                     retention
             );
         }

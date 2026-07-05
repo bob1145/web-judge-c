@@ -11,6 +11,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 @Service
 public class CaseBatchRunner {
@@ -28,10 +29,22 @@ public class CaseBatchRunner {
             CaseExecution caseExecution,
             Consumer<TestCaseResult> resultConsumer
     ) {
+        return run(totalCases, policy, cancellationToken, caseExecution, resultConsumer, result -> false);
+    }
+
+    public RunOutcome run(
+            int totalCases,
+            ResolvedTaskPolicy policy,
+            CancellationToken cancellationToken,
+            CaseExecution caseExecution,
+            Consumer<TestCaseResult> resultConsumer,
+            Predicate<TestCaseResult> shouldStopAfterResult
+    ) {
         Objects.requireNonNull(policy, "policy must not be null");
         Objects.requireNonNull(cancellationToken, "cancellationToken must not be null");
         Objects.requireNonNull(caseExecution, "caseExecution must not be null");
         Objects.requireNonNull(resultConsumer, "resultConsumer must not be null");
+        Objects.requireNonNull(shouldStopAfterResult, "shouldStopAfterResult must not be null");
 
         int batchSize = Math.max(1, policy.batchSize());
         int maxConcurrentCases = Math.max(1, Math.min(policy.maxConcurrentCasesPerTask(), batchSize));
@@ -40,9 +53,10 @@ public class CaseBatchRunner {
         int submittedCases = 0;
         int completedCases = 0;
         int peakScheduledFutures = 0;
+        boolean stoppedAfterResult = false;
 
         for (int batchStart = 1; batchStart <= totalCases; batchStart += batchSize) {
-            if (cancellationToken.isCancellationRequested()) {
+            if (cancellationToken.isCancellationRequested() || stoppedAfterResult) {
                 break;
             }
 
@@ -51,9 +65,11 @@ public class CaseBatchRunner {
             int submittedInBatch = 0;
             int completedInBatch = 0;
 
-            while (completedInBatch < submittedInBatch
-                    || (nextCase <= batchEnd && !cancellationToken.isCancellationRequested())) {
+            while (!stoppedAfterResult
+                    && (completedInBatch < submittedInBatch
+                    || (nextCase <= batchEnd && !cancellationToken.isCancellationRequested()))) {
                 while (!cancellationToken.isCancellationRequested()
+                        && !stoppedAfterResult
                         && nextCase <= batchEnd
                         && submittedInBatch - completedInBatch < maxConcurrentCases) {
                     int caseNumber = nextCase++;
@@ -74,6 +90,9 @@ public class CaseBatchRunner {
                 completedInBatch++;
                 completedCases++;
                 resultConsumer.accept(completion.result());
+                if (shouldStopAfterResult.test(completion.result())) {
+                    stoppedAfterResult = true;
+                }
             }
 
             if (cancellationToken.isCancellationRequested()) {
@@ -84,6 +103,9 @@ public class CaseBatchRunner {
                 );
                 break;
             }
+            if (stoppedAfterResult) {
+                break;
+            }
         }
 
         return new RunOutcome(
@@ -91,6 +113,7 @@ public class CaseBatchRunner {
                 submittedCases,
                 completedCases,
                 cancellationToken.isCancellationRequested(),
+                stoppedAfterResult,
                 peakScheduledFutures
         );
     }
@@ -165,13 +188,22 @@ public class CaseBatchRunner {
         private final int submittedCases;
         private final int completedCases;
         private final boolean cancelled;
+        private final boolean stoppedAfterResult;
         private final int peakScheduledFutures;
 
-        RunOutcome(int totalCases, int submittedCases, int completedCases, boolean cancelled, int peakScheduledFutures) {
+        RunOutcome(
+                int totalCases,
+                int submittedCases,
+                int completedCases,
+                boolean cancelled,
+                boolean stoppedAfterResult,
+                int peakScheduledFutures
+        ) {
             this.totalCases = totalCases;
             this.submittedCases = submittedCases;
             this.completedCases = completedCases;
             this.cancelled = cancelled;
+            this.stoppedAfterResult = stoppedAfterResult;
             this.peakScheduledFutures = peakScheduledFutures;
         }
 
@@ -189,6 +221,10 @@ public class CaseBatchRunner {
 
         public boolean isCancelled() {
             return cancelled;
+        }
+
+        public boolean isStoppedAfterResult() {
+            return stoppedAfterResult;
         }
 
         public int getPeakScheduledFutures() {

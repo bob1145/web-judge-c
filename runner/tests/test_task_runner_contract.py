@@ -70,6 +70,7 @@ class TaskRunnerContractTest(unittest.TestCase):
             "maxTaskRuntime": 30,
             "memoryLimitBytes": 134217728,
             "maxOutputBytesPerCase": 4096,
+            "stopOnFirstNonAc": False,
             "retention": {"completed": 86400, "failed": 86400, "cancelled": 86400},
         }
         spec_path = work_dir / "sandbox-task.json"

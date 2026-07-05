@@ -55,7 +55,10 @@ judge:
     min-memory-limit-bytes: 16777216
     # Per-case cap for generated input, stdout, and stderr. Override with
     # JUDGE_EXECUTION_MAX_OUTPUT_BYTES_PER_CASE when deployment data is larger.
-    max-output-bytes-per-case: 1048576
+    max-output-bytes-per-case: 10485760
+    # Per-case preview cap for the browser details modal. Keep lower than huge
+    # archives; use failed-case downloads for very large data points.
+    max-detail-preview-bytes: 65536
     require-sandbox: false
   
   compiler:

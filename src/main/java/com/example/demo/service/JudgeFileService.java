@@ -1,6 +1,10 @@
 package com.example.demo.service;
 
+import com.example.demo.config.ExecutionProperties;
+import com.example.demo.dto.JudgeProgress;
+import com.example.demo.dto.JudgeProgressEvent;
 import com.example.demo.dto.TestCaseDetail;
+import com.example.demo.dto.TestCaseResult;
 import com.example.demo.model.JudgeTask;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -12,8 +16,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -23,11 +30,11 @@ import java.util.zip.ZipOutputStream;
 @RequiredArgsConstructor
 public class JudgeFileService {
 
-    private static final long DEFAULT_DETAIL_LIMIT_BYTES = 1024L * 1024;
-    private static final Pattern SAFE_ENTRY_NAME = Pattern.compile("[1-9][0-9]*\\.(in|out)");
+    private static final Pattern SAFE_ENTRY_NAME = Pattern.compile("[1-9][0-9]*\\.(in|out|ans)");
     private static final Pattern INPUT_FILE_NAME = Pattern.compile("[1-9][0-9]*\\.in");
 
     private final TaskStore taskStore;
+    private final ExecutionProperties executionProperties;
 
     public TestCaseDetail getTestCaseDetails(String judgeId, int caseNumber) throws IOException {
         JudgeTask task = requireTask(judgeId);
@@ -91,9 +98,33 @@ public class JudgeFileService {
         };
     }
 
+    public StreamingResponseBody streamFailedTestCasesArchive(String judgeId) throws IOException {
+        JudgeTask task = requireTask(judgeId);
+        Path workDir = requireWorkDir(task);
+        List<Integer> failedCases = failedCaseNumbers(judgeId);
+        if (failedCases.isEmpty()) {
+            throw new IOException("No non-AC test cases available");
+        }
+
+        return outputStream -> {
+            try (ZipOutputStream zipStream = new ZipOutputStream(outputStream)) {
+                for (int caseNumber : failedCases) {
+                    addFileToZip(zipStream, caseFile(workDir, caseNumber, ".in"), caseNumber + ".in");
+                    addOptionalFileToZip(zipStream, caseFile(workDir, caseNumber, ".out"), caseNumber + ".out");
+                    addOptionalFileToZip(zipStream, caseFile(workDir, caseNumber, ".ans"), caseNumber + ".ans");
+                }
+            }
+        };
+    }
+
     public String archiveFilename(String judgeId) {
         String safeJudgeId = judgeId == null ? "unknown" : judgeId.replaceAll("[^A-Za-z0-9._-]", "_");
         return "testcases-" + safeJudgeId + ".zip";
+    }
+
+    public String failedArchiveFilename(String judgeId) {
+        String safeJudgeId = judgeId == null ? "unknown" : judgeId.replaceAll("[^A-Za-z0-9._-]", "_");
+        return "failed-testcases-" + safeJudgeId + ".zip";
     }
 
     private JudgeTask requireTask(String judgeId) throws IOException {
@@ -162,11 +193,15 @@ public class JudgeFileService {
         return readUtf8Preview(file, maxBytes);
     }
 
-    private long detailLimit(JudgeTask task) {
-        if (task.getPolicy() == null || task.getPolicy().maxOutputBytesPerCase() <= 0) {
-            return DEFAULT_DETAIL_LIMIT_BYTES;
+    private long detailLimit(JudgeTask task) throws IOException {
+        long configuredLimit = executionProperties.getMaxDetailPreviewBytes();
+        if (configuredLimit <= 0) {
+            throw new IOException("maxDetailPreviewBytes must be positive");
         }
-        return Math.min(DEFAULT_DETAIL_LIMIT_BYTES, task.getPolicy().maxOutputBytesPerCase());
+        if (task.getPolicy() == null || task.getPolicy().maxOutputBytesPerCase() <= 0) {
+            return configuredLimit;
+        }
+        return Math.min(configuredLimit, task.getPolicy().maxOutputBytesPerCase());
     }
 
     private FilePreview readUtf8Preview(Path file, long maxBytes) throws IOException {
@@ -211,6 +246,52 @@ public class JudgeFileService {
             inputStream.transferTo(zipStream);
         }
         zipStream.closeEntry();
+    }
+
+    private void addOptionalFileToZip(ZipOutputStream zipStream, Path file, String entryName) throws IOException {
+        if (Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            addFileToZip(zipStream, file, entryName);
+        }
+    }
+
+    private List<Integer> failedCaseNumbers(String judgeId) throws IOException {
+        JudgeProgress progress = taskStore.findSummary(judgeId)
+                .orElseThrow(() -> new IOException("Judge result summary not found"));
+        Set<Integer> caseNumbers = new LinkedHashSet<>();
+        if (progress.getResults() != null) {
+            progress.getResults().stream()
+                    .filter(result -> !isAccepted(result.getStatus()))
+                    .map(TestCaseResult::getCaseNumber)
+                    .forEach(caseNumbers::add);
+        }
+        if (caseNumbers.isEmpty()
+                && progress.getSummary() != null
+                && progress.getSummary().getFailureSamples() != null) {
+            progress.getSummary().getFailureSamples().stream()
+                    .filter(event -> event != null && !isAccepted(event.getStatus()))
+                    .map(JudgeProgressEvent::getCaseNumber)
+                    .forEach(caseNumbers::add);
+        }
+        if (caseNumbers.isEmpty()
+                && progress.getSummary() != null
+                && progress.getSummary().getFirstFailedCase() != null) {
+            caseNumbers.add(progress.getSummary().getFirstFailedCase());
+        }
+        return new ArrayList<>(caseNumbers);
+    }
+
+    private boolean isAccepted(String status) {
+        return "AC".equals(normalizeStatus(status));
+    }
+
+    private String normalizeStatus(String status) {
+        if (status == null) {
+            return "";
+        }
+        return status.trim()
+                .toUpperCase()
+                .replace(' ', '_')
+                .replace('-', '_');
     }
 
     private int parseCaseNumber(Path file) {

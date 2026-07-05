@@ -180,6 +180,29 @@ class ProductionSecurityStartupValidatorTest {
                 .hasMessageContaining("maxOutputBytesPerCase");
     }
 
+    @Test
+    void productionProfilesRejectNonPositiveDetailPreviewLimitAtStartup() {
+        SandboxProperties sandbox = sandboxProperties(
+                SandboxProperties.Provider.LINUX_CONTAINER,
+                SandboxProperties.Isolation.CONTAINER,
+                "seccomp:judge-linux",
+                true
+        );
+
+        assertThatThrownBy(() -> validator(
+                "linux-prod",
+                "changed-secret",
+                "https://safe.example.com",
+                true,
+                true,
+                sandbox,
+                1_048_576L,
+                0
+        ).validateNow())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("maxDetailPreviewBytes");
+    }
+
     private ProductionSecurityStartupValidator validator(
             String profile,
             String accessCode,
@@ -195,6 +218,7 @@ class ProductionSecurityStartupValidatorTest {
                 sandboxEnabled,
                 requireSandbox,
                 sandboxProperties,
+                1_048_576L,
                 1_048_576L
         );
     }
@@ -208,6 +232,28 @@ class ProductionSecurityStartupValidatorTest {
             SandboxProperties sandboxProperties,
             long maxOutputBytesPerCase
     ) {
+        return validator(
+                profile,
+                accessCode,
+                allowedOrigins,
+                sandboxEnabled,
+                requireSandbox,
+                sandboxProperties,
+                maxOutputBytesPerCase,
+                1_048_576L
+        );
+    }
+
+    private ProductionSecurityStartupValidator validator(
+            String profile,
+            String accessCode,
+            String allowedOrigins,
+            boolean sandboxEnabled,
+            boolean requireSandbox,
+            SandboxProperties sandboxProperties,
+            long maxOutputBytesPerCase,
+            long maxDetailPreviewBytes
+    ) {
         AuthConfiguration auth = new AuthConfiguration();
         auth.setAccessCode(accessCode);
         auth.setDefaultAccessCode("123");
@@ -220,6 +266,7 @@ class ProductionSecurityStartupValidatorTest {
         execution.setProfile(profile);
         execution.setRequireSandbox(requireSandbox);
         execution.setMaxOutputBytesPerCase(maxOutputBytesPerCase);
+        execution.setMaxDetailPreviewBytes(maxDetailPreviewBytes);
 
         SandboxConfiguration sandbox = new SandboxConfiguration();
         sandbox.setEnabled(sandboxEnabled);

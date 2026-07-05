@@ -33,6 +33,7 @@ judge.execution.profile: windows-prod
 judge.execution.require-sandbox: true
 judge.execution.max-cases-per-task: 100000
 judge.execution.max-output-bytes-per-case: 16777216
+judge.execution.max-detail-preview-bytes: 65536
 judge.sandbox.enabled: true
 judge.sandbox.production.provider: windows-container
 judge.sandbox.production.isolation: hyper-v
@@ -70,6 +71,7 @@ judge.execution.profile: linux-prod
 judge.execution.require-sandbox: true
 judge.execution.max-cases-per-task: 100000
 judge.execution.max-output-bytes-per-case: 16777216
+judge.execution.max-detail-preview-bytes: 65536
 judge.sandbox.enabled: true
 judge.sandbox.production.provider: linux-container
 judge.sandbox.production.isolation: container
@@ -105,6 +107,7 @@ judge.execution.profile: worker-prod
 judge.execution.require-sandbox: true
 judge.execution.max-cases-per-task: 100000
 judge.execution.max-output-bytes-per-case: 16777216
+judge.execution.max-detail-preview-bytes: 65536
 judge.sandbox.enabled: true
 judge.sandbox.production.provider: remote-worker
 judge.worker.endpoint: https://worker.example.internal
@@ -155,21 +158,28 @@ The production profiles keep the per-case captured input/output cap explicit:
 judge:
   execution:
     max-output-bytes-per-case: 16777216
+    max-detail-preview-bytes: 65536
 ```
 
 For one-off deployment overrides, use the Spring environment variable form:
 
 ```powershell
 $env:JUDGE_EXECUTION_MAX_OUTPUT_BYTES_PER_CASE = "16777216"
+$env:JUDGE_EXECUTION_MAX_DETAIL_PREVIEW_BYTES = "65536"
 ```
 
 ```bash
 export JUDGE_EXECUTION_MAX_OUTPUT_BYTES_PER_CASE=16777216
+export JUDGE_EXECUTION_MAX_DETAIL_PREVIEW_BYTES=65536
 ```
 
 If a generator creates a single test case larger than this cap, the task should
 finish as an output-limit failure instead of staying `RUNNING`. Increase this
 only with disk quota, cleanup, and sandbox evidence in place.
+
+`max-detail-preview-bytes` only controls how many bytes the browser details
+modal reads per input/output file. Keep it much smaller than very large archives
+and use failed-case downloads when the full data point is needed.
 
 ## Failure Modes
 

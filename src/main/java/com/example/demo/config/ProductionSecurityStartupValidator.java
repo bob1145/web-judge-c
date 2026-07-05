@@ -111,6 +111,9 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
         if (executionProperties.getMaxOutputBytesPerCase() <= 0) {
             risks.add("maxOutputBytesPerCase must be positive");
         }
+        if (executionProperties.getMaxDetailPreviewBytes() <= 0) {
+            risks.add("maxDetailPreviewBytes must be positive");
+        }
         return risks;
     }
 

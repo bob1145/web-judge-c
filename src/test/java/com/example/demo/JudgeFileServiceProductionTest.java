@@ -1,5 +1,6 @@
 package com.example.demo;
 
+import com.example.demo.config.ExecutionProperties;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
 import com.example.demo.service.FileTaskStore;
@@ -37,7 +38,7 @@ class JudgeFileServiceProductionTest {
     @BeforeEach
     void setUp() throws IOException {
         taskStore = new FileTaskStore(new ObjectMapper(), tempDir.resolve("storage"));
-        service = new JudgeFileService(taskStore);
+        service = new JudgeFileService(taskStore, new ExecutionProperties());
         outsideDir = tempDir.resolve("outside");
         Files.createDirectories(outsideDir);
         outsideCanary = outsideDir.resolve("canary.txt");

@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>C++ 在线对拍工具</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
     <link rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/codemirror-github-light/lib/codemirror-github-light-theme.css">
@@ -2066,6 +2065,218 @@
             color: var(--text-primary);
         }
 
+        .case-detail-modal {
+            background: #ffffff;
+            border: 1px solid #d9e2ef;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .case-detail-header {
+            align-items: flex-start;
+            background: #ffffff;
+            border-bottom: 1px solid #d9e2ef;
+            padding: 18px 22px;
+        }
+
+        .case-detail-heading {
+            display: grid;
+            gap: 8px;
+        }
+
+        .case-detail-heading .modal-title {
+            color: #0f172a;
+            font-size: 1.18rem;
+            font-weight: 750;
+            letter-spacing: 0;
+        }
+
+        .case-detail-meta {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .case-detail-pill {
+            align-items: center;
+            background: #f8fafc;
+            border: 1px solid #d9e2ef;
+            border-radius: 999px;
+            color: #475569;
+            display: inline-flex;
+            font-size: 0.82rem;
+            font-weight: 700;
+            gap: 6px;
+            min-height: 28px;
+            padding: 4px 10px;
+        }
+
+        .case-detail-pill[data-status="AC"] {
+            background: #ecfdf5;
+            border-color: #bbf7d0;
+            color: #047857;
+        }
+
+        .case-detail-pill[data-status="WA"],
+        .case-detail-pill[data-status="RE"],
+        .case-detail-pill[data-status="SYSTEM_ERROR"],
+        .case-detail-pill[data-status="OUTPUT_LIMIT_EXCEEDED"] {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #b91c1c;
+        }
+
+        .case-detail-pill[data-status="TLE"],
+        .case-detail-pill[data-status="MLE"] {
+            background: #fffbeb;
+            border-color: #fde68a;
+            color: #b45309;
+        }
+
+        .case-detail-body {
+            background: #f8fafc;
+            padding: 18px;
+        }
+
+        .case-detail-layout {
+            display: grid;
+            gap: 14px;
+        }
+
+        .case-detail-compare {
+            display: grid;
+            gap: 14px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .case-detail-card {
+            background: #ffffff;
+            border: 1px solid #d9e2ef;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .case-detail-card-header {
+            align-items: center;
+            border-bottom: 1px solid #edf2f7;
+            color: #0f172a;
+            display: flex;
+            font-size: 0.9rem;
+            font-weight: 750;
+            gap: 8px;
+            justify-content: space-between;
+            min-height: 42px;
+            padding: 10px 12px;
+        }
+
+        .case-detail-card-header small {
+            color: #64748b;
+            font-size: 0.76rem;
+            font-weight: 650;
+        }
+
+        .case-detail-code {
+            background: #f8fafc;
+            border: 0;
+            border-radius: 0;
+            color: #0f172a;
+            font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+            font-size: 0.92rem;
+            line-height: 1.65;
+            margin: 0;
+            max-height: 260px;
+            overflow: auto;
+            padding: 14px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .case-detail-code.is-empty {
+            color: #94a3b8;
+            font-style: italic;
+        }
+
+        .case-detail-diff {
+            background: #ffffff;
+            border: 1px solid #d9e2ef;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .case-detail-diff-title {
+            align-items: center;
+            border-bottom: 1px solid #edf2f7;
+            color: #0f172a;
+            display: flex;
+            font-weight: 750;
+            gap: 8px;
+            padding: 10px 12px;
+        }
+
+        .case-detail-diff-table {
+            display: grid;
+            font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+            font-size: 0.86rem;
+            overflow-x: auto;
+        }
+
+        .case-detail-diff-row {
+            display: grid;
+            grid-template-columns: 68px minmax(220px, 1fr) minmax(220px, 1fr);
+            min-width: 620px;
+        }
+
+        .case-detail-diff-row > span {
+            border-bottom: 1px solid #edf2f7;
+            padding: 8px 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .case-detail-diff-row.is-head > span {
+            background: #f1f5f9;
+            color: #475569;
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.78rem;
+            font-weight: 750;
+        }
+
+        .case-detail-diff-row.is-different .expected-cell {
+            background: #fff1f2;
+            color: #be123c;
+        }
+
+        .case-detail-diff-row.is-different .actual-cell {
+            background: #ecfdf5;
+            color: #047857;
+        }
+
+        .case-detail-diff-empty {
+            color: #64748b;
+            font-size: 0.9rem;
+            padding: 12px;
+        }
+
+        .case-detail-notice {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 8px;
+            color: #9a3412;
+            font-size: 0.84rem;
+            font-weight: 650;
+            padding: 10px 12px;
+        }
+
+        .case-detail-inline-notice {
+            color: #9a3412;
+            display: block;
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.78rem;
+            font-weight: 650;
+            margin-top: 4px;
+        }
+
         @media (max-width: 1180px) {
             .workspace-layout,
             .results-view-layout {
@@ -2075,6 +2286,20 @@
             .settings-card,
             .results-view-layout .progress-section {
                 position: static;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .case-detail-compare {
+                grid-template-columns: 1fr;
+            }
+
+            .case-detail-body {
+                padding: 12px;
+            }
+
+            .case-detail-header {
+                padding: 14px 16px;
             }
         }
 
@@ -2203,6 +2428,14 @@
                             </div>
                             <small class="text-muted">启用后将使用自定义判题程序代替暴力代码</small>
                         </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="stop-on-first-non-ac" checked>
+                                <label class="form-check-label" for="stop-on-first-non-ac">
+                                    <i class="fas fa-stop-circle"></i> 首个非 AC 后停止
+                                </label>
+                            </div>
+                        </div>
                         <button type="submit" id="start-button" class="btn btn-primary w-100 mb-2">
                             <i class="fas fa-play"></i> 开始对拍
                         </button>
@@ -2285,6 +2518,9 @@
                 <div class="results-section fade-in">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                         <h4 class="mb-0"><i class="fas fa-chart-bar"></i> 测试点详情</h4>
+                        <a href="#" id="download-failed-btn" class="btn btn-outline-danger d-none" download>
+                            <i class="fas fa-file-circle-exclamation"></i> 下载非 AC 数据点
+                        </a>
                         <a href="#" id="download-all-btn" class="btn btn-outline-primary d-none" download>
                             <i class="fas fa-file-archive"></i> 下载全部测试点
                         </a>
@@ -2303,14 +2539,17 @@
     <!-- Details Modal -->
     <div class="modal fade" id="detailsModal" tabindex="-1" aria-labelledby="detailsModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="detailsModalLabel">
-                        <i class="fas fa-search"></i> 测试点详情
-                    </h5>
+            <div class="modal-content case-detail-modal">
+                <div class="modal-header case-detail-header">
+                    <div class="case-detail-heading">
+                        <h5 class="modal-title" id="detailsModalLabel">
+                            <i class="fas fa-search"></i> 测试点详情
+                        </h5>
+                        <div id="detailsModalMeta" class="case-detail-meta"></div>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body case-detail-body">
                     <div id="modal-body-content">
                         <div class="text-center py-4">
                             <div class="spinner-border" role="status">
@@ -2336,8 +2575,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
@@ -2353,7 +2590,9 @@
         const detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
         const modalBodyContent = document.getElementById('modal-body-content');
         const detailsModalLabel = document.getElementById('detailsModalLabel');
+        const detailsModalMeta = document.getElementById('detailsModalMeta');
         const downloadInputBtn = document.getElementById('download-input-btn');
+        const downloadFailedBtn = document.getElementById('download-failed-btn');
         const downloadAllBtn = document.getElementById('download-all-btn');
         const workspaceTabs = Array.from(document.querySelectorAll('[data-workspace-view]'));
         const workspaceViews = {
@@ -2371,6 +2610,9 @@
         let stompClient = null;
         let currentJudgeId = null;
         const MAX_RENDERED_RESULT_CARDS = 200;
+        const MAX_RENDERED_DIFF_ROWS = 80;
+        const MAX_DETAIL_CARD_CHARS = 2000;
+        const MAX_DIFF_CELL_CHARS = 2000;
         const DEFAULT_WORKSPACE_VIEW = 'code';
         const ACTIVE_WORKSPACE_VIEW_KEY = 'cppJudge.activeWorkspaceView';
         const LAST_JUDGE_ID_KEY = 'cppJudge.lastJudgeId';
@@ -2555,6 +2797,7 @@
             localStorage.setItem('memoryLimit', document.getElementById('memory-limit').value);
             localStorage.setItem('testCases', document.getElementById('test-cases').value);
             localStorage.setItem('precision', document.getElementById('precision').value);
+            localStorage.setItem('stopOnFirstNonAc', document.getElementById('stop-on-first-non-ac').checked);
         }
 
         function saveCode() {
@@ -2573,6 +2816,7 @@
                 setSavedInputValue('memory-limit', 'memoryLimit');
                 setSavedInputValue('test-cases', 'testCases');
                 setSavedInputValue('precision', 'precision');
+                document.getElementById('stop-on-first-non-ac').checked = localStorage.getItem('stopOnFirstNonAc') !== 'false';
 
                 const useSpj = localStorage.getItem('useSpecialJudge') === 'true';
                 document.getElementById('use-special-judge').checked = useSpj;
@@ -2680,6 +2924,7 @@
             toggleSpecialJudgeSection(enabled);
             saveWorkspaceState();
         });
+        document.getElementById('stop-on-first-non-ac').addEventListener('change', saveWorkspaceState);
 
         window.addEventListener('load', async () => {
             const initialView = loadWorkspaceState();
@@ -2742,11 +2987,8 @@
             showWorkspaceView('results');
             setResultsBadge('运行中', 'running');
 
-            if (downloadAllBtn) {
-                downloadAllBtn.classList.add('d-none');
-                downloadAllBtn.removeAttribute('href');
-                downloadAllBtn.removeAttribute('download');
-            }
+            updateAllDownloadButton(false);
+            updateFailedDownloadButton(false);
 
             startButton.disabled = true;
             startButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在运行...';
@@ -2773,6 +3015,7 @@
                     memoryLimit: parseInt(document.getElementById('memory-limit').value, 10) * 1024 * 1024, // 转换为字节
                     precision: parseFloat(document.getElementById('precision').value),
                     testCases: parseInt(document.getElementById('test-cases').value, 10),
+                    stopOnFirstNonAc: document.getElementById('stop-on-first-non-ac').checked,
                     useSpecialJudge: useSpj,
                     specialJudgeCode: useSpj ? specialJudgeEditor.getValue() : ''
                 };
@@ -2810,11 +3053,8 @@
                 startButton.disabled = false;
                 startButton.innerHTML = '<i class="fas fa-play"></i> 开始对拍';
                 progressContainer.style.display = 'none';
-                if (downloadAllBtn) {
-                    downloadAllBtn.classList.add('d-none');
-                    downloadAllBtn.removeAttribute('href');
-                    downloadAllBtn.removeAttribute('download');
-                }
+                updateAllDownloadButton(false);
+                updateFailedDownloadButton(false);
                 resultsGrid.innerHTML = `
                 <div class="text-center text-muted py-4">
                     <i class="fas fa-exclamation-triangle fa-2x mb-2 text-warning"></i>
@@ -3130,6 +3370,50 @@
             return stats;
         }
 
+        function hasExplicitCaseCount(text) {
+            return /\d+\s*\/\s*\d+/.test(String(text || ''));
+        }
+
+        function runningDisplayText(progress, displayText, totalTestCases) {
+            if (hasExplicitCaseCount(displayText)) {
+                return displayText;
+            }
+            if (normalizeStatus(progress && progress.status) === 'RUNNING' && totalTestCases > 100) {
+                return displayText || '运行中';
+            }
+            return displayText;
+        }
+
+        function updateFailedDownloadButton(hasFailures) {
+            if (!downloadFailedBtn) {
+                return;
+            }
+            if (hasFailures && currentJudgeId) {
+                downloadFailedBtn.href = `/download/${currentJudgeId}/failed`;
+                downloadFailedBtn.download = `failed-testcases-${currentJudgeId}.zip`;
+                downloadFailedBtn.classList.remove('d-none');
+            } else {
+                downloadFailedBtn.classList.add('d-none');
+                downloadFailedBtn.removeAttribute('href');
+                downloadFailedBtn.removeAttribute('download');
+            }
+        }
+
+        function updateAllDownloadButton(canDownload) {
+            if (!downloadAllBtn) {
+                return;
+            }
+            if (canDownload && currentJudgeId) {
+                downloadAllBtn.href = `/download/${currentJudgeId}/all`;
+                downloadAllBtn.download = `testcases-${currentJudgeId}.zip`;
+                downloadAllBtn.classList.remove('d-none');
+            } else {
+                downloadAllBtn.classList.add('d-none');
+                downloadAllBtn.removeAttribute('href');
+                downloadAllBtn.removeAttribute('download');
+            }
+        }
+
         function isFailedTerminalProgress(progress) {
             return progress && FAILED_TERMINAL_STATUSES.has(normalizeStatus(progress.status));
         }
@@ -3145,11 +3429,8 @@
             if (progressBar && !progressBar.classList.contains('progress-bar-animated')) {
                 progressBar.classList.add('progress-bar-animated');
             }
-            if (downloadAllBtn) {
-                downloadAllBtn.classList.add('d-none');
-                downloadAllBtn.removeAttribute('href');
-                downloadAllBtn.removeAttribute('download');
-            }
+            updateAllDownloadButton(false);
+            updateFailedDownloadButton(false);
         }
 
         function completeProgressUi(badgeText = '已完成', badgeState = 'done') {
@@ -3177,11 +3458,8 @@
 
         function renderTerminalProgress(progress, displayText, options = {}) {
             resultsGrid.innerHTML = '';
-            if (downloadAllBtn) {
-                downloadAllBtn.classList.add('d-none');
-                downloadAllBtn.removeAttribute('href');
-                downloadAllBtn.removeAttribute('download');
-            }
+            updateAllDownloadButton(false);
+            updateFailedDownloadButton(false);
             const status = normalizeStatus(progress.status);
             const terminalText = displayText || status;
             setElementText(resultSummary, terminalText);
@@ -3207,20 +3485,14 @@
             }
             rememberJudgeProgress(progress);
             if (isActiveProgress(progress)) {
-                restoreRunningUiState({ switchView: options.switchView !== false });
+                restoreRunningUiState({ switchView: options.switchView === true });
             }
 
             const { status, message, progress: percent, results, summary } = progress;
 
             // 更新进度条和状态文本
             const totalTestCases = parseInt(document.getElementById('test-cases').value, 10);
-            let displayText = message || status;
-
-            // 如果是运行阶段且有进度百分比，显示更详细的信息
-            if (status === 'RUNNING' && percent > 0 && totalTestCases > 100 && !summary) {
-                const completedCases = Math.floor((percent / 100) * totalTestCases);
-                displayText = `${message || status} (${completedCases}/${totalTestCases})`;
-            }
+            let displayText = runningDisplayText(progress, message || status, totalTestCases);
 
             updateProgressBar(percent, displayText);
             resultSummary.textContent = displayText;
@@ -3263,11 +3535,8 @@
                 if (!progressBar.classList.contains('progress-bar-animated')) {
                     progressBar.classList.add('progress-bar-animated');
                 }
-                if (downloadAllBtn) {
-                    downloadAllBtn.classList.add('d-none');
-                    downloadAllBtn.removeAttribute('href');
-                    downloadAllBtn.removeAttribute('download');
-                }
+                updateAllDownloadButton(false);
+                updateFailedDownloadButton(false);
             }
         }
 
@@ -3384,17 +3653,8 @@
             </div>
         `;
 
-            if (downloadAllBtn) {
-                if (results && results.length > 0 && currentJudgeId) {
-                    downloadAllBtn.href = `/download/${currentJudgeId}/all`;
-                    downloadAllBtn.download = `testcases-${currentJudgeId}.zip`;
-                    downloadAllBtn.classList.remove('d-none');
-                } else {
-                    downloadAllBtn.classList.add('d-none');
-                    downloadAllBtn.removeAttribute('href');
-                    downloadAllBtn.removeAttribute('download');
-                }
-            }
+            updateAllDownloadButton(results && results.length > 0);
+            updateFailedDownloadButton(failed);
         }
 
         function renderSummaryProgress(progress) {
@@ -3423,11 +3683,8 @@
             const stoppedReason = summary.stoppedReason ? ` | ${summary.stoppedReason}` : '';
             setElementText(resultSummary, `${progress.message || progress.status} (${completed}/${total})${stoppedReason}`);
 
-            if (downloadAllBtn && currentJudgeId) {
-                downloadAllBtn.href = `/download/${currentJudgeId}/all`;
-                downloadAllBtn.download = `testcases-${currentJudgeId}.zip`;
-                downloadAllBtn.classList.remove('d-none');
-            }
+            updateAllDownloadButton(false);
+            updateFailedDownloadButton(Boolean(summary.firstFailedCase));
         }
 
         function appendSummaryCard(container, label, value) {
@@ -3485,22 +3742,137 @@
             container.appendChild(section);
         }
 
+        function updateDetailsHeader(result) {
+            const caseNumber = result && result.caseNumber !== undefined ? result.caseNumber : '-';
+            const status = result && result.status ? result.status : 'UNKNOWN';
+            const statusKey = normalizeStatus(status);
+            const metrics = [];
+
+            metrics.push(`<span class="case-detail-pill" data-status="${escapeHtml(statusKey)}"><i class="fas fa-circle"></i> ${escapeHtml(status)}</span>`);
+            if (result && result.timeUsed > 0) {
+                metrics.push(`<span class="case-detail-pill"><i class="fas fa-clock"></i> ${escapeHtml(result.timeUsed)} ms</span>`);
+            }
+            if (result && result.memoryUsed > 0) {
+                metrics.push(`<span class="case-detail-pill"><i class="fas fa-memory"></i> ${escapeHtml(result.memoryUsed)} KB</span>`);
+            }
+
+            detailsModalLabel.innerHTML = `<i class="fas fa-magnifying-glass-chart"></i> 测试点 #${escapeHtml(caseNumber)}`;
+            detailsModalMeta.innerHTML = metrics.join('');
+        }
+
+        function clipDetailText(value, maxChars) {
+            const text = value === null || value === undefined ? '' : String(value);
+            if (text.length <= maxChars) {
+                return { text, clipped: false, originalLength: text.length };
+            }
+            return {
+                text: text.slice(0, maxChars),
+                clipped: true,
+                originalLength: text.length
+            };
+        }
+
+        function frontendRenderNotice(clipped, originalLength, maxChars) {
+            return clipped
+                ? `<div class="case-detail-notice">内容较长，仅渲染前 ${maxChars} 字符。</div>`
+                : '';
+        }
+
+        function renderCaseDetailCard(title, content, iconClass, truncated = false) {
+            const preview = clipDetailText(content, MAX_DETAIL_CARD_CHARS);
+            const text = preview.text;
+            const empty = text.length === 0;
+            const displayText = empty ? '空' : escapeHtml(text);
+            return `
+                <section class="case-detail-card">
+                    <div class="case-detail-card-header">
+                        <span><i class="${iconClass}"></i> ${escapeHtml(title)}</span>
+                        <small>${preview.originalLength === 0 ? '无内容' : `${preview.originalLength} 字符`}</small>
+                    </div>
+                    ${truncationNotice(truncated)}
+                    ${frontendRenderNotice(preview.clipped, preview.originalLength, MAX_DETAIL_CARD_CHARS)}
+                    <pre class="case-detail-code ${empty ? 'is-empty' : ''}"><code>${displayText}</code></pre>
+                </section>
+            `;
+        }
+
+        function splitOutputLines(value) {
+            const text = value === null || value === undefined
+                ? ''
+                : String(value).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            if (text.length === 0) {
+                return [''];
+            }
+            return text.split('\n');
+        }
+
+        function renderDiffCell(value, className) {
+            const emptyHtml = '<span class="case-empty-token">空</span>';
+            const preview = clipDetailText(value, MAX_DIFF_CELL_CHARS);
+            const cellContent = preview.text === '' ? emptyHtml : escapeHtml(preview.text);
+            const clippedNotice = preview.clipped
+                ? `<span class="case-detail-inline-notice">仅显示前 ${MAX_DIFF_CELL_CHARS} 字符</span>`
+                : '';
+            return `<span class="${className}">${cellContent}${clippedNotice}</span>`;
+        }
+
+        function renderOutputDiffTable(expectedOutput, actualOutput) {
+            const expectedLines = splitOutputLines(expectedOutput);
+            const actualLines = splitOutputLines(actualOutput);
+            const totalRows = Math.max(expectedLines.length, actualLines.length);
+            const differingRows = [];
+
+            for (let index = 0; index < totalRows; index++) {
+                const expectedLine = expectedLines[index] === undefined ? '' : expectedLines[index];
+                const actualLine = actualLines[index] === undefined ? '' : actualLines[index];
+                if (expectedLine !== actualLine) {
+                    differingRows.push({
+                        lineNumber: index + 1,
+                        expectedLine,
+                        actualLine
+                    });
+                }
+            }
+
+            const rows = differingRows.slice(0, MAX_RENDERED_DIFF_ROWS).map(diff => `
+                <div class="case-detail-diff-row is-different">
+                    <span class="line-cell">第 ${diff.lineNumber} 行</span>
+                    ${renderDiffCell(diff.expectedLine, 'expected-cell')}
+                    ${renderDiffCell(diff.actualLine, 'actual-cell')}
+                </div>
+            `);
+            const notices = [];
+            if (differingRows.length > MAX_RENDERED_DIFF_ROWS) {
+                notices.push(`差异较多，仅显示前 ${MAX_RENDERED_DIFF_ROWS} 处。`);
+            }
+            const noticeHtml = notices.map(text => `<div class="case-detail-notice">${text}</div>`).join('');
+            const emptyHtml = differingRows.length === 0
+                ? '<div class="case-detail-diff-empty">当前预览范围内未发现逐行差异。</div>'
+                : '';
+
+            return `
+                <section class="case-detail-diff">
+                    <div class="case-detail-diff-title">
+                        <i class="fas fa-code-compare"></i> 输出差异
+                    </div>
+                    ${noticeHtml}
+                    ${emptyHtml}
+                    <div class="case-detail-diff-table">
+                        <div class="case-detail-diff-row is-head">
+                            <span>错误行</span>
+                            <span>标准答案</span>
+                            <span>你的输出</span>
+                        </div>
+                        ${rows.join('')}
+                    </div>
+                </section>
+            `;
+        }
+
         async function showDetailsModal(result) {
             const { caseNumber, status, timeUsed, memoryUsed } = result;
-
-            let title = `测试点 #${caseNumber} - ${status}`;
-            if (status === 'AC') {
-                title += ` ( ${timeUsed} ms`;
-                if (memoryUsed > 0) {
-                    title += `, ${memoryUsed} KB`;
-                }
-                title += ' )';
-            } else if (status === 'MLE' && memoryUsed > 0) {
-                title += ` ( ${memoryUsed} KB )`;
-            } else if ((status === 'WA' || status === 'TLE') && timeUsed > 0) {
-                title += ` ( ${timeUsed} ms )`;
-            }
-            detailsModalLabel.textContent = title;
+            const statusKey = normalizeStatus(status);
+            updateDetailsHeader({ caseNumber, status, timeUsed, memoryUsed });
 
             downloadInputBtn.href = `/download/${currentJudgeId}/${caseNumber}`;
 
@@ -3514,48 +3886,23 @@
                     return;
                 }
                 const details = await response.json();
-                const inputNotice = truncationNotice(details.inputTruncated);
-                const userOutputNotice = truncationNotice(details.userOutputTruncated);
-                const correctOutputNotice = truncationNotice(details.correctOutputTruncated);
+                const inputCard = renderCaseDetailCard('输入数据', details.input, 'fas fa-keyboard', details.inputTruncated);
+                const expectedCard = renderCaseDetailCard('标准输出', details.correctOutput || '', 'fas fa-check-double', details.correctOutputTruncated);
+                const actualCard = renderCaseDetailCard('你的输出', details.userOutput || '', 'fas fa-terminal', details.userOutputTruncated);
+                const diffTable = statusKey === 'WA'
+                    ? renderOutputDiffTable(details.correctOutput || '', details.userOutput || '')
+                    : '';
 
-                if (status === 'WA') {
-                    const diffString = Diff.createTwoFilesPatch(
-                        'expected.txt',
-                        'user.txt',
-                        details.correctOutput || '',
-                        details.userOutput || '',
-                        '标准输出',
-                        '你的输出',
-                        { context: 100 }
-                    );
-
-                    modalBodyContent.innerHTML = `
-                    <h5>输入数据</h5>
-                    ${inputNotice}
-                    <pre><code>${escapeHtml(details.input)}</code></pre>
-                    <div id="diff-container"></div>
+                modalBodyContent.innerHTML = `
+                    <div class="case-detail-layout">
+                        ${inputCard}
+                        <div class="case-detail-compare">
+                            ${expectedCard}
+                            ${actualCard}
+                        </div>
+                        ${diffTable}
+                    </div>
                 `;
-
-                    const diff2htmlUi = new Diff2HtmlUI(document.getElementById('diff-container'), diffString, {
-                        drawFileList: false,
-                        matching: 'none',
-                        outputFormat: 'side-by-side'
-                    });
-                    diff2htmlUi.draw();
-
-                } else {
-                    modalBodyContent.innerHTML = `
-                    <h5>输入数据</h5>
-                    ${inputNotice}
-                    <pre><code>${escapeHtml(details.input)}</code></pre>
-                    <h5>你的输出</h5>
-                    ${userOutputNotice}
-                    <pre><code>${escapeHtml(details.userOutput || '')}</code></pre>
-                    <h5>标准输出</h5>
-                    ${correctOutputNotice}
-                    <pre><code>${escapeHtml(details.correctOutput || '')}</code></pre>
-                `;
-                }
             } catch (error) {
                 console.error('Failed to fetch details:', error);
                 modalBodyContent.innerHTML = `<div class="alert alert-danger">加载详情时发生网络错误。</div>`;
@@ -3563,7 +3910,7 @@
         }
 
         function truncationNotice(truncated) {
-            return truncated ? '<div class="alert alert-warning py-2">文件较大，仅显示前 1 MiB 预览。</div>' : '';
+            return truncated ? '' : '';
         }
 
         // Toast 通知函数

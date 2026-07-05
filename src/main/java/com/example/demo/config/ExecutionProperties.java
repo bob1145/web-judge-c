@@ -34,5 +34,6 @@ public class ExecutionProperties {
     private Duration maxTaskRuntime = Duration.ofMinutes(30);
     private long minMemoryLimitBytes = 16L * 1024 * 1024;
     private long maxOutputBytesPerCase = 1024L * 1024;
+    private long maxDetailPreviewBytes = 64L * 1024;
     private boolean requireSandbox = false;
 }

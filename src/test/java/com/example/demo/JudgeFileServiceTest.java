@@ -1,6 +1,10 @@
 package com.example.demo;
 
+import com.example.demo.config.ExecutionProperties;
 import com.example.demo.dto.TestCaseDetail;
+import com.example.demo.dto.JudgeProgress;
+import com.example.demo.dto.JudgeSummary;
+import com.example.demo.dto.TestCaseResult;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
 import com.example.demo.service.FileTaskStore;
@@ -41,7 +45,7 @@ class JudgeFileServiceTest {
     @BeforeEach
     void setUp() throws IOException {
         taskStore = new FileTaskStore(new ObjectMapper(), tempDir.resolve("storage"));
-        service = new JudgeFileService(taskStore);
+        service = new JudgeFileService(taskStore, new ExecutionProperties());
         canaryFile = tempDir.resolve("outside-canary.txt");
         Files.writeString(canaryFile, "SECRET_CANARY");
     }
@@ -112,6 +116,25 @@ class JudgeFileServiceTest {
     }
 
     @Test
+    void usesConfiguredDetailPreviewLimitWhenPolicyAllowsLargerFiles() throws Exception {
+        long previewLimit = 1024L * 1024 + 128;
+        ExecutionProperties executionProperties = new ExecutionProperties();
+        executionProperties.setMaxDetailPreviewBytes(previewLimit);
+        JudgeFileService configuredService = new JudgeFileService(taskStore, executionProperties);
+        Path workDir = createTask("configured-detail-preview", 1, false, previewLimit * 2);
+        String largeInput = "a".repeat((int) previewLimit);
+        Files.writeString(workDir.resolve("1.in"), largeInput);
+        Files.writeString(workDir.resolve("1.out"), "ok");
+        Files.writeString(workDir.resolve("1.ans"), "ok");
+
+        TestCaseDetail detail = configuredService.getTestCaseDetails("configured-detail-preview", 1);
+
+        assertThat(detail.getInput()).hasSize((int) previewLimit);
+        assertThat(detail.getInput()).isEqualTo(largeInput);
+        assertThat(detail.isInputTruncated()).isFalse();
+    }
+
+    @Test
     void resolvesInputDownloadOnlyInsideTaskWorkDir() throws Exception {
         Path workDir = createTask("download-one", 1, false, 64);
         Files.writeString(workDir.resolve("1.in"), "input-file");
@@ -139,6 +162,39 @@ class JudgeFileServiceTest {
         assertThat(names).allSatisfy(name -> assertThat(name).doesNotContain("..", "/", "\\"));
         assertThat(Files.readString(Path.of("src/main/java/com/example/demo/service/JudgeFileService.java")))
                 .doesNotContain("ByteArrayOutputStream");
+    }
+
+    @Test
+    void streamsOnlyNonAcceptedCaseArtifactsAsSafeZipEntries() throws Exception {
+        Path workDir = createTask("download-failed", 3, false, 64);
+        Files.writeString(workDir.resolve("1.in"), "input-1");
+        Files.writeString(workDir.resolve("1.out"), "user-1");
+        Files.writeString(workDir.resolve("1.ans"), "answer-1");
+        Files.writeString(workDir.resolve("2.in"), "input-2");
+        Files.writeString(workDir.resolve("2.out"), "user-2");
+        Files.writeString(workDir.resolve("2.ans"), "answer-2");
+        Files.writeString(workDir.resolve("3.in"), "input-3");
+        Files.writeString(workDir.resolve("3.out"), "user-3");
+        Files.writeString(workDir.resolve("3.ans"), "answer-3");
+        taskStore.saveSummary("download-failed", new JudgeProgress(
+                "WA",
+                "WA on Test Case #2",
+                100,
+                List.of(
+                        new TestCaseResult(1, "AC", 1, 1),
+                        new TestCaseResult(2, "WA", 1, 1),
+                        new TestCaseResult(3, "TLE", 1, 1)
+                ),
+                new JudgeSummary(3, 3, 1, 1, 1, 0, 0, 0, 0, 2, List.of(), List.of(), null)
+        ));
+
+        StreamingResponseBody body = service.streamFailedTestCasesArchive("download-failed");
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        body.writeTo(buffer);
+
+        List<String> names = zipEntryNames(buffer.toByteArray());
+        assertThat(names).containsExactly("2.in", "2.out", "2.ans", "3.in", "3.out", "3.ans");
+        assertThat(names).allSatisfy(name -> assertThat(name).doesNotContain("..", "/", "\\"));
     }
 
     @Test
