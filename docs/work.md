@@ -332,3 +332,10 @@
 - 状态：本卡客户端开发验收通过，先VERIFIED_PENDING_COMMIT，再按task §2.4写DONE提交候选，真实提交匹配后生效。DEF-23为IMPLEMENTED_PENDING_VALIDATION；R06全量不稳定、TASK-03参数以及未验收provider仍使整体Goal不能完成/发布。
 - 提交候选：fix(worker): TASK-08 reject nominal auth and enforce tls [TASK-08-C01]；父SHA 6f3b479b8cd37bc29cb862495515318066e88618，自身SHA按唯一主题核验。沿用已批准的单次Git身份参数，仅本地、不push/amend/新建分支，精确暂存排除既有.mimosa/、.playwright-mcp/。
 - 后续：先核对TASK-09的v2清单字段/目标平台及延期参数边界；TASK-03继续等待可信代理与限流定量参数批准，不擅自采用候选默认。
+
+### 2026-10-02 — TASK-08 / C02 — 已完成任务总览一致性补正
+
+- TASK-08 C01真实提交d40192bca8aa63011b60e6fa7d68d057b37be14f已核验：父6f3b479b8cd37bc29cb862495515318066e88618、用户指定作者、唯一主题、90个文件、task/work均在提交中；仅本地未推送，工作树仅既有.mimosa/、.playwright-mcp/。
+- TASK-09预检时发现task.md任务卡已完成但总览仍未勾选TASK-02/08，属于本次台账同步遗漏。仅同步两条总览为已核验，不改需求、代码、测试或缺陷关闭状态；总览与真实已完成00/01/02/08一致，共4/30。
+- 本补正为纯文档，验证30张任务卡、30条总览以及4条勾选与真实唯一C01提交对应，执行git diff --check/暂存检查；未重复执行业务测试，沿用TASK-08 R05/R08代码验收且保留R06未定位失败风险。
+- 补充提交候选docs(task): TASK-08 reconcile completed-task index [TASK-08-C02]，父SHA d40192bca8aa63011b60e6fa7d68d057b37be14f；只包含task/work，不amend旧提交、不推送、不为回填自身SHA改写历史。
