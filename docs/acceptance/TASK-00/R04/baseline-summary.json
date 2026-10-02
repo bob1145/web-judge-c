@@ -1,0 +1,361 @@
+{
+  "command": "mvn -o -B -Dstyle.color=never test",
+  "exit_code": 1,
+  "report_count": 33,
+  "evidence_complete": true,
+  "totals": {
+    "tests": 193,
+    "failures": 2,
+    "errors": 7,
+    "skipped": 2,
+    "passed": 182
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.ApplicationYamlExecutionProfileTest",
+      "tests": 2,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": [
+        {
+          "test": "defaultProfileKeepsSmallLocalOutputCap",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "\nexpected: 1048576L\n but was: 10485760L",
+          "detail": "org.opentest4j.AssertionFailedError: \n\nexpected: 1048576L\n but was: 10485760L\n\tat com.example.demo.ApplicationYamlExecutionProfileTest.defaultProfileKeepsSmallLocalOutputCap(ApplicationYamlExecutionProfileTest.java:29)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)"
+        }
+      ]
+    },
+    {
+      "name": "com.example.demo.AuditAndAdminTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.CaseBatchRunnerTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.Demo18ApplicationTests",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.FileTaskStoreTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.FrontendTemplateContractTest",
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.HighVolumeJudgeIntegrationTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.JudgeBaselineTest",
+      "tests": 5,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": [
+        {
+          "test": "generatorOutputLimitIsReportedAsOutputLimitExceededInsteadOfSystemError",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "\nexpected: \"OUTPUT_LIMIT_EXCEEDED\"\n but was: \"AC\"",
+          "detail": "org.opentest4j.AssertionFailedError: \n\nexpected: \"OUTPUT_LIMIT_EXCEEDED\"\n but was: \"AC\"\n\tat com.example.demo.JudgeBaselineTest.generatorOutputLimitIsReportedAsOutputLimitExceededInsteadOfSystemError(JudgeBaselineTest.java:212)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)"
+        }
+      ]
+    },
+    {
+      "name": "com.example.demo.JudgeControllerPolicyTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.JudgeFileServiceProductionTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.JudgeFileServiceTest",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.JudgeSandboxOrchestrationTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.JudgeSchedulerTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.LinuxContainerRunnerTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "nonpassing": [
+        {
+          "test": "liveProbeSkipsWithEnvironmentReasonWhenLinuxRuntimeOrImageIsUnavailable",
+          "outcome": "skipped",
+          "type": "org.opentest4j.TestAbortedException",
+          "message": "",
+          "detail": "org.opentest4j.TestAbortedException: Assumption failed: Linux container capability unavailable: linux runner image unavailable: Error response from daemon: No such image: cpp-judge-runner:latest\n\tat org.junit.jupiter.api.Assumptions.throwAssumptionFailed(Assumptions.java:321)\n\tat org.junit.jupiter.api.Assumptions.assumeTrue(Assumptions.java:120)\n\tat com.example.demo.LinuxContainerRunnerTest.liveProbeSkipsWithEnvironmentReasonWhenLinuxRuntimeOrImageIsUnavailable(LinuxContainerRunnerTest.java:205)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        }
+      ]
+    },
+    {
+      "name": "com.example.demo.ProcessRunnerTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.ProductionAuthenticationTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.ProductionCleanupTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.ProductionHighVolumeIntegrationTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.ProductionRunbookDocumentationTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.ProductionSandboxAcceptanceDocumentationTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.ProductionSandboxBaselineTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.ProductionSecurityStartupValidatorTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.ProgressPublisherTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.QuotaAndAuthorizationTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.RemoteWorkerRunnerTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.ResultAggregatorTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.SandboxEventIngestorTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.SandboxRunnerContractTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.SecurityModeStartupValidatorTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.TaskCleanupServiceTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.TaskPolicyResolverTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.TaskRunnerArtifactContractTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 7,
+      "skipped": 0,
+      "nonpassing": [
+        {
+          "test": "taskRunnerStopsOnCancellationFileAndWritesPartialSummary",
+          "outcome": "error",
+          "type": "java.io.IOException",
+          "message": "Cannot run program \"python\": Exec failed, error: 2 (No such file or directory) ",
+          "detail": "java.io.IOException: Cannot run program \"python\": Exec failed, error: 2 (No such file or directory) \n\tat java.base/java.lang.ProcessBuilder.start(ProcessBuilder.java:1170)\n\tat java.base/java.lang.ProcessBuilder.start(ProcessBuilder.java:1089)\n\tat com.example.demo.TaskRunnerArtifactContractTest.taskRunnerStopsOnCancellationFileAndWritesPartialSummary(TaskRunnerArtifactContractTest.java:254)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        },
+        {
+          "test": "taskRunnerCompilesProgramsWritesJsonlEventsAndAtomicSummaryForAcceptedCases",
+          "outcome": "error",
+          "type": "java.io.IOException",
+          "message": "Cannot run program \"python\": Exec failed, error: 2 (No such file or directory) ",
+          "detail": "java.io.IOException: Cannot run program \"python\": Exec failed, error: 2 (No such file or directory) \n\tat java.base/java.lang.ProcessBuilder.start(ProcessBuilder.java:1170)\n\tat java.base/java.lang.ProcessBuilder.start(ProcessBuilder.java:1089)\n\tat com.example.demo.TaskRunnerArtifactContractTest.runRunner(TaskRunnerArtifactContractTest.java:311)\n\tat com.example.demo.TaskRunnerArtifactContractTest.taskRunnerCompilesProgramsWritesJsonlEventsAndAtomicSummaryForAcceptedCases(TaskRunnerArtifactContractTest.java:50)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)"
+        },
+        {
+          "test": "taskRunnerReportsMemoryLimitExceededStatus",
+          "outcome": "error",
+          "type": "java.io.IOException",
+          "message": "Cannot run program \"python\": Exec failed, error: 2 (No such file or directory) ",
+          "detail": "java.io.IOException: Cannot run program \"python\": Exec failed, error: 2 (No such file or directory) \n\tat java.base/java.lang.ProcessBuilder.start(ProcessBuilder.java:1170)\n\tat java.base/java.lang.ProcessBuilder.start(ProcessBuilder.java:1089)\n\tat com.example.demo.TaskRunnerArtifactContractTest.runRunner(TaskRunnerArtifactContractTest.java:311)\n\tat com.example.demo.TaskRunnerArtifactContractTest.taskRunnerReportsMemoryLimitExceededStatus(TaskRunnerArtifactContractTest.java:191)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)"
+        },
+        {
+          "test": "taskRunnerStopsAfterFirstNonAcceptedCaseWhenRequestedAndKeepsArtifacts",
+          "outcome": "error",
+          "type": "java.io.IOException",
+          "message": "Cannot run program \"python\": Exec failed, error: 2 (No such file or directory) ",
+          "detail": "java.io.IOException: Cannot run program \"python\": Exec failed, error: 2 (No such file or directory) \n\tat java.base/java.lang.ProcessBuilder.start(ProcessBuilder.java:1170)\n\tat java.base/java.lang.ProcessBuilder.start(ProcessBuilder.java:1089)\n\tat com.example.demo.TaskRunnerArtifactContractTest.runRunner(TaskRunnerArtifactContractTest.java:311)\n\tat com.example.demo.TaskRunnerArtifactContractTest.taskRunnerStopsAfterFirstNonAcceptedCaseWhenRequestedAndKeepsArtifacts(TaskRunnerArtifactContractTest.java:151)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)"
+        },
+        {
+          "test": "taskRunnerReportsWrongAnswerTimeoutAndOutputLimitAsStableCaseStatuses",
+          "outcome": "error",
+          "type": "java.io.IOException",
+          "message": "Cannot run program \"python\": Exec failed, error: 2 (No such file or directory) ",
+          "detail": "java.io.IOException: Cannot run program \"python\": Exec failed, error: 2 (No such file or directory) \n\tat java.base/java.lang.ProcessBuilder.start(ProcessBuilder.java:1170)\n\tat java.base/java.lang.ProcessBuilder.start(ProcessBuilder.java:1089)\n\tat com.example.demo.TaskRunnerArtifactContractTest.runRunner(TaskRunnerArtifactContractTest.java:311)\n\tat com.example.demo.TaskRunnerArtifactContractTest.taskRunnerReportsWrongAnswerTimeoutAndOutputLimitAsStableCaseStatuses(TaskRunnerArtifactContractTest.java:102)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)"
+        },
+        {
+          "test": "taskRunnerRejectsSourcePathsOutsideMountedWorkDirAsSecurityViolation",
+          "outcome": "error",
+          "type": "java.io.IOException",
+          "message": "Cannot run program \"python\": Exec failed, error: 2 (No such file or directory) ",
+          "detail": "java.io.IOException: Cannot run program \"python\": Exec failed, error: 2 (No such file or directory) \n\tat java.base/java.lang.ProcessBuilder.start(ProcessBuilder.java:1170)\n\tat java.base/java.lang.ProcessBuilder.start(ProcessBuilder.java:1089)\n\tat com.example.demo.TaskRunnerArtifactContractTest.runRunner(TaskRunnerArtifactContractTest.java:311)\n\tat com.example.demo.TaskRunnerArtifactContractTest.taskRunnerRejectsSourcePathsOutsideMountedWorkDirAsSecurityViolation(TaskRunnerArtifactContractTest.java:224)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)"
+        },
+        {
+          "test": "taskRunnerReturnsStableCompileErrorAndBoundsCompilerOutput",
+          "outcome": "error",
+          "type": "java.io.IOException",
+          "message": "Cannot run program \"python\": Exec failed, error: 2 (No such file or directory) ",
+          "detail": "java.io.IOException: Cannot run program \"python\": Exec failed, error: 2 (No such file or directory) \n\tat java.base/java.lang.ProcessBuilder.start(ProcessBuilder.java:1170)\n\tat java.base/java.lang.ProcessBuilder.start(ProcessBuilder.java:1089)\n\tat com.example.demo.TaskRunnerArtifactContractTest.runRunner(TaskRunnerArtifactContractTest.java:311)\n\tat com.example.demo.TaskRunnerArtifactContractTest.taskRunnerReturnsStableCompileErrorAndBoundsCompilerOutput(TaskRunnerArtifactContractTest.java:80)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)"
+        }
+      ]
+    },
+    {
+      "name": "com.example.demo.WindowsHyperVContainerRunnerTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "nonpassing": [
+        {
+          "test": "liveProbeSkipsWithEnvironmentReasonWhenHyperVRuntimeOrImageIsUnavailable",
+          "outcome": "skipped",
+          "type": "org.opentest4j.TestAbortedException",
+          "message": "",
+          "detail": "org.opentest4j.TestAbortedException: Assumption failed: Windows Hyper-V container capability unavailable: container runtime is not Windows: linux\n\tat org.junit.jupiter.api.Assumptions.throwAssumptionFailed(Assumptions.java:321)\n\tat org.junit.jupiter.api.Assumptions.assumeTrue(Assumptions.java:120)\n\tat com.example.demo.WindowsHyperVContainerRunnerTest.liveProbeSkipsWithEnvironmentReasonWhenHyperVRuntimeOrImageIsUnavailable(WindowsHyperVContainerRunnerTest.java:202)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        }
+      ]
+    }
+  ]
+}
