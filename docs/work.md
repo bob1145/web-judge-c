@@ -44,12 +44,12 @@
 
 ## 3. 开发任务总台账
 
-任务完成：**1/30（提交候选，[TASK-00-C01]核验后生效）**；仅TASK-00决策/执行基线，业务修复仍未完成；DONE须有§2的提交证据。
+任务完成：**2/30（TASK-01提交候选，[TASK-01-C01]核验后生效）**；TASK-00真实提交已核验。缺陷最终关闭和生产验收尚未完成；DONE须有§2的提交证据。
 
 | 任务 | 名称 | 状态 | 最新记录/提交定位 |
 | --- | --- | --- | --- |
-| TASK-00 | 决策与执行基线 | DONE（提交候选） | TASK-00 / R06；[TASK-00-C01] |
-| TASK-01 | 回归基线与解释器 | NOT_STARTED | — |
+| TASK-00 | 决策与执行基线 | DONE | 4c86d830edc9a927e32377291bac20641ac1e557；[TASK-00-C01] |
+| TASK-01 | 回归基线与解释器 | DONE（提交候选） | TASK-01 / R01～R04；[TASK-01-C01] |
 | TASK-02 | 凭证解析安全默认日志 | NOT_STARTED | — |
 | TASK-03 | 可信代理有界限流 | NOT_STARTED | — |
 | TASK-04 | Cookie重定向CSRF | NOT_STARTED | — |
@@ -245,3 +245,34 @@
 - 用户明确提供Git身份yanwenyu及2990114500@qq.com；仅对本次commit使用git -c user.name和-c user.email，不修改全局或仓库持久配置。
 - R05失败历史保留；HEAD及受测业务代码未改变，R03/R04和独立静态验收继续有效。提交前重新检查范围及git diff --cached --check。
 - 使用原定位[TASK-00-C01]，不是伪造新任务或空提交；父SHA仍f31d039183c690f36d7a07e25da911ce1ace55db。候选DONE仅在提交成功及真实SHA/父SHA/19文件范围核验后生效；不推送。
+
+### 2026-10-02 — TASK-01 / R01 — 动态输出边界与解释器发现开工
+
+- 前置已核验：TASK-00真实SHA 4c86d830edc9a927e32377291bac20641ac1e557，父f31d039183c690f36d7a07e25da911ce1ace55db；唯一主题匹配1条，19文件精确范围含task/work，提交身份与用户提供一致，未推送。提交后仅既有.mimosa/、.playwright-mcp/未跟踪，已向用户即时汇报。
+- 需求RQ-V01/AC-V01/T-V01、N5、DEC-01/07；设计D §8.2/9.1。批准默认10MiB，不改变生产额度/runner语义；编译诊断及后续资源参数仍按批准延期边界处理。
+- 真实前测为TASK-00 R04：额度断言1MiB对10MiB失败、2MiB生成器不足以超限、python硬编码导致7错误；不伪造新的前测成功。
+- 主代理负责ApplicationYamlExecutionProfileTest和JudgeBaselineTest：期望与批准额度一致，生成器按生效配置输出limit-1/limit/limit+1，预览断言独立按preview上限；python_discovery负责测试作用域Python发现/矩阵、两个runner调用点及README，彼此不覆盖文件。
+- 计划本项执行定向、全量Maven和解释器矩阵；实际结果后续追加。业务配置与生产代码保持不变，不禁用失败/不把OLE期望改AC，task/work由主代理统一更新及提交。
+
+### 2026-10-02 — TASK-01 / R02～R04 — 回归、显式路径和失败负例验收
+
+- 角色/范围：主代理集成与验收，python_discovery实现测试作用域解释器发现，baseline_inspection/baseline_review分别独立复核。需求RQ-V01/AC-V01/T-V01、N5、D §8.2/9.1；父SHA 4c86d830edc9a927e32377291bac20641ac1e557。
+- 实做：默认YAML断言对齐批准的10MiB；注入生效ExecutionProperties，生成器以7和换行加固定块空白产生恰好limit-1/limit/limit+1字节。下界/等界须AC，上界保留OLE而非系统错误，详情预览按独立配置上限断言。未改任何生产额度或判题代码。
+- 实做：PythonInterpreter显式judge.test.python优先且无效不回退，否则python3再python；真实版本检查只接受Python3，5秒等待/1秒清理，两个真实runner启动点统一调用。新增12测试：11个注入/Mockito选择与错误/超时/中断单测，1个真实环境探测；不把mock矩阵称为三个真实安装环境。
+- README记录显式配置；复用隔离脚本新增worktree模式及独立Maven参数，保留committed默认。各次包含131个源码/runner/scripts/POM文件hash、150个完整输入hash、harness hash、父SHA、模式、真实计数和有限脱敏原因。测试后四组hash全部与当时工作树匹配；之后仅验收文档/task/work更新，代码及文档契约实际依赖输入未改。
+- 失败历史：首次定向命令未给-Dtest逗号列表加引号，被PowerShell解析拒绝，退出1、测试未启动；纠正独立argv后执行R01。审查另发现快照模式错误反斜杠，运行前修正并补完整输入hash；不伪称这两次工具/脚本问题为通过测试。
+
+| 运行与Maven附加参数 | 实际结果 | 证据 |
+| --- | --- | --- |
+| R01：-Dtest=ApplicationYamlExecutionProfileTest,JudgeBaselineTest,TaskRunnerArtifactContractTest,PythonInterpreterTest | 退出0；28项/28通过/0失败/0错误/0跳过 | docs/acceptance/TASK-01/R01 |
+| R02：无-Dtest，全量默认test | 退出0；207项/205通过/0失败/0错误/2跳过 | docs/acceptance/TASK-01/R02 |
+| R03：-Dtest=TaskRunnerArtifactContractTest,PythonInterpreterTest -Djudge.test.python=/usr/bin/python3 | 退出0；19项/19通过/0失败/0错误/0跳过 | docs/acceptance/TASK-01/R03 |
+| R04：-Dtest=PythonInterpreterTest#actualEnvironmentHasAWorkingPython3Interpreter -Djudge.test.python=/nonexistent/task01-python | 预期退出1；1项/0通过/0失败/1错误/0跳过；错误明确为显式路径不存在且不回退 | docs/acceptance/TASK-01/R04 |
+
+- 每次完整Maven argv存于对应baseline-summary.json；外层unit-properties/环境及可复跑命令见TASK-01 README。R04为有意错误配置负例，独立验证其退出码/错误数/缺失路径与不回退消息，不伪装BUILD SUCCESS或混入正常全量通过数。
+- 全量2项跳过保持原有真实provider探针：Linux缺cpp-judge-runner:latest，Windows因Linux runtime不适用。TASK-01四类核心测试均实际执行且无skip；未新增/扩大任何跳过，不将这两项计通过。真实平台验收仍由TASK-25/26负责，当前不可发布，N5不提前关闭。
+- 未执行Python runner独立unittest套件（本项真实artifact由Java7项覆盖）、真实浏览器/WS/TLS/provider/生产资源攻击；不把mock发现矩阵推广到Windows实际安装。后续输出合计、在线资源限制及进程树治理仍由TASK-13/14完成。
+- 原则：仅测试及测试工具/文档变更；DRY统一两个解释器入口并复用隔离采集，KISS/YAGNI不引入包管理或生产依赖，不改业务默认/放宽断言。独立复核确认边界字节数、保留OLE、显式不回退及有限等待；已修快照转义/证据范围问题。
+- 本地提交候选 test(baseline): TASK-01 restore reproducible regression [TASK-01-C01]；父SHA如上，自身SHA由唯一主题定位尚未生成，身份沿用用户提供的单次git -c参数。精确暂存本任务测试、工具、README、证据及task/work，不纳入既有临时目录；提交前git diff --check及提交后SHA/父/范围唯一性核验，未推送。
+- 下一任务TASK-02：前置00/01真实提交及DEC-06方向批准；统一凭证、安全默认和脱敏日志，不借此越过TASK-03的代理/容量审批。
+- 提交前首次git diff --cached --check退出2：R04脱敏构建摘要的Maven错误标题带尾随空格；仅去除该行末空白，错误文本、退出码、JSON及所有测试源码/hash不变，重新检查后再提交。

@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ApplicationYamlExecutionProfileTest {
 
-    private static final long DEFAULT_OUTPUT_BYTES_PER_CASE = 1_048_576L;
+    private static final long DEFAULT_OUTPUT_BYTES_PER_CASE = 10_485_760L;
     private static final long DEFAULT_DETAIL_PREVIEW_BYTES = 65_536L;
     private static final long PRODUCTION_OUTPUT_BYTES_PER_CASE = 16_777_216L;
 

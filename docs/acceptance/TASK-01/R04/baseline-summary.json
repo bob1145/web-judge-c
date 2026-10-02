@@ -1,0 +1,39 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=PythonInterpreterTest#actualEnvironmentHasAWorkingPython3Interpreter",
+    "-Djudge.test.python=/nonexistent/task01-python",
+    "test"
+  ],
+  "exit_code": 1,
+  "report_count": 1,
+  "reports_present": true,
+  "totals": {
+    "tests": 1,
+    "failures": 0,
+    "errors": 1,
+    "skipped": 0,
+    "passed": 0
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.PythonInterpreterTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 1,
+      "skipped": 0,
+      "nonpassing": [
+        {
+          "test": "actualEnvironmentHasAWorkingPython3Interpreter",
+          "outcome": "error",
+          "type": "java.lang.IllegalStateException",
+          "message": "Python 3 is required for runner contract tests. Set -Djudge.test.python=<executable>; explicit configuration never falls back. /nonexistent/task01-python: Cannot run program \"/nonexistent/task01-python\": Exec failed, error: 2 (No such file or directory) ",
+          "detail": "java.lang.IllegalStateException: Python 3 is required for runner contract tests. Set -Djudge.test.python=<executable>; explicit configuration never falls back. /nonexistent/task01-python: Cannot run program \"/nonexistent/task01-python\": Exec failed, error: 2 (No such file or directory) \n\tat com.example.demo.PythonInterpreter.resolve(PythonInterpreter.java:37)\n\tat com.example.demo.PythonInterpreter.resolve(PythonInterpreter.java:16)\n\tat com.example.demo.PythonInterpreterTest.actualEnvironmentHasAWorkingPython3Interpreter(PythonInterpreterTest.java:142)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        }
+      ]
+    }
+  ]
+}

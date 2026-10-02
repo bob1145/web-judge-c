@@ -1,0 +1,54 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=ApplicationYamlExecutionProfileTest,JudgeBaselineTest,TaskRunnerArtifactContractTest,PythonInterpreterTest",
+    "test"
+  ],
+  "exit_code": 0,
+  "report_count": 4,
+  "reports_present": true,
+  "totals": {
+    "tests": 28,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 28
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.ApplicationYamlExecutionProfileTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.JudgeBaselineTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.PythonInterpreterTest",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.TaskRunnerArtifactContractTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    }
+  ]
+}

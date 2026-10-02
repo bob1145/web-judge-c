@@ -249,7 +249,7 @@ class TaskRunnerArtifactContractTest {
                 .maxTaskRuntime(Duration.ofSeconds(60))
                 .build());
 
-        Process process = new ProcessBuilder("python", RUNNER.toString(), spec.toString())
+        Process process = new ProcessBuilder(PythonInterpreter.resolve(), RUNNER.toString(), spec.toString())
                 .redirectErrorStream(true)
                 .start();
         Thread.sleep(1_000);
@@ -306,7 +306,7 @@ class TaskRunnerArtifactContractTest {
     }
 
     private RunnerResult runRunner(Path specPath) throws Exception {
-        Process process = new ProcessBuilder("python", RUNNER.toString(), specPath.toString())
+        Process process = new ProcessBuilder(PythonInterpreter.resolve(), RUNNER.toString(), specPath.toString())
                 .redirectErrorStream(true)
                 .start();
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);

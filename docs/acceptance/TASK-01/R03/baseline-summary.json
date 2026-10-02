@@ -1,0 +1,39 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=TaskRunnerArtifactContractTest,PythonInterpreterTest",
+    "-Djudge.test.python=/usr/bin/python3",
+    "test"
+  ],
+  "exit_code": 0,
+  "report_count": 2,
+  "reports_present": true,
+  "totals": {
+    "tests": 19,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 19
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.PythonInterpreterTest",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.TaskRunnerArtifactContractTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    }
+  ]
+}

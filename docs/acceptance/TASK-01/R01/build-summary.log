@@ -1,0 +1,8 @@
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.53 s -- in com.example.demo.TaskRunnerArtifactContractTest
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.864 s -- in com.example.demo.PythonInterpreterTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.796 s -- in com.example.demo.JudgeBaselineTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.061 s -- in com.example.demo.ApplicationYamlExecutionProfileTest
+[INFO] Tests run: 28, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+[INFO] Total time:  26.498 s
+[INFO] Finished at: 2026-10-02T21:44:29+08:00

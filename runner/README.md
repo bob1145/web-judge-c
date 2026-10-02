@@ -31,6 +31,22 @@ On Windows PowerShell:
 .\mvnw.cmd -Dtest=TaskRunnerArtifactContractTest test
 ```
 
+
+Java contract tests require a working Python 3 interpreter. They probe `python3`
+first, then `python` on `PATH`. Each version probe has a five-second deadline;
+a timed-out probe is forcibly terminated with a one-second cleanup deadline.
+Missing interpreters, Python 2, and failed probes fail tests rather than skip them.
+To select an executable explicitly (including a path containing spaces), use:
+
+```powershell
+.\mvnw.cmd "-Djudge.test.python=C:/Python313/python.exe" -Dtest=TaskRunnerArtifactContractTest test
+```
+
+`judge.test.python` takes precedence over discovery and must be a single executable
+path or name, not a shell command. An invalid explicit value fails without falling
+back to `PATH`. This property affects Java tests only, not the production runner.
+Run resource-intensive runner tests only within the approved isolated test environment.
+
 ## Runtime Inputs
 
 The input file is a serialized `SandboxTaskSpec` with these required fields:

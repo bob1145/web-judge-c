@@ -3,6 +3,12 @@ set -euo pipefail
 
 source_root=${1:?source root required}
 evidence_root=${2:?evidence root required}
+snapshot_mode=${3:-committed}
+if [ "$#" -ge 3 ]; then
+    shift 3
+else
+    shift 2
+fi
 test -d "$source_root/.git"
 test ! -e "$evidence_root"
 test "$(findmnt -n -o FSTYPE -T /tmp)" = tmpfs
@@ -19,8 +25,22 @@ findmnt -n -o VFS-OPTIONS -T "$source_root" | tr , '\n' | grep -qx ro
 mkdir "$evidence_root"
 snapshot=$(mktemp -d /tmp/wjc-task00.XXXXXX)
 tested_commit=$(git -c "safe.directory=$source_root" -C "$source_root" rev-parse HEAD)
-git -c "safe.directory=$source_root" -C "$source_root" archive "$tested_commit" | tar -x -C "$snapshot"
+case "$snapshot_mode" in
+    committed)
+        git -c "safe.directory=$source_root" -C "$source_root" archive "$tested_commit" | tar -x -C "$snapshot"
+        ;;
+    worktree)
+        git -c "safe.directory=$source_root" -C "$source_root" ls-files -z --cached --others --exclude-standard -- pom.xml src runner scripts README.md 'docs/*.md' .mvn mvnw mvnw.cmd > "$snapshot/source-files.txt"
+        tar -C "$source_root" --null -T "$snapshot/source-files.txt" -cf "$snapshot/source.tar"
+        tar -xf "$snapshot/source.tar" -C "$snapshot"
+        ;;
+    *) exit 2 ;;
+esac
 printf "%s\n" "$tested_commit" > "$evidence_root/tested-head.txt"
+printf "%s\n" "$snapshot_mode" > "$evidence_root/snapshot-mode.txt"
+(cd "$snapshot"; find src runner scripts -type f -print0 | sort -z | xargs -0 sha256sum; sha256sum pom.xml) > "$evidence_root/source-hashes.sha256"
+(cd "$snapshot"; find . -type f ! -path ./source.tar ! -path ./source-files.txt -print0 | sort -z | xargs -0 sha256sum) > "$evidence_root/input-hashes.sha256"
+sha256sum "$0" > "$evidence_root/harness-hash.sha256"
 systemctl show "${cgroup_path##*/}" -p Id -p InvocationID -p MemoryMax -p MemorySwapMax -p CPUQuotaPerSecUSec -p TasksMax -p RuntimeMaxUSec -p PrivateNetwork -p ProtectSystem -p ProtectHome -p NoNewPrivileges -p TemporaryFileSystem -p ReadOnlyPaths -p ReadWritePaths > "$evidence_root/unit-properties.txt"
 {
     cat /etc/os-release
@@ -40,10 +60,10 @@ systemctl show "${cgroup_path##*/}" -p Id -p InvocationID -p MemoryMax -p Memory
 } > "$evidence_root/environment.txt"
 cd "$snapshot"
 set +e
-timeout --signal=TERM --kill-after=10s 540s mvn -o -B -Dstyle.color=never test > "$snapshot/maven.raw.log" 2>&1
+timeout --signal=TERM --kill-after=10s 540s mvn -o -B -Dstyle.color=never "$@" test > "$snapshot/maven.raw.log" 2>&1
 maven_exit=$?
 set -e
-python3 - "$snapshot" "$evidence_root" "$maven_exit" <<'PY'
+python3 - "$snapshot" "$evidence_root" "$maven_exit" "$@" <<'PY'
 import json
 import pathlib
 import re
@@ -74,7 +94,7 @@ for report in reports:
                 outcomes.append({"test": redact(case.get("name")), "outcome": outcome, "type": element.get("type"), "message": redact(element.get("message")), "detail": redact("\n".join((element.text or "").splitlines()[:6]))})
     suites.append({"name": suite.get("name"), **counts, "nonpassing": outcomes})
 totals["passed"] = totals["tests"] - totals["failures"] - totals["errors"] - totals["skipped"]
-result = {"command": "mvn -o -B -Dstyle.color=never test", "exit_code": int(sys.argv[3]), "report_count": len(reports), "evidence_complete": bool(reports) and totals["tests"] > 0, "totals": totals, "suites": suites}
+result = {"command": ["mvn", "-o", "-B", "-Dstyle.color=never", *sys.argv[4:], "test"], "exit_code": int(sys.argv[3]), "report_count": len(reports), "reports_present": bool(reports) and totals["tests"] > 0, "totals": totals, "suites": suites}
 (evidence / "baseline-summary.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 raw_log = (snapshot / "maven.raw.log").read_text(encoding="utf-8", errors="replace")
 lines = []
@@ -85,7 +105,7 @@ for line in raw_log.splitlines():
 (evidence / "build-summary.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
 print(json.dumps({"exit_code": result["exit_code"], "report_count": len(reports), **totals}))
 print("\n".join(lines[-8:]))
-if result["exit_code"] == 0 and not result["evidence_complete"]:
+if result["exit_code"] == 0 and not result["reports_present"]:
     sys.exit(2)
 PY
 exit "$maven_exit"

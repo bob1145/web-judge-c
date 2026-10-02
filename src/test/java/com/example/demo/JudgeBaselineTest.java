@@ -1,11 +1,14 @@
 package com.example.demo;
 
+import com.example.demo.config.ExecutionProperties;
 import com.example.demo.model.UserSession;
 import com.example.demo.service.AccessCodeService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -63,17 +66,6 @@ class JudgeBaselineTest {
             }
             """;
 
-    private static final String LARGE_OUTPUT_GENERATOR = """
-            #include <iostream>
-
-            int main() {
-                for (int i = 0; i < 2 * 1024 * 1024; ++i) {
-                    std::cout << 'x';
-                }
-                return 0;
-            }
-            """;
-
     private static final String RUNTIME_ERROR_SOLUTION = """
             int main() {
                 return 1;
@@ -94,6 +86,9 @@ class JudgeBaselineTest {
 
     @Autowired
     private AccessCodeService accessCodeService;
+
+    @Autowired
+    private ExecutionProperties executionProperties;
 
     private String sessionId;
 
@@ -204,7 +199,8 @@ class JudgeBaselineTest {
 
     @Test
     void generatorOutputLimitIsReportedAsOutputLimitExceededInsteadOfSystemError() throws Exception {
-        String judgeId = createJudgeTask(request(1, ECHO_SOLUTION, LARGE_OUTPUT_GENERATOR, ECHO_SOLUTION));
+        long outputBytes = Math.addExact(executionProperties.getMaxOutputBytesPerCase(), 1);
+        String judgeId = createJudgeTask(request(1, ECHO_SOLUTION, sizedGenerator(outputBytes), ECHO_SOLUTION));
 
         startJudgeTask(judgeId);
 
@@ -222,9 +218,49 @@ class JudgeBaselineTest {
                 .andExpect(status().isOk())
                 .andReturn();
         JsonNode detailsJson = objectMapper.readTree(detailsResult.getResponse().getContentAsString());
-        assertThat(detailsJson.path("input").asText()).hasSize(1_048_576);
+        long previewBytes = Math.min(executionProperties.getMaxDetailPreviewBytes(),
+                executionProperties.getMaxOutputBytesPerCase());
+        assertThat(detailsJson.path("input").asText()).hasSize(Math.toIntExact(previewBytes));
         assertThat(detailsJson.path("userOutput").asText()).isEmpty();
         assertThat(detailsJson.path("correctOutput").asText()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1, 0})
+    void generatorOutputAtOrBelowConfiguredLimitIsAccepted(long limitOffset) throws Exception {
+        long outputBytes = Math.addExact(executionProperties.getMaxOutputBytesPerCase(), limitOffset);
+        String judgeId = createJudgeTask(request(1, ECHO_SOLUTION, sizedGenerator(outputBytes), ECHO_SOLUTION));
+
+        startJudgeTask(judgeId);
+
+        JsonNode statusJson = awaitTerminalStatus(judgeId);
+        assertThat(statusJson.path("status").asText()).isEqualTo("AC");
+        assertThat(statusJson.path("summary").path("ac").asInt()).isEqualTo(1);
+        assertThat(statusJson.path("summary").path("outputLimitExceeded").asInt()).isZero();
+        assertThat(statusJson.path("summary").path("systemError").asInt()).isZero();
+        assertThat(statusJson.path("results").get(0).path("status").asText()).isEqualTo("AC");
+    }
+
+    private String sizedGenerator(long outputBytes) {
+        assertThat(outputBytes).isGreaterThanOrEqualTo(2);
+        return """
+                #include <algorithm>
+                #include <iostream>
+                #include <string>
+
+                int main() {
+                    std::ios::sync_with_stdio(false);
+                    std::cout << "7\\n";
+                    const std::string block(4096, ' ');
+                    long long remaining = %dLL - 2;
+                    while (remaining > 0) {
+                        const auto chunk = std::min<long long>(remaining, block.size());
+                        std::cout.write(block.data(), chunk);
+                        remaining -= chunk;
+                    }
+                    return 0;
+                }
+                """.formatted(outputBytes);
     }
 
     private String createJudgeTask(Map<String, Object> request) throws Exception {
