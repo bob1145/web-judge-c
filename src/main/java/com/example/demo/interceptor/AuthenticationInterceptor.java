@@ -1,5 +1,7 @@
 package com.example.demo.interceptor;
 
+import com.example.demo.security.SessionCredentialResolver;
+import com.example.demo.security.SessionAuditId;
 import com.example.demo.service.AccessCodeService;
 import com.example.demo.service.SessionManagementService;
 import lombok.RequiredArgsConstructor;
@@ -7,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
@@ -27,7 +28,6 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
     private final AccessCodeService accessCodeService;
     private final SessionManagementService sessionManagementService;
     
-    private static final String SESSION_COOKIE_NAME = "JUDGE_SESSION";
     
     /**
      * 不需要认证的路径白名单
@@ -83,7 +83,7 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
         
         // 验证会话有效性
         if (!accessCodeService.isSessionValid(sessionId)) {
-            log.debug("会话无效: {}, 重定向到认证页面", sessionId);
+            log.debug("会话无效: {}, 重定向到认证页面", SessionAuditId.from(sessionId));
             redirectToAuth(request, response);
             return false;
         }
@@ -93,7 +93,7 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
         String userAgent = request.getHeader("User-Agent");
         
         if (!sessionManagementService.validateSessionWithSecurity(sessionId, clientIp, userAgent)) {
-            log.warn("会话安全验证失败: {}, IP: {}", sessionId, clientIp);
+            log.warn("会话安全验证失败: {}, IP: {}", SessionAuditId.from(sessionId), clientIp);
             // 这里只记录警告，不强制拒绝访问，因为某些网络环境下IP可能会变化
         }
         
@@ -124,31 +124,7 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
      * 从请求中获取会话ID
      */
     private String getSessionIdFromRequest(HttpServletRequest request) {
-        // 首先尝试从Cookie中获取
-        if (request.getCookies() != null) {
-            for (Cookie cookie : request.getCookies()) {
-                if (SESSION_COOKIE_NAME.equals(cookie.getName())) {
-                    String sessionId = cookie.getValue();
-                    if (sessionId != null && !sessionId.trim().isEmpty()) {
-                        return sessionId.trim();
-                    }
-                }
-            }
-        }
-        
-        // 然后尝试从Header中获取（支持API调用）
-        String sessionId = request.getHeader("X-Session-ID");
-        if (sessionId != null && !sessionId.trim().isEmpty()) {
-            return sessionId.trim();
-        }
-        
-        // 最后尝试从请求参数中获取
-        sessionId = request.getParameter("sessionId");
-        if (sessionId != null && !sessionId.trim().isEmpty()) {
-            return sessionId.trim();
-        }
-        
-        return null;
+        return SessionCredentialResolver.resolve(request);
     }
     
     /**

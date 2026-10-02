@@ -19,8 +19,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class UserAccountService {
 
-    private static final String TRUSTED_LOCAL = "trusted-local";
-
     private final AuthConfiguration authConfiguration;
     private final ExecutionProperties executionProperties;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
@@ -28,7 +26,7 @@ public class UserAccountService {
     private final Map<String, LocalDateTime> lastAttemptTimes = new ConcurrentHashMap<>();
 
     public boolean requiresAccountAuthentication() {
-        return authConfiguration.isAccountAuthEnabled() || !TRUSTED_LOCAL.equals(profile());
+        return authConfiguration.requiresAccountAuthentication(executionProperties.getProfile());
     }
 
     public LoginResult authenticate(String username, String password, String ipAddress) {
@@ -99,12 +97,6 @@ public class UserAccountService {
         return (normalized == null ? "<blank>" : normalized)
                 + "@"
                 + (ipAddress == null ? "<unknown>" : ipAddress);
-    }
-
-    private String profile() {
-        return executionProperties.getProfile() == null
-                ? ""
-                : executionProperties.getProfile().trim().toLowerCase(Locale.ROOT);
     }
 
     private String normalizeUsername(String username) {

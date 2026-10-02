@@ -27,13 +27,14 @@ class ProductionSandboxBaselineTest {
     Path tempDir;
 
     @Test
-    void currentApplicationDefaultsAreTrustedLocalWithSandboxDisabledAndDefaultAccessCode() throws Exception {
+    void currentApplicationDefaultsAreLocalWithoutUsableAuthenticationMaterial() throws Exception {
         String applicationYaml = readSource("src", "main", "resources", "application.yml");
 
         assertThat(applicationYaml)
                 .contains("profile: trusted-local")
-                .contains("access-code: \"123\"")
-                .contains("default-access-code: \"123\"")
+                .contains("access-code: \"\"")
+                .contains("address: 127.0.0.1")
+                .doesNotContain("default-access-code:")
                 .contains("require-sandbox: false")
                 .contains("enabled: false");
         assertThat(applicationYaml)
@@ -45,7 +46,7 @@ class ProductionSandboxBaselineTest {
     void trustedLocalModeStillAllowsWildcardOriginWithoutFailingStartup() {
         SecurityModeStartupValidator validator = validator(
                 "trusted-local",
-                "123",
+                "test-only-explicit-material",
                 "*",
                 false,
                 false

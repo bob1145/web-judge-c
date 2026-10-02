@@ -1,0 +1,38 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=Demo18ApplicationTests",
+    "test"
+  ],
+  "exit_code": 1,
+  "report_count": 1,
+  "reports_present": true,
+  "totals": {
+    "tests": 2,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 1
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.Demo18ApplicationTests",
+      "tests": 2,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": [
+        {
+          "test": "unusedSpringDefaultAccountIsNotCreated",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting empty but was: {\"inMemoryUserDetailsManager\"=org.springframework.security.provisioning.InMemoryUserDetailsManager@13cc0b90}",
+          "detail": "java.lang.AssertionError: \n\nExpecting empty but was: {\"inMemoryUserDetailsManager\"=org.springframework.security.provisioning.InMemoryUserDetailsManager@13cc0b90}\n\tat com.example.demo.Demo18ApplicationTests.unusedSpringDefaultAccountIsNotCreated(Demo18ApplicationTests.java:23)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        }
+      ]
+    }
+  ]
+}

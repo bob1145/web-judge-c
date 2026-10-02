@@ -7,13 +7,13 @@ import com.example.demo.model.JudgeOwnership;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
 import com.example.demo.model.UserSession;
+import com.example.demo.security.SessionCredentialResolver;
 import com.example.demo.service.AccessCodeService;
 import com.example.demo.service.AuditService;
 import com.example.demo.service.JudgeScheduler;
 import com.example.demo.service.ResolvedTaskPolicy;
 import com.example.demo.service.TaskStore;
 import com.example.demo.service.sandbox.SandboxRunner;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -33,7 +33,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AdminController {
 
-    private static final String SESSION_COOKIE_NAME = "JUDGE_SESSION";
 
     private final AccessCodeService accessCodeService;
     private final JudgeScheduler judgeScheduler;
@@ -215,24 +214,7 @@ public class AdminController {
     }
 
     private String sessionIdFromRequest(HttpServletRequest request) {
-        if (request.getCookies() != null) {
-            for (Cookie cookie : request.getCookies()) {
-                if (SESSION_COOKIE_NAME.equals(cookie.getName())
-                        && cookie.getValue() != null
-                        && !cookie.getValue().isBlank()) {
-                    return cookie.getValue().trim();
-                }
-            }
-        }
-        String header = request.getHeader("X-Session-ID");
-        if (header != null && !header.isBlank()) {
-            return header.trim();
-        }
-        String parameter = request.getParameter("sessionId");
-        if (parameter != null && !parameter.isBlank()) {
-            return parameter.trim();
-        }
-        return null;
+        return SessionCredentialResolver.resolve(request);
     }
 
     private String firstNonBlank(String first, String second) {

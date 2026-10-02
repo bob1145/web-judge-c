@@ -34,7 +34,7 @@ class ProductionSecurityStartupValidatorTest {
 
         ProductionSecurityStartupValidator validator = validator(
                 "trusted-local",
-                "123",
+                "test-only-explicit-material",
                 "*",
                 false,
                 false,
@@ -44,14 +44,13 @@ class ProductionSecurityStartupValidatorTest {
         assertThatCode(validator::validateNow).doesNotThrowAnyException();
         assertThat(output.getOut() + output.getErr())
                 .contains("trusted-local")
-                .contains("default access code")
                 .contains("wildcard WebSocket origin")
                 .contains("sandbox is disabled")
                 .contains("direct sandbox provider");
     }
 
     @Test
-    void windowsProdRejectsDirectProviderProcessIsolationDisabledSandboxDefaultCodeAndWildcardOrigin() {
+    void windowsProdRejectsDirectProviderProcessIsolationDisabledSandboxAndWildcardOrigin() {
         SandboxProperties sandbox = sandboxProperties(
                 SandboxProperties.Provider.DIRECT,
                 SandboxProperties.Isolation.PROCESS,
@@ -62,7 +61,6 @@ class ProductionSecurityStartupValidatorTest {
         assertThatThrownBy(() -> validator("windows-prod", "123", "*", false, false, sandbox).validateNow())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Insecure windows-prod configuration")
-                .hasMessageContaining("default access code")
                 .hasMessageContaining("wildcard WebSocket origin")
                 .hasMessageContaining("sandbox.required must be true")
                 .hasMessageContaining("sandbox is disabled")
@@ -72,7 +70,7 @@ class ProductionSecurityStartupValidatorTest {
     }
 
     @Test
-    void linuxProdRejectsDirectProviderMissingSecurityProfileDisabledSandboxDefaultCodeAndWildcardOrigin() {
+    void linuxProdRejectsDirectProviderMissingSecurityProfileDisabledSandboxAndWildcardOrigin() {
         SandboxProperties sandbox = sandboxProperties(
                 SandboxProperties.Provider.DIRECT,
                 SandboxProperties.Isolation.CONTAINER,
@@ -83,7 +81,6 @@ class ProductionSecurityStartupValidatorTest {
         assertThatThrownBy(() -> validator("linux-prod", "123", "*", false, false, sandbox).validateNow())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Insecure linux-prod configuration")
-                .hasMessageContaining("default access code")
                 .hasMessageContaining("wildcard WebSocket origin")
                 .hasMessageContaining("sandbox.required must be true")
                 .hasMessageContaining("sandbox is disabled")

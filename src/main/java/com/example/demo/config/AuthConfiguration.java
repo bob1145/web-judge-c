@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 认证相关配置类
@@ -16,13 +17,15 @@ import java.util.List;
 @ConfigurationProperties(prefix = "judge.auth")
 @Data
 public class AuthConfiguration {
+
+    private static final Set<String> LEGACY_ACCESS_CODES = Set.of("123", "secure-access-code-2024");
     
     /**
      * 访问校验码
      */
-    private String accessCode = "secure-access-code-2024";
+    private String accessCode;
 
-    private String defaultAccessCode = "123";
+    private String defaultAccessCode;
 
     private boolean accountAuthEnabled = false;
 
@@ -47,6 +50,19 @@ public class AuthConfiguration {
      * 尝试次数重置时间（小时）
      */
     private int attemptResetHours = 1;
+
+    public boolean requiresAccountAuthentication(String profile) {
+        return accountAuthEnabled || profile == null || !"trusted-local".equalsIgnoreCase(profile.trim());
+    }
+
+    public boolean isUsableAccessCode() {
+        if (accessCode == null || accessCode.isBlank()) {
+            return false;
+        }
+        String normalized = accessCode.trim();
+        return !LEGACY_ACCESS_CODES.contains(normalized)
+                && (defaultAccessCode == null || !normalized.equals(defaultAccessCode.trim()));
+    }
 
     @Data
     public static class AccountProperties {

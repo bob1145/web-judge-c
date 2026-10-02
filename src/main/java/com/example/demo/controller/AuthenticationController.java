@@ -7,6 +7,8 @@ import com.example.demo.dto.SessionInfo;
 import com.example.demo.model.AuthStatus;
 import com.example.demo.model.UserAccount;
 import com.example.demo.model.UserSession;
+import com.example.demo.security.SessionCredentialResolver;
+import com.example.demo.security.SessionAuditId;
 import com.example.demo.service.AccessCodeService;
 import com.example.demo.service.SessionManagementService;
 import com.example.demo.service.UserAccountService;
@@ -34,7 +36,7 @@ public class AuthenticationController {
     private final SessionManagementService sessionManagementService;
     private final UserAccountService userAccountService;
     
-    private static final String SESSION_COOKIE_NAME = "JUDGE_SESSION";
+    private static final String SESSION_COOKIE_NAME = SessionCredentialResolver.COOKIE_NAME;
     private static final int COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30天
     
     /**
@@ -137,7 +139,7 @@ public class AuthenticationController {
         if (sessionId != null) {
             // 使会话失效
             accessCodeService.invalidateSession(sessionId);
-            log.info("用户登出，会话已失效: {}", sessionId);
+            log.info("用户登出，会话已失效: {}", SessionAuditId.from(sessionId));
         }
         
         // 清除Cookie
@@ -181,22 +183,7 @@ public class AuthenticationController {
      * 从请求中获取会话ID
      */
     private String getSessionIdFromRequest(HttpServletRequest request) {
-        // 首先尝试从Cookie中获取
-        if (request.getCookies() != null) {
-            for (Cookie cookie : request.getCookies()) {
-                if (SESSION_COOKIE_NAME.equals(cookie.getName())) {
-                    return cookie.getValue();
-                }
-            }
-        }
-        
-        // 然后尝试从Header中获取
-        String sessionId = request.getHeader("X-Session-ID");
-        if (sessionId != null && !sessionId.trim().isEmpty()) {
-            return sessionId.trim();
-        }
-        
-        return null;
+        return SessionCredentialResolver.resolve(request);
     }
     
     /**
@@ -215,7 +202,7 @@ public class AuthenticationController {
         }
         
         response.addCookie(cookie);
-        log.debug("设置会话Cookie: {}, rememberMe: {}", sessionId, rememberMe);
+        log.debug("设置会话Cookie，auditId: {}, rememberMe: {}", SessionAuditId.from(sessionId), rememberMe);
     }
     
     /**

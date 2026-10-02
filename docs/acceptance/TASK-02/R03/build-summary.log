@@ -1,0 +1,8 @@
+[ERROR] Tests run: 2, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 0.402 s <<< FAILURE! -- in com.example.demo.SessionCredentialLoggingTest
+[ERROR] Tests run: 18, Failures: 15, Errors: 0, Skipped: 0, Time elapsed: 3.503 s <<< FAILURE! -- in com.example.demo.SessionCredentialHttpTest
+[ERROR] Tests run: 19, Failures: 14, Errors: 1, Skipped: 0, Time elapsed: 0.302 s <<< FAILURE! -- in com.example.demo.AuthenticationSafeDefaultsTest
+[ERROR] Tests run: 39, Failures: 31, Errors: 1, Skipped: 0
+[INFO] BUILD FAILURE
+[INFO] Total time:  11.334 s
+[INFO] Finished at: 2026-10-02T22:37:17+08:00
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.3:test (default-test) on project demo18: There are test failures.

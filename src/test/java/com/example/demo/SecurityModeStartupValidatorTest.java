@@ -25,12 +25,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = "judge.auth.access-code=task02-test-only-access-material")
 @AutoConfigureMockMvc
 @ExtendWith(OutputCaptureExtension.class)
 class SecurityModeStartupValidatorTest {
@@ -59,23 +60,21 @@ class SecurityModeStartupValidatorTest {
     }
 
     @Test
-    void trustedLocalAllowsInsecureDefaultsButLogsHighRiskWarnings(CapturedOutput output) {
-        SecurityModeStartupValidator validator = validator("trusted-local", "123", "*", false, false);
+    void trustedLocalAllowsExplicitAccessCodeButStillLogsSandboxWarnings(CapturedOutput output) {
+        SecurityModeStartupValidator validator = validator("trusted-local", "test-only-explicit-material", "*", false, false);
 
         validator.validateNow();
 
         assertThat(output.getOut() + output.getErr())
                 .contains("HIGH RISK trusted-local configuration")
-                .contains("default access code")
                 .contains("wildcard WebSocket origin")
                 .contains("sandbox is disabled");
     }
 
     @Test
-    void intranetLargeRejectsDefaultAccessCodeWildcardOriginOrDisabledSandbox() {
-        assertThatThrownBy(() -> validator("intranet-large", "123", "https://safe.example.com", true, true).validateNow())
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("default access code");
+    void intranetLargeIgnoresUnusedAccessCodeButRejectsWildcardOriginOrDisabledSandbox() {
+        assertThatCode(() -> validator("intranet-large", "123", "https://safe.example.com", true, true).validateNow())
+                .doesNotThrowAnyException();
 
         assertThatThrownBy(() -> validator("intranet-large", "changed-secret", "*", true, true).validateNow())
                 .isInstanceOf(IllegalStateException.class)

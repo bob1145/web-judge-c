@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 @Component
 @RequiredArgsConstructor
@@ -31,6 +30,9 @@ public class SecurityModeStartupValidator implements SmartInitializingSingleton 
 
     public void validateNow() {
         String profile = normalizedProfile();
+        if (!authConfiguration.requiresAccountAuthentication(profile) && !authConfiguration.isUsableAccessCode()) {
+            throw new IllegalStateException("Insecure " + profile + " configuration: valid non-default access code is required");
+        }
         List<String> risks = currentRisks();
 
         if (TRUSTED_LOCAL.equals(profile)) {
@@ -58,9 +60,6 @@ public class SecurityModeStartupValidator implements SmartInitializingSingleton 
 
     private List<String> currentRisks() {
         List<String> risks = new ArrayList<>();
-        if (usesDefaultAccessCode()) {
-            risks.add("default access code");
-        }
         if (webSocketConfig.hasWildcardOrigin()) {
             risks.add("wildcard WebSocket origin");
         }
@@ -71,13 +70,6 @@ public class SecurityModeStartupValidator implements SmartInitializingSingleton 
             risks.add("sandbox is disabled while required");
         }
         return risks;
-    }
-
-    private boolean usesDefaultAccessCode() {
-        return Objects.equals(
-                valueOrEmpty(authConfiguration.getAccessCode()),
-                valueOrEmpty(authConfiguration.getDefaultAccessCode())
-        );
     }
 
     private String normalizedProfile() {

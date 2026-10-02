@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.config.AuthConfiguration;
 import com.example.demo.model.AuthStatus;
 import com.example.demo.model.UserSession;
+import com.example.demo.security.SessionAuditId;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -64,7 +65,7 @@ public class AccessCodeService {
         }
         
         // 验证校验码
-        boolean isValid = authConfig.getAccessCode().equals(code.trim());
+        boolean isValid = authConfig.isUsableAccessCode() && authConfig.getAccessCode().trim().equals(code.trim());
         
         if (isValid) {
             log.info("校验码验证成功，IP: {}", ipAddress);
@@ -110,8 +111,8 @@ public class AccessCodeService {
         
         activeSessions.put(sessionId, session);
         
-        log.info("创建会话成功，sessionId: {}, rememberMe: {}, IP: {}", 
-                sessionId, rememberMe, ipAddress);
+        log.info("创建会话成功，auditId: {}, rememberMe: {}, IP: {}",
+                SessionAuditId.from(sessionId), rememberMe, ipAddress);
         
         return session;
     }
@@ -129,12 +130,12 @@ public class AccessCodeService {
         
         UserSession session = activeSessions.get(sessionId);
         if (session == null) {
-            log.debug("会话不存在: {}", sessionId);
+            log.debug("会话不存在: {}", SessionAuditId.from(sessionId));
             return false;
         }
         
         if (session.isExpired()) {
-            log.debug("会话已过期: {}", sessionId);
+            log.debug("会话已过期: {}", SessionAuditId.from(sessionId));
             // 清理过期会话
             activeSessions.remove(sessionId);
             return false;
@@ -165,7 +166,7 @@ public class AccessCodeService {
         if (sessionId != null) {
             UserSession removedSession = activeSessions.remove(sessionId);
             if (removedSession != null) {
-                log.info("会话已失效: {}", sessionId);
+                log.info("会话已失效: {}", SessionAuditId.from(sessionId));
             }
         }
     }
@@ -179,7 +180,7 @@ public class AccessCodeService {
         activeSessions.entrySet().removeIf(entry -> {
             boolean expired = entry.getValue().getExpiresAt().isBefore(now);
             if (expired) {
-                log.debug("清理过期会话: {}", entry.getKey());
+                log.debug("清理过期会话: {}", SessionAuditId.from(entry.getKey()));
             }
             return expired;
         });

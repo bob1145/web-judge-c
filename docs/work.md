@@ -276,3 +276,33 @@
 - 本地提交候选 test(baseline): TASK-01 restore reproducible regression [TASK-01-C01]；父SHA如上，自身SHA由唯一主题定位尚未生成，身份沿用用户提供的单次git -c参数。精确暂存本任务测试、工具、README、证据及task/work，不纳入既有临时目录；提交前git diff --check及提交后SHA/父/范围唯一性核验，未推送。
 - 下一任务TASK-02：前置00/01真实提交及DEC-06方向批准；统一凭证、安全默认和脱敏日志，不借此越过TASK-03的代理/容量审批。
 - 提交前首次git diff --cached --check退出2：R04脱敏构建摘要的Maven错误标题带尾随空格；仅去除该行末空白，错误文本、退出码、JSON及所有测试源码/hash不变，重新检查后再提交。
+
+### 2026-10-02 — TASK-02 / R01 — HTTP凭证与安全默认开工
+
+- 角色：后端安全工程师；范围RQ-A04/AC-A04a、AC-A04c/T-A06、T-A08，RQ-A05/AC-A05b/T-A10，D §3.1/3.5/8.1/8.3。DEC-06方向及本地逐任务提交已批准。
+- 恢复核验：TASK-00实际提交4c86d830edc9a927e32377291bac20641ac1e557，TASK-01实际提交bcf1d5ea6f40829dac9ef02ce6d526f2eef81d57（本项父SHA）；工作树只有既有.mimosa/、.playwright-mcp/，不纳入本项。
+- 已定位：四处HTTP凭证提取不一致，query回退与Cookie/Header冲突；YAML/Java默认码；两个启动校验器把账号模式的闲置访问码当风险；访问码会话userId等于token，审计也会泄漏，不能仅修显式sessionId日志。
+- 执行顺序：先补可在原实现编译运行的失败回归，再统一解析/材料校验和日志指纹，定向与全量验证。保留接口字段、账户模式规则与所有权/配额身份；来源限流、Cookie/CSRF、WS及环境绑定分别留TASK-03/04/06/07。
+- Git身份仅使用用户提供的单次-c参数，不改持久配置、不推送。本项仍IN_PROGRESS，未产生新验收结论。
+- R01真实执行退出1：testCompile失败，0测试/0报告，不能作为缺陷失败证据。原采集器只保留编译失败标题，故补充脱敏编译诊断行及统一去尾空白后重新执行；保留R01记录，不覆盖证据。
+- R02同样退出1、0测试：诊断明确为新增断言误用了hasMessageNotContaining多参数重载；改为两个单参数断言，未改变断言语义。R01/R02均为测试代码问题，不记作产品缺陷复现。
+- R03原生产实现前测：39项，7通过/31失败/1错误/0跳过，退出1；复现URL认证、冲突选择Cookie、旧默认码登录、空配置NPE、账号模式误受闲置访问码阻塞、会话/审计明文。R04修复后十类定向：80项，77通过/3失败/0错误/0跳过，退出1。
+- R04三项失败来自本次测试误判HTTP契约：WebMvcConfig本来排除/auth/**，/auth/session以200+valid=false表示未认证，logout在无可解析凭证时仅清客户端Cookie并成功返回。保留该契约，改为断言valid=false/无sessionId及冲突两端会话均未失效，普通/管理/下载仍严格401。不把这三项状态假设当产品缺陷证据，不为改状态码扩展任务范围。
+- 实做：共享无状态凭证解析器对空白、不同值及重复冲突失败关闭；同值允许，query不参与。共享认证模式规则，默认材料清空/回环绑定；访问码模式无材料或历史默认值拒绝，账户模式独立验证可用账户。SHA-256会话日志关联及审计userId脱敏保留原所有权/配额身份，补审计session/cookie/authorization键脱敏。
+- 测试迁移：八个原SpringBootTest显式注入仅测试作用域材料；静态YAML安全断言仍直接读取真实资源。原trusted-local弱码放行断言按DEC-06改为显式材料与独立弱码拒绝，账户生产测试保留全部provider/Origin/隔离检查，只移除闲置访问码阻塞。未删除/跳过测试。
+- R05十类定向80/80通过，R06全量260项/258通过/0失败/0错误/2原provider跳过，均退出0。审查发现仅删除spring.security.user配置仍可能触发框架生成闲置用户；新增实际Spring上下文断言先验证该回退，不依靠隐藏日志或恢复硬编码账号。
+- R07默认账号回退前测2项/1通过/1失败/0错误/0跳过，退出1；实际存在inMemoryUserDetailsManager。仅排除未使用的UserDetailsServiceAutoConfiguration，继续使用现有应用会话认证和SecurityFilterChain；新增配置绑定断言核验默认回环。未借此开启/关闭其他安全过滤器，CSRF留TASK-04。
+
+### 2026-10-02 — TASK-02 / R08～R09 — 验收与本地提交候选
+
+- 最终定向R08：11套件83项，83通过/0失败/0错误/0跳过，退出0。最终全量R09：38套件262项，260通过/0失败/0错误/2原provider跳过，退出0。准确argv、环境、unit约束、失败历史及套件结果见docs/acceptance/TASK-02；本次未运行独立Python unittest或真实浏览器/WS/TLS/provider攻防验收。
+- R08/R09各137个源码/runner/scripts/POM哈希、157个完整输入哈希及harness哈希逐一与工作树匹配。核验后仅追加验收/task/work/change-log及脱敏归档；未改被测代码/配置/测试。R03断言信息中的已退役Java默认值替换为<redacted-legacy-default>，仅脱敏message/detail，不改计数/类型/退出码。
+- 两项原skip：Linux镜像cpp-judge-runner:latest缺失；Windows Hyper-V因当前runtime是Linux不适用。核心认证/默认材料/日志用例均实际执行无skip，不将skip计为通过。外层断网/限额仅用于受信测试，未隔离宿主Docker socket，不证明生产沙箱安全。
+- 逐AC：Cookie/Header/同值成功，不同/空白/重复冲突拒绝，query-only在普通/管理/状态/下载不可认证；直接Controller无MVC拦截器仍拒绝。认证查询保留200业务失败契约；冲突logout不选择任一服务端身份。DEBUG/INFO/WARN真实日志逐条扫描两模式密码、访问码和会话均无原值，SHA-256关联仍存在；访问码审计不再通过userId泄漏。
+- AC-A05b：Java与YAML均无可用fallback；旧码、null/空白、退役哨兵拒绝；访问码/账户模式启动矩阵通过，账户模式的闲置访问码不阻塞；有效BCrypt与启用账户校验未削弱生产provider门槛。实际Spring上下文无默认UserDetailsService，配置绑定默认127.0.0.1；不把配置绑定声称为真实部署网络验收。
+- 文件：新增security/SessionCredentialResolver、SessionAuditId；四HTTP入口统一，两个启动校验器/AuthConfiguration/UserAccountService复用模式规则，AccessCodeService/SessionManagementService/AuditService脱敏；Demo18Application排除闲置Spring账号，application.yml安全默认。新增4类回归，8个SpringBootTest明确测试材料，既有3类安全基线按批准语义迁移；更新README、change-log与验收采集/台账。
+- 主代理复核：检查实际调用链、白名单、所有权/配额稳定性、原生产沙箱断言及失败归因；修正/auth/**排除造成的测试状态假设，发现并补测Spring默认账号回退。没有宣称独立外部审核；独立关闭审计留TASK-29。
+- 原则：DRY共享解析/模式判定/指纹；KISS无新认证框架或构造器侵入；YAGNI不越界实现CSRF/WS/代理或迁移生产数据；小类各司解析和脱敏职责。保留原响应、所有权及配额语义，不改变业务额度。
+- 状态：开发验收已通过，先VERIFIED_PENDING_COMMIT，再按task §2.4写DONE提交候选，仅匹配真实提交存在后生效。DEF-18/N4为IMPLEMENTED_PENDING_VALIDATION，N3还缺WS；后续24/28/29闭环之前不关闭全部缺陷或宣称可发布。
+- 提交候选：fix(auth): TASK-02 unify credentials and safe defaults [TASK-02-C01]，父SHA bcf1d5ea6f40829dac9ef02ce6d526f2eef81d57；自身SHA由唯一主题定位，未伪填。仅使用用户提供身份的单次git -c参数，按批准范围精确暂存并核验，不推送、不amend、不新建分支、不修改持久配置。既有.mimosa/、.playwright-mcp/仍排除。
+- 下一顺序TASK-03受可信代理/限流容量等定量参数延期门槛影响，不能擅自填业务默认；TASK-08依赖01/02且DEC-05方向已批准，可先核对其真实TLS环境/授权后推进独立工作。整体Goal尚未完成。

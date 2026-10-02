@@ -1,14 +1,9 @@
 spring:
   application:
     name: demo18
-  security:
-    user:
-      name: admin_ed
-      password: admin_wx13
-      roles: ADMIN
 
 server:
-  address: 0.0.0.0
+  address: 127.0.0.1
   port: 1234
 
 app:
@@ -17,8 +12,7 @@ app:
 
 judge:
   auth:
-    access-code: "123"
-    default-access-code: "123"
+    access-code: ""
     account-auth-enabled: false
     accounts: []
     session-timeout: 30d

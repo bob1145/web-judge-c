@@ -24,6 +24,7 @@
    ```
 
 2. **编译运行**
+   启动前必须通过环境变量 `JUDGE_AUTH_ACCESS_CODE` 或受控外部配置提供非默认访问码；请使用独立生成的随机材料，不要提交到仓库或写入命令日志。缺少材料时应用拒绝启动。默认仅监听回环地址 `127.0.0.1`，trusted-local/direct 仅供可信代码使用。
    ```bash
    # 使用Maven运行
    mvn spring-boot:run
@@ -39,16 +40,9 @@
    ```
 4. **输入访问码**
    
-   访问码修改在scr/resources/application.yml 里，默认是 123
-   ```
-   judge:
-     auth:
-       access-code: "123"
-       session-timeout: 30d
-       normal-session-timeout: 24h
-       max-attempts: 5
-       attempt-reset-hours: 1
-   ```
+   使用部署时注入的访问码；不再提供默认访问码。启用 `judge.auth.account-auth-enabled` 或使用非 trusted-local 模式时，改用显式启用的账户与 BCrypt 密码哈希，闲置访问码不参与启动校验。账户模式登录页面的完善见 TASK-05，当前不能据此宣称生产部署已验收。
+
+   浏览器使用 `JUDGE_SESSION` Cookie；程序客户端使用 `X-Session-ID` Header。URL 的 `sessionId` 不再认证，同时提供不一致的 Cookie/Header 会被拒绝。迁移时不要把会话写入 URL、日志或本地存储；历史日志处置和会话轮换需另行审批。
 ## 使用指南
 
 ### 基本流程

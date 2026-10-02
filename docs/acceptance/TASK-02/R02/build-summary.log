@@ -1,0 +1,6 @@
+[ERROR] /tmp/wjc-task00.JzcXjh/src/test/java/com/example/demo/AuthenticationSafeDefaultsTest.java:[127,17] method hasMessageNotContaining in class org.assertj.core.api.AbstractThrowableAssert<SELF,ACTUAL> cannot be applied to given types;
+[INFO] BUILD FAILURE
+[INFO] Total time:  6.329 s
+[INFO] Finished at: 2026-10-02T22:36:28+08:00
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.14.0:testCompile (default-testCompile) on project demo18: Compilation failure
+[ERROR] /tmp/wjc-task00.JzcXjh/src/test/java/com/example/demo/AuthenticationSafeDefaultsTest.java:[127,17] method hasMessageNotContaining in class org.assertj.core.api.AbstractThrowableAssert<SELF,ACTUAL> cannot be applied to given types;

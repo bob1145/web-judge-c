@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.model.UserSession;
+import com.example.demo.security.SessionAuditId;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -121,6 +122,9 @@ public class AuditService {
                 || normalized.contains("secret")
                 || normalized.contains("token")
                 || normalized.contains("credential")
+                || normalized.contains("session")
+                || normalized.contains("cookie")
+                || normalized.contains("authorization")
                 || normalized.contains("source")
                 || normalized.endsWith("code");
     }
@@ -140,10 +144,11 @@ public class AuditService {
     }
 
     private String stableUserId(UserSession session) {
-        if (session.getUserId() != null && !session.getUserId().isBlank()) {
+        if (session.getUserId() != null && !session.getUserId().isBlank()
+                && !session.getUserId().trim().equals(session.getSessionId())) {
             return session.getUserId().trim();
         }
-        return session.getSessionId();
+        return SessionAuditId.from(session.getSessionId());
     }
 
     private String blankToUnknown(String value) {

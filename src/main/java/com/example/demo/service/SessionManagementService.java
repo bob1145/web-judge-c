@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import com.example.demo.dto.SessionInfo;
 import com.example.demo.model.UserSession;
+import com.example.demo.security.SessionAuditId;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -66,13 +67,13 @@ public class SessionManagementService {
         // 检查IP地址匹配
         if (session.getIpAddress() != null && !session.getIpAddress().equals(ipAddress)) {
             log.warn("会话 {} 的IP地址不匹配，原IP: {}, 当前IP: {}", 
-                    sessionId, session.getIpAddress(), ipAddress);
+                    SessionAuditId.from(sessionId), session.getIpAddress(), ipAddress);
             // 注意：在某些网络环境下IP可能会变化，这里只记录警告，不强制验证失败
         }
         
         // 检查User-Agent匹配
         if (session.getUserAgent() != null && !session.getUserAgent().equals(userAgent)) {
-            log.warn("会话 {} 的User-Agent不匹配", sessionId);
+            log.warn("会话 {} 的User-Agent不匹配", SessionAuditId.from(sessionId));
             // 同样只记录警告，不强制验证失败
         }
         
@@ -97,7 +98,7 @@ public class SessionManagementService {
         session.setExpiresAt(newExpiresAt);
         
         log.info("会话 {} 有效期已延长 {} 小时，新过期时间: {}", 
-                sessionId, additionalHours, newExpiresAt);
+                SessionAuditId.from(sessionId), additionalHours, newExpiresAt);
         
         return true;
     }

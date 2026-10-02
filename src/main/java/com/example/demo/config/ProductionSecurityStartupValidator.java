@@ -10,7 +10,7 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
+import java.util.regex.Pattern;
 
 @Component
 @RequiredArgsConstructor
@@ -21,6 +21,7 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
     private static final String WINDOWS_PROD = "windows-prod";
     private static final String LINUX_PROD = "linux-prod";
     private static final String WORKER_PROD = "worker-prod";
+    private static final Pattern BCRYPT_HASH = Pattern.compile("\\$2[aby]\\$(0[4-9]|[12][0-9]|3[01])\\$[./A-Za-z0-9]{53}");
 
     private final AuthConfiguration authConfiguration;
     private final ExecutionProperties executionProperties;
@@ -37,12 +38,16 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
     public void validateNow() {
         String profile = normalizedProfile();
         List<String> risks = baseRisks();
+        List<String> authenticationRisks = authenticationRisks();
 
         if (TRUSTED_LOCAL.equals(profile)) {
+            if (!authenticationRisks.isEmpty()) {
+                throw new IllegalStateException("Insecure " + profile + " configuration: " + String.join("; ", authenticationRisks));
+            }
             risks.forEach(risk -> log.warn("HIGH RISK trusted-local configuration: {}", risk));
             return;
         }
-        risks.addAll(authenticationRisks());
+        risks.addAll(authenticationRisks);
 
         switch (profile) {
             case WINDOWS_PROD -> validateWindowsProd(risks);
@@ -90,9 +95,6 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
 
     private List<String> baseRisks() {
         List<String> risks = new ArrayList<>();
-        if (usesDefaultAccessCode()) {
-            risks.add("default access code");
-        }
         if (webSocketConfig.hasWildcardOrigin()) {
             risks.add("wildcard WebSocket origin");
         }
@@ -119,22 +121,41 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
 
     private List<String> authenticationRisks() {
         List<String> risks = new ArrayList<>();
-        if (!authConfiguration.isAccountAuthEnabled() || authConfiguration.getAccounts().isEmpty()) {
-            risks.add("production account authentication is required");
+        if (!authConfiguration.requiresAccountAuthentication(executionProperties.getProfile())) {
+            if (!authConfiguration.isUsableAccessCode()) {
+                risks.add("valid non-default access code is required");
+            }
             return risks;
         }
+        if (!authConfiguration.isAccountAuthEnabled() || authConfiguration.getAccounts() == null
+                || authConfiguration.getAccounts().isEmpty()) {
+            risks.add("account authentication is required");
+            return risks;
+        }
+        boolean enabledAccount = false;
         for (AuthConfiguration.AccountProperties account : authConfiguration.getAccounts()) {
+            if (account == null) {
+                risks.add("account configuration is required");
+                continue;
+            }
+            enabledAccount |= account.isEnabled();
             if (!StringUtils.hasText(account.getUserId()) || !StringUtils.hasText(account.getUsername())) {
                 risks.add("account userId and username are required");
             }
             String hash = account.getPasswordHash();
-            if (!StringUtils.hasText(hash) || !hash.startsWith("$2")) {
+            if (hash == null || !BCRYPT_HASH.matcher(hash).matches()) {
                 risks.add("account password hash must use BCrypt");
                 continue;
+            }
+            if (passwordEncoder.matches("", hash)) {
+                risks.add("account password must not be empty");
             }
             if (account.isAdmin() && matchesSamplePassword(hash)) {
                 risks.add("sample admin password is not allowed");
             }
+        }
+        if (!enabledAccount) {
+            risks.add("enabled account authentication is required");
         }
         return risks;
     }
@@ -143,6 +164,8 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
         return passwordEncoder.matches("admin", hash)
                 || passwordEncoder.matches("password", hash)
                 || passwordEncoder.matches("123456", hash)
+                || passwordEncoder.matches("123", hash)
+                || passwordEncoder.matches("secure-access-code-2024", hash)
                 || passwordEncoder.matches(valueOrEmpty(authConfiguration.getDefaultAccessCode()), hash);
     }
 
@@ -150,13 +173,6 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
         if (sandboxProperties.getProvider() != expected) {
             risks.add("provider must be " + label);
         }
-    }
-
-    private boolean usesDefaultAccessCode() {
-        return Objects.equals(
-                valueOrEmpty(authConfiguration.getAccessCode()),
-                valueOrEmpty(authConfiguration.getDefaultAccessCode())
-        );
     }
 
     private String normalizedProfile() {

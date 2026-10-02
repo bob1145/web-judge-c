@@ -1,0 +1,124 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=SessionCredentialHttpTest,AuthenticationSafeDefaultsTest,SessionCredentialLoggingTest,SessionCredentialResolverTest,ProductionAuthenticationTest,SecurityModeStartupValidatorTest,ProductionSecurityStartupValidatorTest,ProductionSandboxBaselineTest,AuditAndAdminTest,ApplicationYamlExecutionProfileTest",
+    "test"
+  ],
+  "exit_code": 1,
+  "report_count": 10,
+  "reports_present": true,
+  "totals": {
+    "tests": 80,
+    "failures": 3,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 77
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.ApplicationYamlExecutionProfileTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.AuditAndAdminTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.AuthenticationSafeDefaultsTest",
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.ProductionAuthenticationTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.ProductionSandboxBaselineTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.ProductionSecurityStartupValidatorTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.SecurityModeStartupValidatorTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.SessionCredentialHttpTest",
+      "tests": 18,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": [
+        {
+          "test": "logoutCannotChooseBetweenConflictingCredentials",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Status expected:<401> but was:<200>",
+          "detail": "java.lang.AssertionError: Status expected:<401> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.logoutCannotChooseBetweenConflictingCredentials(SessionCredentialHttpTest.java:130)"
+        },
+        {
+          "test": "queryOnlyCannotAuthenticateProtectedEndpoints(String)[5]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Status expected:<401> but was:<200>",
+          "detail": "java.lang.AssertionError: Status expected:<401> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.queryOnlyCannotAuthenticateProtectedEndpoints(SessionCredentialHttpTest.java:84)"
+        },
+        {
+          "test": "conflictingValidCredentialsAreRejected(String)[5]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Status expected:<401> but was:<200>",
+          "detail": "java.lang.AssertionError: Status expected:<401> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.conflictingValidCredentialsAreRejected(SessionCredentialHttpTest.java:108)"
+        }
+      ]
+    },
+    {
+      "name": "com.example.demo.SessionCredentialLoggingTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.SessionCredentialResolverTest",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    }
+  ]
+}

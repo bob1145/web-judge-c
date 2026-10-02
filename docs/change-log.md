@@ -127,3 +127,11 @@
 - Data Sources: Existing frontend case detail modal renderer and `/details/{judgeId}/{caseNumber}` payload fields.
 - Integration Status: No API changes. The modal still uses bounded backend previews and failed-case downloads remain the path for full large artifacts.
 - Test Results: `.\mvnw.cmd "-Dtest=FrontendTemplateContractTest" test` passed with 18 tests, 0 failures.
+
+## 2026-10-02 — TASK-02
+
+- Scope: Shared HTTP session credentials, safe authentication defaults, and credential-free application logs.
+- Summary: Cookie/Header resolution now rejects ambiguity and never authenticates query sessionId; all four HTTP callers share the resolver. Removed usable YAML/Java fallback credentials and the unused Spring default-user auto-configuration. Local access-code mode fails closed without valid explicit material; account mode validates enabled BCrypt accounts without depending on an unused access code. Default bind address is loopback.
+- Integration Status: Existing HTTP paths, response fields, account-mode selection, ownership and quota identities remain intact. Session logs use SHA-256 audit identifiers; access-code audit userId and credential-bearing detail keys are redacted. Program clients must use X-Session-ID rather than URL credentials.
+- Test Results: Final targeted run R08 passed 83/83; full Maven run R09 passed 260 of 262 with 0 failures/errors and the 2 existing provider-environment skips. Earlier compile failures, red regressions and corrected HTTP contract assumptions remain documented in docs/acceptance/TASK-02 and docs/work.md.
+- Risks/Migration: Explicit external authentication material is now required. Historical log handling/session rotation require separate approval. Proxy/rate limits, secure cookies/CSRF, WebSocket authorization and production-provider acceptance remain follow-up tasks; this change is not a production release approval.

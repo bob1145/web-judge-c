@@ -7,13 +7,13 @@ import com.example.demo.dto.JudgeRequest;
 import com.example.demo.dto.CancelJudgeResponse;
 import com.example.demo.dto.TestCaseDetail;
 import com.example.demo.model.UserSession;
+import com.example.demo.security.SessionCredentialResolver;
 import com.example.demo.service.AccessCodeService;
 import com.example.demo.service.AuditService;
 import com.example.demo.service.JudgeFileService;
 import com.example.demo.service.JudgeScheduler;
 import com.example.demo.service.JudgeService;
 import com.example.demo.service.QuotaService;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
@@ -42,7 +42,6 @@ public class JudgeController {
     private final AccessCodeService accessCodeService;
     private final AuditService auditService;
     private final ExecutionProperties executionProperties;
-    private static final String SESSION_COOKIE_NAME = "JUDGE_SESSION";
 
     @Autowired
     public JudgeController(JudgeService judgeService,
@@ -318,23 +317,6 @@ public class JudgeController {
     }
 
     private String sessionIdFromRequest(HttpServletRequest request) {
-        if (request.getCookies() != null) {
-            for (Cookie cookie : request.getCookies()) {
-                if (SESSION_COOKIE_NAME.equals(cookie.getName())
-                        && cookie.getValue() != null
-                        && !cookie.getValue().isBlank()) {
-                    return cookie.getValue().trim();
-                }
-            }
-        }
-        String header = request.getHeader("X-Session-ID");
-        if (header != null && !header.isBlank()) {
-            return header.trim();
-        }
-        String parameter = request.getParameter("sessionId");
-        if (parameter != null && !parameter.isBlank()) {
-            return parameter.trim();
-        }
-        return null;
+        return SessionCredentialResolver.resolve(request);
     }
-} 
+}

@@ -101,7 +101,9 @@ lines = []
 for line in raw_log.splitlines():
     line = re.sub(r"\x1b\[[0-9;]*m", "", line)
     if re.match(r"^\[(?:INFO|ERROR|WARNING)\] (?:Tests run:|BUILD |Total time:|Finished at:|The POM for |Failed to execute goal|Cannot access |.*has not been downloaded from it before)", line):
-        lines.append(redact(line))
+        lines.append(redact(line).rstrip())
+    elif re.match(r"^\[ERROR\] (?:.*\.java:\[|\s*(?:symbol:|location:))", line):
+        lines.append(redact(line).rstrip())
 (evidence / "build-summary.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
 print(json.dumps({"exit_code": result["exit_code"], "report_count": len(reports), **totals}))
 print("\n".join(lines[-8:]))

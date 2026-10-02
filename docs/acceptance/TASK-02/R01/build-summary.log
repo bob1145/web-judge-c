@@ -1,0 +1,4 @@
+[INFO] BUILD FAILURE
+[INFO] Total time:  6.113 s
+[INFO] Finished at: 2026-10-02T22:35:22+08:00
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.14.0:testCompile (default-testCompile) on project demo18: Compilation failure

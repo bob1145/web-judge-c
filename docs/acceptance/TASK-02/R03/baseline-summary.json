@@ -1,0 +1,273 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=SessionCredentialHttpTest,AuthenticationSafeDefaultsTest,SessionCredentialLoggingTest",
+    "test"
+  ],
+  "exit_code": 1,
+  "report_count": 3,
+  "reports_present": true,
+  "totals": {
+    "tests": 39,
+    "failures": 31,
+    "errors": 1,
+    "skipped": 0,
+    "passed": 7
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.AuthenticationSafeDefaultsTest",
+      "tests": 19,
+      "failures": 14,
+      "errors": 1,
+      "skipped": 0,
+      "nonpassing": [
+        {
+          "test": "explicitlyConfiguredLegacySentinelCannotBeReenabled",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.AuthenticationSafeDefaultsTest.explicitlyConfiguredLegacySentinelCannotBeReenabled(AuthenticationSafeDefaultsTest.java:72)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        },
+        {
+          "test": "accessCodeModeFailsClosedAtBothStartupGuards(String)[1]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.AuthenticationSafeDefaultsTest.accessCodeModeFailsClosedAtBothStartupGuards(AuthenticationSafeDefaultsTest.java:50)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "accessCodeModeFailsClosedAtBothStartupGuards(String)[2]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.AuthenticationSafeDefaultsTest.accessCodeModeFailsClosedAtBothStartupGuards(AuthenticationSafeDefaultsTest.java:50)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "accessCodeModeFailsClosedAtBothStartupGuards(String)[3]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.AuthenticationSafeDefaultsTest.accessCodeModeFailsClosedAtBothStartupGuards(AuthenticationSafeDefaultsTest.java:50)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "accessCodeModeFailsClosedAtBothStartupGuards(String)[4]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.AuthenticationSafeDefaultsTest.accessCodeModeFailsClosedAtBothStartupGuards(AuthenticationSafeDefaultsTest.java:50)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "accessCodeModeFailsClosedAtBothStartupGuards(String)[5]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.AuthenticationSafeDefaultsTest.accessCodeModeFailsClosedAtBothStartupGuards(AuthenticationSafeDefaultsTest.java:50)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "accessCodeModeFailsClosedAtBothStartupGuards(String)[6]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.AuthenticationSafeDefaultsTest.accessCodeModeFailsClosedAtBothStartupGuards(AuthenticationSafeDefaultsTest.java:50)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "invalidOrLegacyAccessMaterialCannotAuthenticateEvenWithoutStartup(String)[1]",
+          "outcome": "error",
+          "type": "java.lang.NullPointerException",
+          "message": "Cannot invoke \"String.equals(Object)\" because the return value of \"com.example.demo.config.AuthConfiguration.getAccessCode()\" is null",
+          "detail": "java.lang.NullPointerException: Cannot invoke \"String.equals(Object)\" because the return value of \"com.example.demo.config.AuthConfiguration.getAccessCode()\" is null\n\tat com.example.demo.service.AccessCodeService.validateAccessCode(AccessCodeService.java:67)\n\tat com.example.demo.AuthenticationSafeDefaultsTest.invalidOrLegacyAccessMaterialCannotAuthenticateEvenWithoutStartup(AuthenticationSafeDefaultsTest.java:63)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)"
+        },
+        {
+          "test": "invalidOrLegacyAccessMaterialCannotAuthenticateEvenWithoutStartup(String)[4]",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "\nexpected: INVALID_CODE\n but was: SUCCESS",
+          "detail": "org.opentest4j.AssertionFailedError: \n\nexpected: INVALID_CODE\n but was: SUCCESS\n\tat com.example.demo.AuthenticationSafeDefaultsTest.invalidOrLegacyAccessMaterialCannotAuthenticateEvenWithoutStartup(AuthenticationSafeDefaultsTest.java:63)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)"
+        },
+        {
+          "test": "invalidOrLegacyAccessMaterialCannotAuthenticateEvenWithoutStartup(String)[5]",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "\nexpected: INVALID_CODE\n but was: SUCCESS",
+          "detail": "org.opentest4j.AssertionFailedError: \n\nexpected: INVALID_CODE\n but was: SUCCESS\n\tat com.example.demo.AuthenticationSafeDefaultsTest.invalidOrLegacyAccessMaterialCannotAuthenticateEvenWithoutStartup(AuthenticationSafeDefaultsTest.java:64)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)"
+        },
+        {
+          "test": "javaAndYamlHaveNoUsablePasswordAndBindLoopbackByDefault",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting null or empty but was: \"<redacted-legacy-default>\"",
+          "detail": "java.lang.AssertionError: \n\nExpecting null or empty but was: \"<redacted-legacy-default>\"\n\tat com.example.demo.AuthenticationSafeDefaultsTest.javaAndYamlHaveNoUsablePasswordAndBindLoopbackByDefault(AuthenticationSafeDefaultsTest.java:36)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        },
+        {
+          "test": "springStartupWithoutAccessMaterialFailsButExplicitPropertySucceeds",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting:\n <Started application [AnnotationConfigApplicationContext@724c26e0 id = 'org.springframework.context.annotation.AnnotationConfigApplicationContext@724c26e0', applicationName = '', beanDefinitionCount = 13]>\nto have failed\nbut context started successfully",
+          "detail": "java.lang.AssertionError: \n\nExpecting:\n <Started application [AnnotationConfigApplicationContext@724c26e0 id = 'org.springframework.context.annotation.AnnotationConfigApplicationContext@724c26e0', applicationName = '', beanDefinitionCount = 13]>\nto have failed\nbut context started successfully"
+        },
+        {
+          "test": "enabledLocalAccountModeRequiresUsableAccountsRatherThanUnusedAccessCode",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.AuthenticationSafeDefaultsTest.assertInvalidAccount(AuthenticationSafeDefaultsTest.java:124)\n\tat com.example.demo.AuthenticationSafeDefaultsTest.enabledLocalAccountModeRequiresUsableAccountsRatherThanUnusedAccessCode(AuthenticationSafeDefaultsTest.java:107)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)"
+        },
+        {
+          "test": "accountModeDoesNotRequireOrValidateUnusedAccessMaterial(String)[2]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code not to raise a throwable but caught\n  \"java.lang.IllegalStateException: Insecure linux-prod configuration: default access code\n at com.example.demo.config.ProductionSecurityStartupValidator.validateNow(ProductionSecurityStartupValidator.java:59)\n at com.example.demo.AuthenticationSafeDefaultsTest.lambda$accountModeDoesNotRequireOrValidateUnusedAccessMaterial$6(AuthenticationSafeDefaultsTest.java:98)\n at org.assertj.core.api.ThrowableAssert.catchThrowable(ThrowableAssert.java:63)\n at org.assertj.core.api.AssertionsForClassTypes.catchThrowable(AssertionsForClassTypes.java:904)\n at org.assertj.core.api.AssertionsForClassTypes.assertThatCode(AssertionsForClassTypes.java:875)\n at org.assertj.core.api.Assertions.assertThatCode(Assertions.java:1392)\n at com.example.demo.AuthenticationSafeDefaultsTest.accountModeDoesNotRequireOrValidateUnusedAccessMaterial(AuthenticationSafeDefaultsTest.java:98)\n at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)\n at java.base/java.lang.reflect.Method.invoke(Method.java:580)\n at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:775)\n at org.junit.platform.commons.support.ReflectionSupport.invokeMethod(ReflectionSupport.java:479)\n at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)\n at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)\n at org.junit.jupiter.params.ArgumentCountValidator.interceptTestTemplateMethod(ArgumentCountValidator.java:45)\n at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:112)\n at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:94)\n at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInte",
+          "detail": "java.lang.AssertionError: \n\nExpecting code not to raise a throwable but caught\n  \"java.lang.IllegalStateException: Insecure linux-prod configuration: default access code\n\tat com.example.demo.config.ProductionSecurityStartupValidator.validateNow(ProductionSecurityStartupValidator.java:59)\n\tat com.example.demo.AuthenticationSafeDefaultsTest.lambda$accountModeDoesNotRequireOrValidateUnusedAccessMaterial$6(AuthenticationSafeDefaultsTest.java:98)"
+        },
+        {
+          "test": "accountModeDoesNotRequireOrValidateUnusedAccessMaterial(String)[3]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code not to raise a throwable but caught\n  \"java.lang.IllegalStateException: Insecure intranet-large configuration: default access code\n at com.example.demo.config.SecurityModeStartupValidator.validateNow(SecurityModeStartupValidator.java:43)\n at com.example.demo.AuthenticationSafeDefaultsTest.lambda$accountModeDoesNotRequireOrValidateUnusedAccessMaterial$5(AuthenticationSafeDefaultsTest.java:97)\n at org.assertj.core.api.ThrowableAssert.catchThrowable(ThrowableAssert.java:63)\n at org.assertj.core.api.AssertionsForClassTypes.catchThrowable(AssertionsForClassTypes.java:904)\n at org.assertj.core.api.AssertionsForClassTypes.assertThatCode(AssertionsForClassTypes.java:875)\n at org.assertj.core.api.Assertions.assertThatCode(Assertions.java:1392)\n at com.example.demo.AuthenticationSafeDefaultsTest.accountModeDoesNotRequireOrValidateUnusedAccessMaterial(AuthenticationSafeDefaultsTest.java:97)\n at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)\n at java.base/java.lang.reflect.Method.invoke(Method.java:580)\n at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:775)\n at org.junit.platform.commons.support.ReflectionSupport.invokeMethod(ReflectionSupport.java:479)\n at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)\n at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)\n at org.junit.jupiter.params.ArgumentCountValidator.interceptTestTemplateMethod(ArgumentCountValidator.java:45)\n at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:112)\n at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:94)\n at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorC",
+          "detail": "java.lang.AssertionError: \n\nExpecting code not to raise a throwable but caught\n  \"java.lang.IllegalStateException: Insecure intranet-large configuration: default access code\n\tat com.example.demo.config.SecurityModeStartupValidator.validateNow(SecurityModeStartupValidator.java:43)\n\tat com.example.demo.AuthenticationSafeDefaultsTest.lambda$accountModeDoesNotRequireOrValidateUnusedAccessMaterial$5(AuthenticationSafeDefaultsTest.java:97)"
+        }
+      ]
+    },
+    {
+      "name": "com.example.demo.SessionCredentialHttpTest",
+      "tests": 18,
+      "failures": 15,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": [
+        {
+          "test": "logoutCannotChooseBetweenConflictingCredentials",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Status expected:<401> but was:<200>",
+          "detail": "java.lang.AssertionError: Status expected:<401> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.logoutCannotChooseBetweenConflictingCredentials(SessionCredentialHttpTest.java:130)"
+        },
+        {
+          "test": "queryOnlyCannotAuthenticateProtectedEndpoints(String)[1]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Status expected:<401> but was:<200>",
+          "detail": "java.lang.AssertionError: Status expected:<401> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.queryOnlyCannotAuthenticateProtectedEndpoints(SessionCredentialHttpTest.java:84)"
+        },
+        {
+          "test": "queryOnlyCannotAuthenticateProtectedEndpoints(String)[2]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Status expected:<401> but was:<200>",
+          "detail": "java.lang.AssertionError: Status expected:<401> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.queryOnlyCannotAuthenticateProtectedEndpoints(SessionCredentialHttpTest.java:84)"
+        },
+        {
+          "test": "queryOnlyCannotAuthenticateProtectedEndpoints(String)[3]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Status expected:<401> but was:<200>",
+          "detail": "java.lang.AssertionError: Status expected:<401> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.queryOnlyCannotAuthenticateProtectedEndpoints(SessionCredentialHttpTest.java:84)"
+        },
+        {
+          "test": "queryOnlyCannotAuthenticateProtectedEndpoints(String)[4]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Status expected:<401> but was:<200>",
+          "detail": "java.lang.AssertionError: Status expected:<401> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.queryOnlyCannotAuthenticateProtectedEndpoints(SessionCredentialHttpTest.java:84)"
+        },
+        {
+          "test": "queryOnlyCannotAuthenticateProtectedEndpoints(String)[5]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Status expected:<401> but was:<200>",
+          "detail": "java.lang.AssertionError: Status expected:<401> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.queryOnlyCannotAuthenticateProtectedEndpoints(SessionCredentialHttpTest.java:84)"
+        },
+        {
+          "test": "controllersCannotBypassSharedCredentialRulesWithoutMvcInterceptor(String)[1]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Response status expected:<403> but was:<200>",
+          "detail": "java.lang.AssertionError: Response status expected:<403> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$is$1(StatusResultMatchers.java:65)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.controllersCannotBypassSharedCredentialRulesWithoutMvcInterceptor(SessionCredentialHttpTest.java:159)"
+        },
+        {
+          "test": "controllersCannotBypassSharedCredentialRulesWithoutMvcInterceptor(String)[2]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Response status expected:<403> but was:<200>",
+          "detail": "java.lang.AssertionError: Response status expected:<403> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$is$1(StatusResultMatchers.java:65)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.controllersCannotBypassSharedCredentialRulesWithoutMvcInterceptor(SessionCredentialHttpTest.java:159)"
+        },
+        {
+          "test": "conflictingValidCredentialsAreRejected(String)[1]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Status expected:<401> but was:<200>",
+          "detail": "java.lang.AssertionError: Status expected:<401> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.conflictingValidCredentialsAreRejected(SessionCredentialHttpTest.java:108)"
+        },
+        {
+          "test": "conflictingValidCredentialsAreRejected(String)[2]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Status expected:<401> but was:<200>",
+          "detail": "java.lang.AssertionError: Status expected:<401> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.conflictingValidCredentialsAreRejected(SessionCredentialHttpTest.java:108)"
+        },
+        {
+          "test": "conflictingValidCredentialsAreRejected(String)[3]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Status expected:<401> but was:<200>",
+          "detail": "java.lang.AssertionError: Status expected:<401> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.conflictingValidCredentialsAreRejected(SessionCredentialHttpTest.java:108)"
+        },
+        {
+          "test": "conflictingValidCredentialsAreRejected(String)[4]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Status expected:<401> but was:<200>",
+          "detail": "java.lang.AssertionError: Status expected:<401> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.conflictingValidCredentialsAreRejected(SessionCredentialHttpTest.java:108)"
+        },
+        {
+          "test": "conflictingValidCredentialsAreRejected(String)[5]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Status expected:<401> but was:<200>",
+          "detail": "java.lang.AssertionError: Status expected:<401> but was:<200>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.conflictingValidCredentialsAreRejected(SessionCredentialHttpTest.java:108)"
+        },
+        {
+          "test": "pageRedirectDoesNotCopyQueryCredentials",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "Range for response status value 200 expected:<REDIRECTION> but was:<SUCCESSFUL>",
+          "detail": "java.lang.AssertionError: Range for response status value 200 expected:<REDIRECTION> but was:<SUCCESSFUL>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$is3xxRedirection$4(StatusResultMatchers.java:88)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)\n\tat com.example.demo.SessionCredentialHttpTest.pageRedirectDoesNotCopyQueryCredentials(SessionCredentialHttpTest.java:139)"
+        },
+        {
+          "test": "authenticationControllerDoesNotResolveQueryOrConflictingCredentials",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "JSON path \"$.success\" expected:<false> but was:<true>",
+          "detail": "java.lang.AssertionError: JSON path \"$.success\" expected:<false> but was:<true>\n\tat org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)\n\tat org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)\n\tat org.springframework.test.util.JsonPathExpectationsHelper.assertValue(JsonPathExpectationsHelper.java:172)\n\tat org.springframework.test.web.servlet.result.JsonPathResultMatchers.lambda$value$2(JsonPathResultMatchers.java:112)\n\tat org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)"
+        }
+      ]
+    },
+    {
+      "name": "com.example.demo.SessionCredentialLoggingTest",
+      "tests": 2,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": [
+        {
+          "test": "accessCodeAuditIdentityIsRedactedWithoutChangingOwnershipIdentity",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "[in-memory audit must not retain access-code session tokens] \nExpecting value to be false but was true",
+          "detail": "org.opentest4j.AssertionFailedError: \n[in-memory audit must not retain access-code session tokens] \nExpecting value to be false but was true\n\tat com.example.demo.SessionCredentialLoggingTest.accessCodeAuditIdentityIsRedactedWithoutChangingOwnershipIdentity(SessionCredentialLoggingTest.java:111)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        },
+        {
+          "test": "bothLoginModesAndAllSessionLifecycleLogLevelsNeverExposeCredentials",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "[application logs must not contain raw credentials] \nExpecting value to be false but was true",
+          "detail": "org.opentest4j.AssertionFailedError: \n[application logs must not contain raw credentials] \nExpecting value to be false but was true\n\tat com.example.demo.SessionCredentialLoggingTest.bothLoginModesAndAllSessionLifecycleLogLevelsNeverExposeCredentials(SessionCredentialLoggingTest.java:97)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        }
+      ]
+    }
+  ]
+}

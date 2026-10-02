@@ -1,0 +1,15 @@
+[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.199 s -- in com.example.demo.SessionCredentialResolverTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.310 s -- in com.example.demo.SessionCredentialLoggingTest
+[ERROR] Tests run: 18, Failures: 3, Errors: 0, Skipped: 0, Time elapsed: 4.901 s <<< FAILURE! -- in com.example.demo.SessionCredentialHttpTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.093 s -- in com.example.demo.SecurityModeStartupValidatorTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.389 s -- in com.example.demo.ProductionSecurityStartupValidatorTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.013 s -- in com.example.demo.ProductionSandboxBaselineTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.994 s -- in com.example.demo.ProductionAuthenticationTest
+[INFO] Tests run: 19, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.019 s -- in com.example.demo.AuthenticationSafeDefaultsTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.115 s -- in com.example.demo.AuditAndAdminTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.068 s -- in com.example.demo.ApplicationYamlExecutionProfileTest
+[ERROR] Tests run: 80, Failures: 3, Errors: 0, Skipped: 0
+[INFO] BUILD FAILURE
+[INFO] Total time:  18.252 s
+[INFO] Finished at: 2026-10-02T22:44:52+08:00
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.3:test (default-test) on project demo18: There are test failures.
