@@ -1,0 +1,21 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=WorkerAuthenticationConfigurationTest,RemoteWorkerRunnerTest,RemoteWorkerTlsTest,ProductionSecurityStartupValidatorTest",
+    "test"
+  ],
+  "exit_code": 1,
+  "report_count": 0,
+  "reports_present": false,
+  "totals": {
+    "tests": 0,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 0
+  },
+  "suites": []
+}

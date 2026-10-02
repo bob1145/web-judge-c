@@ -1,0 +1,30 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=JudgeBaselineTest#runtimeErrorIsRecordedAsSingleCaseRe",
+    "test"
+  ],
+  "exit_code": 0,
+  "report_count": 1,
+  "reports_present": true,
+  "totals": {
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 1
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.JudgeBaselineTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    }
+  ]
+}

@@ -8,12 +8,14 @@ import com.example.demo.dto.SandboxTaskEvent;
 import com.example.demo.dto.SandboxTaskSpec;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -40,6 +42,7 @@ public class RemoteWorkerRunner implements SandboxRunner {
     private final HttpClient httpClient;
     private final Map<String, List<SandboxTaskEvent>> localEvents = new ConcurrentHashMap<>();
 
+    @Autowired
     public RemoteWorkerRunner(
             SandboxProperties sandboxProperties,
             WorkerProperties workerProperties,
@@ -53,11 +56,19 @@ public class RemoteWorkerRunner implements SandboxRunner {
     }
 
     public RemoteWorkerRunner(Options options, ObjectMapper objectMapper) {
+        this(options, objectMapper, null);
+    }
+
+    RemoteWorkerRunner(Options options, ObjectMapper objectMapper, SSLContext sslContext) {
         this.options = options == null ? Options.builder().build() : options;
         this.objectMapper = objectMapper == null ? new ObjectMapper().findAndRegisterModules() : objectMapper;
-        this.httpClient = HttpClient.newBuilder()
+        HttpClient.Builder builder = HttpClient.newBuilder()
                 .connectTimeout(this.options.connectTimeout())
-                .build();
+                .followRedirects(HttpClient.Redirect.NEVER);
+        if (sslContext != null) {
+            builder.sslContext(sslContext);
+        }
+        this.httpClient = builder.build();
     }
 
     @Override
@@ -157,9 +168,6 @@ public class RemoteWorkerRunner implements SandboxRunner {
             builder.header("X-Judge-Worker-Signature-Alg", "HMAC-SHA256");
             builder.header("X-Judge-Worker-Signature", signature(method, pathAndQuery, body));
         }
-        if (StringUtils.hasText(options.mtlsCertificate())) {
-            builder.header("X-Judge-Worker-Mtls", "configured");
-        }
     }
 
     private String signature(String method, String pathAndQuery, String body) {
@@ -228,21 +236,14 @@ public class RemoteWorkerRunner implements SandboxRunner {
         private final Duration requestTimeout;
 
         private Options(Builder builder) {
-            if (!StringUtils.hasText(builder.endpoint)) {
-                throw new IllegalArgumentException("worker endpoint is required");
-            }
-            if (!StringUtils.hasText(builder.authToken)
-                    && !StringUtils.hasText(builder.signingSecret)
-                    && !StringUtils.hasText(builder.mtlsCertificate)) {
-                throw new IllegalArgumentException("worker authenticated channel is required");
-            }
-            if (builder.connectTimeout == null || builder.connectTimeout.isZero() || builder.connectTimeout.isNegative()) {
-                throw new IllegalArgumentException("connectTimeout must be positive");
-            }
-            if (builder.requestTimeout == null || builder.requestTimeout.isZero() || builder.requestTimeout.isNegative()) {
-                throw new IllegalArgumentException("requestTimeout must be positive");
-            }
-            this.endpoint = URI.create(builder.endpoint.trim());
+            WorkerProperties settings = new WorkerProperties();
+            settings.setEndpoint(builder.endpoint);
+            settings.setAuthToken(builder.authToken);
+            settings.setSigningSecret(builder.signingSecret);
+            settings.setMtlsCertificate(builder.mtlsCertificate);
+            settings.setConnectTimeout(builder.connectTimeout);
+            settings.setRequestTimeout(builder.requestTimeout);
+            this.endpoint = settings.validateAndGetEndpoint();
             this.authToken = valueOrEmpty(builder.authToken);
             this.signingSecret = valueOrEmpty(builder.signingSecret);
             this.mtlsCertificate = valueOrEmpty(builder.mtlsCertificate);
@@ -251,15 +252,7 @@ public class RemoteWorkerRunner implements SandboxRunner {
         }
 
         static Options from(SandboxProperties sandboxProperties, WorkerProperties workerProperties) {
-            SandboxProperties.Worker sandboxWorker = sandboxProperties.getWorker();
-            WorkerProperties merged = new WorkerProperties();
-            merged.setEndpoint(firstText(workerProperties.getEndpoint(), sandboxWorker.getEndpoint()));
-            merged.setAuthToken(firstText(workerProperties.getAuthToken(), sandboxWorker.getAuthToken()));
-            merged.setSigningSecret(workerProperties.getSigningSecret());
-            merged.setMtlsCertificate(firstText(workerProperties.getMtlsCertificate(), sandboxWorker.getMtlsCertificate()));
-            merged.setConnectTimeout(workerProperties.getConnectTimeout());
-            merged.setRequestTimeout(workerProperties.getRequestTimeout());
-            return from(merged);
+            return from(workerProperties.withFallback(sandboxProperties.getWorker()));
         }
 
         static Options from(WorkerProperties workerProperties) {
@@ -343,10 +336,6 @@ public class RemoteWorkerRunner implements SandboxRunner {
                 return new Options(this);
             }
         }
-    }
-
-    private static String firstText(String first, String second) {
-        return StringUtils.hasText(first) ? first : valueOrEmpty(second);
     }
 
     private static String valueOrEmpty(String value) {

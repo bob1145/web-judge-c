@@ -6,6 +6,7 @@ import com.example.demo.config.ProductionSecurityStartupValidator;
 import com.example.demo.config.SandboxConfiguration;
 import com.example.demo.config.SandboxProperties;
 import com.example.demo.config.WebSocketConfig;
+import com.example.demo.config.WorkerProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -273,7 +274,8 @@ class ProductionSecurityStartupValidatorTest {
                 execution,
                 sandbox,
                 sandboxProperties,
-                new WebSocketConfig(allowedOrigins)
+                new WebSocketConfig(allowedOrigins),
+                new WorkerProperties()
         );
     }
 

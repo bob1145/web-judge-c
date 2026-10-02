@@ -1,0 +1,14 @@
+RuntimeMaxUSec=10min
+CPUQuotaPerSecUSec=2s
+MemoryMax=4294967296
+MemorySwapMax=0
+TasksMax=512
+ReadWritePaths=/mnt/c/Users/29901/Documents/dp/web-judge-c/docs/acceptance/TASK-08
+ReadOnlyPaths=/mnt/c/Users/29901/Documents/dp/web-judge-c
+PrivateNetwork=yes
+ProtectHome=read-only
+ProtectSystem=strict
+NoNewPrivileges=yes
+TemporaryFileSystem=/tmp:rw,size=2G
+Id=wjc-task08-r02.service
+InvocationID=a687d08157284118bff74ae2dbe61e07

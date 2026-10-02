@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -13,7 +14,7 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 @Component
-@RequiredArgsConstructor
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 @Slf4j
 public class ProductionSecurityStartupValidator implements SmartInitializingSingleton {
 
@@ -28,6 +29,7 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
     private final SandboxConfiguration sandboxConfiguration;
     private final SandboxProperties sandboxProperties;
     private final WebSocketConfig webSocketConfig;
+    private final WorkerProperties workerProperties;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
@@ -84,12 +86,10 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
 
     private void validateWorkerProd(List<String> risks) {
         requireProvider(SandboxProperties.Provider.REMOTE_WORKER, "remote-worker", risks);
-        SandboxProperties.Worker worker = sandboxProperties.getWorker();
-        if (worker == null || !worker.hasEndpoint()) {
-            risks.add("worker endpoint is required");
-        }
-        if (worker == null || !worker.hasAuthenticatedChannel()) {
-            risks.add("worker authentication is required");
+        try {
+            workerProperties.withFallback(sandboxProperties.getWorker()).validateAndGetEndpoint();
+        } catch (IllegalArgumentException exception) {
+            risks.add(exception.getMessage());
         }
     }
 

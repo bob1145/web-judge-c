@@ -306,3 +306,29 @@
 - 状态：开发验收已通过，先VERIFIED_PENDING_COMMIT，再按task §2.4写DONE提交候选，仅匹配真实提交存在后生效。DEF-18/N4为IMPLEMENTED_PENDING_VALIDATION，N3还缺WS；后续24/28/29闭环之前不关闭全部缺陷或宣称可发布。
 - 提交候选：fix(auth): TASK-02 unify credentials and safe defaults [TASK-02-C01]，父SHA bcf1d5ea6f40829dac9ef02ce6d526f2eef81d57；自身SHA由唯一主题定位，未伪填。仅使用用户提供身份的单次git -c参数，按批准范围精确暂存并核验，不推送、不amend、不新建分支、不修改持久配置。既有.mimosa/、.playwright-mcp/仍排除。
 - 下一顺序TASK-03受可信代理/限流容量等定量参数延期门槛影响，不能擅自填业务默认；TASK-08依赖01/02且DEC-05方向已批准，可先核对其真实TLS环境/授权后推进独立工作。整体Goal尚未完成。
+
+### 2026-10-02 — TASK-08 / R01 — Worker TLS与认证契约开工
+
+- 恢复核验TASK-02真实提交6f3b479b8cd37bc29cb862495515318066e88618，父bcf1d5ea6f40829dac9ef02ce6d526f2eef81d57，作者yanwenyu及用户提供邮箱、唯一TASK-02-C01主题、116文件范围及task/work均核验。仅本地未推送；工作树只有既有两个临时目录。
+- TASK-03依赖02已满足，但可信代理CIDR、来源/账户阈值、容量/TTL和头上限按已批准延期仍未冻结，标BLOCKED，不借安全修复自造业务默认；不阻断独立TASK-08。
+- 角色：后端集成/TLS工程师。RQ-A07/AC-A07/T-A13、DEF-23、DEC-05，D §3.6/8.1/8.3。当前三处Worker配置对cert-only/签名材料的判断不一致，Runner静默优先配置且发固定伪mTLS头；Options允许HTTP，生产校验只读嵌套配置。
+- 本项先加配置/认证失败回归，再统一解析与HTTPS约束；保留现有Bearer/HMAC签名输入，明确拒绝未实现mTLS。使用现有受限WSL中的临时本地TLS服务、临时证书/信任库进行真实握手正反例；不访问外部Worker、不更改系统信任库、不安装依赖。实际外部服务端验签/重放保护与端点审批留TASK-26。
+- 设计要求使用Java标准HttpClient/keytool/TLS API，实际可用性通过本地编译和握手验证，不以文档或mock替代真实TLS用例。开工时未写生产变更/未执行TASK-08测试，状态IN_PROGRESS。
+- R01配置/认证前测：29项/15通过/14失败/0错误/0跳过，退出1。新增15项仅同值/单来源正例通过；实际复现HTTP、伪mTLS、配置冲突、原始端点错误回显及生产校验忽略主Worker配置，原6项客户端/8项启动用例通过。R02迁移后testCompile失败，0报告/0测试：Auth安全默认测试构造器遗漏新WorkerProperties参数；根据诊断补齐，不能当作TLS失败或通过。
+- R03定向42/42通过、0失败/错误/跳过，退出0；其中13项为真实本地TLS握手/认证/重定向，原6项Worker接口测试已迁移HTTPS。临时CA签发有效/过期/错主机证书，独立内存信任验证，不使用trust-all、不更改全局SSLContext或系统truststore；全部keytool进程有30秒上限及清理检查。
+- 主代理复核补充：仅HTTPS跳转HTTP不能充分证明禁止所有跨端点跳转，因此补齐301/302/303/307/308×HTTP/HTTPS目标矩阵；源端须实际收到正确Bearer/HMAC，目标端请求数须0。另补嵌套HMAC及真实Spring装配、签名冲突用例。显式NEVER是约束和回归保护，不把R01说成已证明原客户端存在重定向泄密。
+- R04四类定向49/49通过，0失败/错误/跳过，退出0；包含18个真实TLS场景和17个配置场景。继续加强证书负例：必须出现实际PKIX证书链/有效期或subject alternative主机名拒绝原因，不能仅以通用请求失败/零请求数替代TLS失败证明；该断言在当前受测JDK21环境运行，不据此声称其它JDK/平台已经验收。
+- R05加强后的定向49/49通过，退出0。R06全量297项/294通过/1失败/0错误/2原provider跳过，退出1：JudgeBaselineTest.runtimeErrorIsRecordedAsSingleCaseRe期望RE却得到SYSTEM_ERROR；本项TLS/配置用例全部通过。R07保持生产代码及断言不变，单独复测该用例1/1通过，退出0。首次全量失败真实保留，现有证据尚未确认根因，不能宣称已修复或用重跑抹去不稳定风险；未改判题逻辑、未放宽RE断言、未禁用用例。随后执行一次同实现全量核验，结果单独记录。
+
+### 2026-10-02 — TASK-08 / R05～R08 — 客户端验收与本地提交候选
+
+- 最终定向R05：49项/49通过/0失败/0错误/0跳过，退出0。完整复验R08：40套件297项/295通过/0失败/0错误/2原provider跳过，退出0。R06判题RE→SYSTEM_ERROR失败、R07原码单项通过均独立保存；未确定该偶发失败根因，仍属N5/最终回归的未消除风险，不声称整个系统回归已稳定。
+- 源码核验：R05/R06/R07/R08各141个源码/runner/scripts/POM哈希与同一工作树全部一致，未改判题实现/测试/额度以使复验变绿。R08完整162个输入及harness哈希均匹配；后续仅验收/task/work/change-log记录变更。两项skip仍是缺Linux镜像、非Windows runtime，核心Worker用例无skip。
+- 实际范围：WorkerProperties集中归并与校验，SandboxProperties.Worker复用认证能力规则并支持signing-secret，Options复用同一逻辑；ProductionSecurityStartupValidator读取真实主/嵌套配置，HTTP/无认证/伪mTLS/配置冲突失败关闭。保留Bearer/HMAC签名输入，移除固定伪mTLS头，显式NEVER重定向，默认TLS验证不绕过。
+- 真实TLS：18项包含3种认证模式GET/JSON POST正例、2种错误认证、过期/错SAN/不可信CA各一负例、5种跳转状态×HTTP/HTTPS目标10项。正例实际到达本地HttpsServer并验证认证；证书反例须实际PKIX/hostname拒绝且无HTTP handler请求；跳转源端认证成功但目标请求为0。原6项协议测试迁移为HTTPS而未删除。
+- 证书/信任：只使用临时目录内keytool生成CA和叶证书、标准内存KeyManager/TrustManager，不改系统truststore或全局SSLContext，不使用trust-all/hostname关闭。没有外部Worker、真实生产信任部署、服务端重放防护或执行沙箱验证，不能提前关闭DEF-23或开启未验收provider。
+- 文档与兼容：production-sandbox-runbook去掉mTLS已可用的旧表述，说明两处配置冲突、最终HTTPS端点及迁移；application.yml补空嵌套signing-secret，无新增业务默认或放宽安全门槛。三处原启动测试补新依赖，保留原沙箱/账户断言；提交独立配置/TLS测试及临时证书工具，不含测试私钥/keystore。
+- 主代理复核：核对构造器实际Spring装配、配置真相、凭证不回显、标准TLS与重定向矩阵；发现仅HTTP跳转负例不充分并补HTTPS目标，强化具体TLS原因而非通用网络错误。未宣称独立第三方审核，最终审计留29。DRY复用配置解析，KISS不引入第二套客户端/认证协议，YAGNI不实现未批准mTLS或外部Worker服务端。
+- 状态：本卡客户端开发验收通过，先VERIFIED_PENDING_COMMIT，再按task §2.4写DONE提交候选，真实提交匹配后生效。DEF-23为IMPLEMENTED_PENDING_VALIDATION；R06全量不稳定、TASK-03参数以及未验收provider仍使整体Goal不能完成/发布。
+- 提交候选：fix(worker): TASK-08 reject nominal auth and enforce tls [TASK-08-C01]；父SHA 6f3b479b8cd37bc29cb862495515318066e88618，自身SHA按唯一主题核验。沿用已批准的单次Git身份参数，仅本地、不push/amend/新建分支，精确暂存排除既有.mimosa/、.playwright-mcp/。
+- 后续：先核对TASK-09的v2清单字段/目标平台及延期参数边界；TASK-03继续等待可信代理与限流定量参数批准，不擅自采用候选默认。

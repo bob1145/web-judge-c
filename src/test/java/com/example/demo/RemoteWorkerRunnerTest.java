@@ -6,12 +6,17 @@ import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.dto.SandboxTaskEvent;
 import com.example.demo.dto.SandboxTaskSpec;
 import com.example.demo.service.sandbox.RemoteWorkerRunner;
+import com.example.demo.service.sandbox.TestTlsRemoteWorkerRunner;
+import com.example.demo.support.WorkerTlsCertificates;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.HttpsServer;
+import com.sun.net.httpserver.HttpsConfigurator;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -26,13 +31,22 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RemoteWorkerRunnerTest {
+
+    @TempDir
+    static Path certificateDirectory;
+    private static WorkerTlsCertificates.Material tlsMaterial;
+
+    @BeforeAll
+    static void createCertificates() throws Exception {
+        tlsMaterial = WorkerTlsCertificates.create(certificateDirectory)
+                .issue("valid", "dns:localhost,ip:127.0.0.1", false);
+    }
 
     private final ObjectMapper objectMapper = JsonMapper.builder()
             .findAndAddModules()
@@ -63,7 +77,7 @@ class RemoteWorkerRunnerTest {
                 .details("worker=linux-1")
                 .build();
         workerServer.respondJson("GET", "/api/v1/capabilities", 200, workerCapabilities);
-        RemoteWorkerRunner runner = new RemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper);
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper, tlsMaterial.clientContext());
 
         SandboxCapabilities capabilities = runner.probe();
 
@@ -83,7 +97,7 @@ class RemoteWorkerRunnerTest {
                 .eventCursor("cursor-0")
                 .build();
         workerServer.respondJson("POST", "/api/v1/runs", 202, workerHandle);
-        RemoteWorkerRunner runner = new RemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper);
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper, tlsMaterial.clientContext());
         SandboxTaskSpec spec = validSpec();
 
         SandboxRunHandle handle = runner.start(spec);
@@ -104,7 +118,7 @@ class RemoteWorkerRunnerTest {
         workerServer = FakeWorkerServer.start(objectMapper);
         SandboxTaskEvent event = SandboxTaskEvent.of("judge-remote", SandboxTaskEvent.Type.COMPLETED, "completed");
         workerServer.respondJson("GET", "/api/v1/runs/worker-run-2/events?cursor=cursor-0", 200, List.of(event));
-        RemoteWorkerRunner runner = new RemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper);
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper, tlsMaterial.clientContext());
         SandboxRunHandle handle = SandboxRunHandle.builder()
                 .judgeId("judge-remote")
                 .runId("worker-run-2")
@@ -130,7 +144,7 @@ class RemoteWorkerRunnerTest {
             int count = cancelCount.incrementAndGet();
             send(exchange, count == 1 ? 202 : 404, "");
         });
-        RemoteWorkerRunner runner = new RemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper);
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper, tlsMaterial.clientContext());
         SandboxRunHandle handle = SandboxRunHandle.builder()
                 .judgeId("judge-remote")
                 .runId("worker-run-3")
@@ -152,7 +166,7 @@ class RemoteWorkerRunnerTest {
         workerServer.respondText("GET", "/api/v1/capabilities", 503, "down");
         workerServer.respondText("POST", "/api/v1/runs", 503, "down");
         workerServer.respondText("GET", "/api/v1/runs/unavailable/events?cursor=0", 503, "down");
-        RemoteWorkerRunner runner = new RemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper);
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper, tlsMaterial.clientContext());
 
         SandboxCapabilities capabilities = runner.probe();
         SandboxRunHandle handle = runner.start(validSpec());
@@ -170,7 +184,7 @@ class RemoteWorkerRunnerTest {
     @Test
     void runnerRejectsRemoteWorkerWithoutAuthenticatedChannel() {
         WorkerProperties properties = new WorkerProperties();
-        properties.setEndpoint("http://127.0.0.1:65535");
+        properties.setEndpoint("https://127.0.0.1:65535");
 
         assertThatThrownBy(() -> new RemoteWorkerRunner(properties, objectMapper))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -232,15 +246,15 @@ class RemoteWorkerRunnerTest {
         }
 
         static FakeWorkerServer start(ObjectMapper objectMapper) throws IOException {
-            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-            server.setExecutor(Executors.newCachedThreadPool());
+            HttpsServer server = HttpsServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            server.setHttpsConfigurator(new HttpsConfigurator(tlsMaterial.serverContext()));
             FakeWorkerServer fake = new FakeWorkerServer(server, objectMapper);
             server.start();
             return fake;
         }
 
         URI baseUri() {
-            return URI.create("http://127.0.0.1:" + server.getAddress().getPort());
+            return URI.create("https://127.0.0.1:" + server.getAddress().getPort());
         }
 
         void stop() {

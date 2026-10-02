@@ -74,6 +74,7 @@ judge:
       worker:
         endpoint: ""
         auth-token: ""
+        signing-secret: ""
         mtls-certificate: ""
 
   worker:

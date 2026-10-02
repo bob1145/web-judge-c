@@ -37,6 +37,7 @@ public class SandboxProperties {
     public static class Worker {
         private String endpoint = "";
         private String authToken = "";
+        private String signingSecret = "";
         private String mtlsCertificate = "";
 
         public boolean hasEndpoint() {
@@ -44,7 +45,7 @@ public class SandboxProperties {
         }
 
         public boolean hasAuthenticatedChannel() {
-            return StringUtils.hasText(authToken) || StringUtils.hasText(mtlsCertificate);
+            return WorkerProperties.supportsAuthentication(authToken, signingSecret, mtlsCertificate);
         }
     }
 

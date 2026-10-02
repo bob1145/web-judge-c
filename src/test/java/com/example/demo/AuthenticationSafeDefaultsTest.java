@@ -7,6 +7,7 @@ import com.example.demo.config.SandboxConfiguration;
 import com.example.demo.config.SandboxProperties;
 import com.example.demo.config.SecurityModeStartupValidator;
 import com.example.demo.config.WebSocketConfig;
+import com.example.demo.config.WorkerProperties;
 import com.example.demo.model.AuthStatus;
 import com.example.demo.service.AccessCodeService;
 import org.junit.jupiter.api.Test;
@@ -166,7 +167,7 @@ class AuthenticationSafeDefaultsTest {
         production.setIsolation(SandboxProperties.Isolation.CONTAINER);
         production.setSecurityProfile("test-only-policy");
         production.setCapabilityProbePassed(true);
-        return new ProductionSecurityStartupValidator(auth, execution, sandbox, production, new WebSocketConfig("https://safe.example"));
+        return new ProductionSecurityStartupValidator(auth, execution, sandbox, production, new WebSocketConfig("https://safe.example"), new WorkerProperties());
     }
 
     @Configuration(proxyBeanMethods = false)

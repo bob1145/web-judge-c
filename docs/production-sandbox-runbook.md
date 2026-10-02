@@ -116,13 +116,30 @@ judge.worker.auth-token: ${JUDGE_WORKER_TOKEN}
 
 Required evidence:
 
-- Worker endpoint is authenticated with a token, mTLS, or a signed request
-  scheme.
+- Worker endpoint uses HTTPS with normal server-certificate and hostname validation,
+  and the existing Bearer token and/or HMAC-SHA256 request-signature protocol.
+- mTLS is not implemented in this release. Any nonempty mtls-certificate setting
+  is rejected, including configurations that also provide Bearer/HMAC credentials;
+  a certificate-path string or the removed X-Judge-Worker-Mtls header is not authentication.
+- Configure judge.worker or judge.sandbox.production.worker consistently. Nonblank
+  endpoint, auth-token, signing-secret and mtls-certificate values must agree if
+  present in both locations; conflicting values fail startup rather than silently
+  overriding another source. Both configuration locations support signing-secret.
+- All remote-worker endpoints require HTTPS, including local development clients.
+  Endpoints containing user-info, query strings or fragments are rejected without
+  echoing the supplied value. Redirect responses are not followed; configure the
+  intended final endpoint explicitly rather than forwarding credentials elsewhere.
 - Worker capability probe reports `productionSafe=true`.
 - Worker host passes either the Windows Hyper-V or Linux container smoke,
   depending on its platform.
 - Event polling/streaming, cancellation, stale run handling, and cleanup are
   verified.
+
+TASK-08 uses ephemeral CA-signed certificates and real loopback TLS handshakes to
+validate the Java client. Those protocol fixtures do not attest an external Worker:
+server-side signature verification, replay protection, execution isolation and the
+actual deployment endpoint still require TASK-26 evidence. Do not set production
+capability flags or enable an unverified provider based only on these client tests.
 
 ## Release Validation
 

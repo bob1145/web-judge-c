@@ -1,0 +1,54 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=WorkerAuthenticationConfigurationTest,RemoteWorkerRunnerTest,RemoteWorkerTlsTest,ProductionSecurityStartupValidatorTest",
+    "test"
+  ],
+  "exit_code": 0,
+  "report_count": 4,
+  "reports_present": true,
+  "totals": {
+    "tests": 42,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 42
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.ProductionSecurityStartupValidatorTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.RemoteWorkerRunnerTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.RemoteWorkerTlsTest",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.WorkerAuthenticationConfigurationTest",
+      "tests": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    }
+  ]
+}

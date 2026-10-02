@@ -1,0 +1,6 @@
+[ERROR] /tmp/wjc-task00.dlgKd1/src/test/java/com/example/demo/AuthenticationSafeDefaultsTest.java:[170,16] constructor ProductionSecurityStartupValidator in class com.example.demo.config.ProductionSecurityStartupValidator cannot be applied to given types;
+[INFO] BUILD FAILURE
+[INFO] Total time:  5.720 s
+[INFO] Finished at: 2026-10-02T23:21:59+08:00
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.14.0:testCompile (default-testCompile) on project demo18: Compilation failure
+[ERROR] /tmp/wjc-task00.dlgKd1/src/test/java/com/example/demo/AuthenticationSafeDefaultsTest.java:[170,16] constructor ProductionSecurityStartupValidator in class com.example.demo.config.ProductionSecurityStartupValidator cannot be applied to given types;

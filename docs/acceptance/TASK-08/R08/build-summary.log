@@ -1,0 +1,44 @@
+[INFO] Tests run: 17, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.271 s -- in com.example.demo.WorkerAuthenticationConfigurationTest
+[WARNING] Tests run: 7, Failures: 0, Errors: 0, Skipped: 1, Time elapsed: 0.171 s -- in com.example.demo.WindowsHyperVContainerRunnerTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.325 s -- in com.example.demo.TaskRunnerArtifactContractTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s -- in com.example.demo.TaskPolicyResolverTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.062 s -- in com.example.demo.TaskCleanupServiceTest
+[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.019 s -- in com.example.demo.SessionCredentialResolverTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.217 s -- in com.example.demo.SessionCredentialLoggingTest
+[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.370 s -- in com.example.demo.SessionCredentialHttpTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.105 s -- in com.example.demo.SecurityModeStartupValidatorTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.054 s -- in com.example.demo.SandboxRunnerContractTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.816 s -- in com.example.demo.SandboxEventIngestorTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.064 s -- in com.example.demo.ResultAggregatorTest
+[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.991 s -- in com.example.demo.RemoteWorkerTlsTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.085 s -- in com.example.demo.RemoteWorkerRunnerTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.143 s -- in com.example.demo.QuotaAndAuthorizationTest
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.135 s -- in com.example.demo.PythonInterpreterTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.080 s -- in com.example.demo.ProgressPublisherTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.280 s -- in com.example.demo.ProductionSecurityStartupValidatorTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s -- in com.example.demo.ProductionSandboxBaselineTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in com.example.demo.ProductionSandboxAcceptanceDocumentationTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in com.example.demo.ProductionRunbookDocumentationTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.323 s -- in com.example.demo.ProductionHighVolumeIntegrationTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.061 s -- in com.example.demo.ProductionCleanupTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.920 s -- in com.example.demo.ProductionAuthenticationTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.372 s -- in com.example.demo.ProcessRunnerTest
+[WARNING] Tests run: 7, Failures: 0, Errors: 0, Skipped: 1, Time elapsed: 0.045 s -- in com.example.demo.LinuxContainerRunnerTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.551 s -- in com.example.demo.JudgeSchedulerTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.081 s -- in com.example.demo.JudgeSandboxOrchestrationTest
+[INFO] Tests run: 17, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.069 s -- in com.example.demo.JudgeFileServiceTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.051 s -- in com.example.demo.JudgeFileServiceProductionTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.038 s -- in com.example.demo.JudgeControllerPolicyTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.553 s -- in com.example.demo.JudgeBaselineTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.425 s -- in com.example.demo.HighVolumeJudgeIntegrationTest
+[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.028 s -- in com.example.demo.FrontendTemplateContractTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.064 s -- in com.example.demo.FileTaskStoreTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.476 s -- in com.example.demo.Demo18ApplicationTests
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.425 s -- in com.example.demo.CaseBatchRunnerTest
+[INFO] Tests run: 19, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.041 s -- in com.example.demo.AuthenticationSafeDefaultsTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.043 s -- in com.example.demo.AuditAndAdminTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.026 s -- in com.example.demo.ApplicationYamlExecutionProfileTest
+[WARNING] Tests run: 297, Failures: 0, Errors: 0, Skipped: 2
+[INFO] BUILD SUCCESS
+[INFO] Total time:  47.660 s
+[INFO] Finished at: 2026-10-02T23:40:32+08:00

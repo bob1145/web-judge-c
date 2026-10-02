@@ -1,0 +1,145 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=WorkerAuthenticationConfigurationTest,RemoteWorkerRunnerTest,ProductionSecurityStartupValidatorTest",
+    "test"
+  ],
+  "exit_code": 1,
+  "report_count": 3,
+  "reports_present": true,
+  "totals": {
+    "tests": 29,
+    "failures": 14,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 15
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.ProductionSecurityStartupValidatorTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.RemoteWorkerRunnerTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.WorkerAuthenticationConfigurationTest",
+      "tests": 15,
+      "failures": 14,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": [
+        {
+          "test": "unsupportedMtlsCannotBeEnabledByAddingOtherCredentials(String)[1]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.WorkerAuthenticationConfigurationTest.unsupportedMtlsCannotBeEnabledByAddingOtherCredentials(WorkerAuthenticationConfigurationTest.java:39)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "unsupportedMtlsCannotBeEnabledByAddingOtherCredentials(String)[2]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.WorkerAuthenticationConfigurationTest.unsupportedMtlsCannotBeEnabledByAddingOtherCredentials(WorkerAuthenticationConfigurationTest.java:39)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "certificateStringDoesNotClaimAnAuthenticatedChannel",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "\nExpecting value to be false but was true",
+          "detail": "org.opentest4j.AssertionFailedError: \n\nExpecting value to be false but was true\n\tat com.example.demo.WorkerAuthenticationConfigurationTest.certificateStringDoesNotClaimAnAuthenticatedChannel(WorkerAuthenticationConfigurationTest.java:30)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        },
+        {
+          "test": "startupRejectsCertificateOnlyAndConflictingSources",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting:\n <Started application [AnnotationConfigApplicationContext@2a3591c5 id = 'org.springframework.context.annotation.AnnotationConfigApplicationContext@2a3591c5', applicationName = '', beanDefinitionCount = 33]>\nto have failed\nbut context started successfully",
+          "detail": "java.lang.AssertionError: \n\nExpecting:\n <Started application [AnnotationConfigApplicationContext@2a3591c5 id = 'org.springframework.context.annotation.AnnotationConfigApplicationContext@2a3591c5', applicationName = '', beanDefinitionCount = 33]>\nto have failed\nbut context started successfully"
+        },
+        {
+          "test": "endpointAndAuthenticationConflictsAreNotSilentlyOverridden",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.WorkerAuthenticationConfigurationTest.assertConflict(WorkerAuthenticationConfigurationTest.java:113)\n\tat com.example.demo.WorkerAuthenticationConfigurationTest.endpointAndAuthenticationConflictsAreNotSilentlyOverridden(WorkerAuthenticationConfigurationTest.java:71)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)"
+        },
+        {
+          "test": "startupUsesPrimaryWorkerSettingsRatherThanOnlyNestedSettings",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting:\n <Unstarted application context org.springframework.boot.test.context.assertj.AssertableApplicationContext[startupFailure=java.lang.IllegalStateException]>\nto have not failed:\nbut context failed to start:\n java.lang.IllegalStateException: Insecure worker-prod configuration: worker endpoint is required; worker authentication is required\n  at com.example.demo.config.ProductionSecurityStartupValidator.validateNow(ProductionSecurityStartupValidator.java:64)\n  at com.example.demo.config.ProductionSecurityStartupValidator.afterSingletonsInstantiated(ProductionSecurityStartupValidator.java:35)\n  at org.springframework.beans.factory.support.DefaultListableBeanFactory.preInstantiateSingletons(DefaultListableBeanFactory.java:1150)\n  at org.springframework.context.support.AbstractApplicationContext.finishBeanFactoryInitialization(AbstractApplicationContext.java:987)\n  at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:627)\n  at org.springframework.boot.test.context.runner.AbstractApplicationContextRunner.configureContext(AbstractApplicationContextRunner.java:456)\n  at org.springframework.boot.test.context.runner.AbstractApplicationContextRunner.createAndLoadContext(AbstractApplicationContextRunner.java:426)\n  at org.springframework.boot.test.context.runner.AbstractApplicationContextRunner.lambda$createAssertableContext$4(AbstractApplicationContextRunner.java:411)\n  at org.springframework.boot.test.context.assertj.AssertProviderApplicationContextInvocationHandler.getContextOrStartupFailure(AssertProviderApplicationContextInvocationHandler.java:61)\n  at org.springframework.boot.test.context.assertj.AssertProviderApplicationContextInvocationHandler.<init>(AssertProviderApplicationContextInvocationHandler.java:48)\n  at org.springframework.boot.test.context.assertj.ApplicationContextAssertProvider.get(ApplicationContextAssertProvider.java:135)\n  at org.springframework.boot.test.context.runner.AbstractApplicationCont",
+          "detail": "java.lang.AssertionError: \n\nExpecting:\n <Unstarted application context org.springframework.boot.test.context.assertj.AssertableApplicationContext[startupFailure=java.lang.IllegalStateException]>\nto have not failed:\nbut context failed to start:"
+        },
+        {
+          "test": "invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(String)[1]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.WorkerAuthenticationConfigurationTest.invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(WorkerAuthenticationConfigurationTest.java:56)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(String)[2]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.WorkerAuthenticationConfigurationTest.invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(WorkerAuthenticationConfigurationTest.java:56)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(String)[3]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.WorkerAuthenticationConfigurationTest.invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(WorkerAuthenticationConfigurationTest.java:56)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(String)[4]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.WorkerAuthenticationConfigurationTest.invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(WorkerAuthenticationConfigurationTest.java:56)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(String)[5]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.WorkerAuthenticationConfigurationTest.invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(WorkerAuthenticationConfigurationTest.java:56)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(String)[6]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.WorkerAuthenticationConfigurationTest.invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(WorkerAuthenticationConfigurationTest.java:56)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(String)[7]",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting code to raise a throwable.",
+          "detail": "java.lang.AssertionError: \n\nExpecting code to raise a throwable.\n\tat com.example.demo.WorkerAuthenticationConfigurationTest.invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(WorkerAuthenticationConfigurationTest.java:56)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)"
+        },
+        {
+          "test": "invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(String)[8]",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "\nExpecting throwable message:\n  \"Illegal character in authority at index 11: https://bad host/test-only-value\"\nnot to contain:\n  \"test-only-value\"\nbut did:\n\nThrowable that failed the check:\n\njava.lang.IllegalArgumentException: Illegal character in authority at index 11: https://bad host/test-only-value\n at java.base/java.net.URI.create(URI.java:932)\n at com.example.demo.service.sandbox.RemoteWorkerRunner$Options.<init>(RemoteWorkerRunner.java:245)\n at com.example.demo.service.sandbox.RemoteWorkerRunner$Options$Builder.build(RemoteWorkerRunner.java:343)\n at com.example.demo.WorkerAuthenticationConfigurationTest.lambda$invalidOrPlaintextEndpointsFailWithoutEchoingCredentials$1(WorkerAuthenticationConfigurationTest.java:57)\n at org.assertj.core.api.ThrowableAssert.catchThrowable(ThrowableAssert.java:63)\n at org.assertj.core.api.AssertionsForClassTypes.catchThrowable(AssertionsForClassTypes.java:904)\n at org.assertj.core.api.Assertions.catchThrowable(Assertions.java:1472)\n at org.assertj.core.api.Assertions.assertThatThrownBy(Assertions.java:1315)\n at com.example.demo.WorkerAuthenticationConfigurationTest.invalidOrPlaintextEndpointsFailWithoutEchoingCredentials(WorkerAuthenticationConfigurationTest.java:56)\n at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)\n at java.base/java.lang.reflect.Method.invoke(Method.java:580)\n at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:775)\n at org.junit.platform.commons.support.ReflectionSupport.invokeMethod(ReflectionSupport.java:479)\n at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)\n at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)\n at org.junit.jupiter.params.ArgumentCountValidator.interceptTestTemplateMethod(ArgumentCountValidator.java:45)\n at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterc",
+          "detail": "org.opentest4j.AssertionFailedError: \n\nExpecting throwable message:\n  \"Illegal character in authority at index 11: https://bad host/test-only-value\"\nnot to contain:\n  \"test-only-value\""
+        }
+      ]
+    }
+  ]
+}

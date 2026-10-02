@@ -6,6 +6,7 @@ import com.example.demo.config.ProductionSecurityStartupValidator;
 import com.example.demo.config.SandboxConfiguration;
 import com.example.demo.config.SandboxProperties;
 import com.example.demo.config.WebSocketConfig;
+import com.example.demo.config.WorkerProperties;
 import com.example.demo.dto.AuthRequest;
 import com.example.demo.model.UserSession;
 import com.example.demo.service.AccessCodeService;
@@ -234,7 +235,8 @@ class ProductionAuthenticationTest {
                 execution,
                 sandbox,
                 sandboxProperties,
-                new WebSocketConfig("https://safe.example.com")
+                new WebSocketConfig("https://safe.example.com"),
+                new WorkerProperties()
         );
     }
 }

@@ -1,0 +1,8 @@
+[INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.396 s -- in com.example.demo.WorkerAuthenticationConfigurationTest
+[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.512 s -- in com.example.demo.RemoteWorkerTlsTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.993 s -- in com.example.demo.RemoteWorkerRunnerTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.403 s -- in com.example.demo.ProductionSecurityStartupValidatorTest
+[INFO] Tests run: 42, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+[INFO] Total time:  24.293 s
+[INFO] Finished at: 2026-10-02T23:23:07+08:00
