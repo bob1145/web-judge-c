@@ -7,6 +7,8 @@ import com.example.demo.dto.SandboxTaskSpec;
 import com.example.demo.service.sandbox.RemoteWorkerRunner;
 import com.example.demo.service.sandbox.TestTlsRemoteWorkerRunner;
 import com.example.demo.support.WorkerTlsCertificates;
+import com.example.demo.support.RunnerProtocolFixtures;
+import java.nio.file.Files;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.sun.net.httpserver.HttpExchange;
@@ -46,6 +48,8 @@ class RemoteWorkerTlsTest {
     private static final String SIGNING = "task08-test-only-hmac-material";
     @TempDir
     static Path certificateDirectory;
+    @TempDir
+    Path taskDirectory;
     private static WorkerTlsCertificates.Material valid;
     private static WorkerTlsCertificates.Material expired;
     private static WorkerTlsCertificates.Material wrongHostname;
@@ -92,17 +96,25 @@ class RemoteWorkerTlsTest {
             }
             accepted.incrementAndGet();
             respond(exchange, 202, mapper.writeValueAsString(SandboxRunHandle.builder()
-                    .judgeId("tls-judge").runId("tls-run").provider("remote-worker").eventCursor("0").build()));
+                    .judgeId("tls-judge").runId("tls-run").provider("remote-worker").eventCursor("0")
+                    .protocolVersion(2).attemptId(mapper.readTree(body).path("manifest").path("attemptId").asText()).build()));
         });
         server.start();
         WorkerProperties properties = properties(server);
         credentials(properties, mode);
         RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(properties, mapper, valid.clientContext());
         assertThat(runner.probe().productionSafe()).isTrue();
-        SandboxTaskSpec spec = new SandboxTaskSpec("tls-judge", "tls-user", "worker-prod", "tls-task", Map.of(),
-                1, Duration.ofSeconds(1), Duration.ofSeconds(10), 1024 * 1024, 4096, false, null);
+        for (String source : List.of("generator.cpp", "user.cpp", "oracle.cpp")) {
+            Files.writeString(taskDirectory.resolve(source), "int main(){return 0;}");
+        }
+        SandboxTaskSpec spec = SandboxTaskSpec.builder().judgeId("tls-judge").userId("tls-user")
+                .workDir(taskDirectory).sourcePath(SandboxTaskSpec.SourceRole.GENERATOR, taskDirectory.resolve("generator.cpp"))
+                .sourcePath(SandboxTaskSpec.SourceRole.USER, taskDirectory.resolve("user.cpp"))
+                .sourcePath(SandboxTaskSpec.SourceRole.ORACLE, taskDirectory.resolve("oracle.cpp"))
+                .testCases(1).caseTimeLimit(Duration.ofSeconds(1)).maxTaskRuntime(Duration.ofSeconds(10))
+                .memoryLimitBytes(1024 * 1024).maxOutputBytesPerCase(4096).build();
         assertThat(runner.start(spec).runId()).isEqualTo("tls-run");
-        assertThat(accepted.get()).isEqualTo(2);
+        assertThat(accepted.get()).isEqualTo(3);
     }
 
     @ParameterizedTest
@@ -248,7 +260,8 @@ class RemoteWorkerTlsTest {
 
     private SandboxCapabilities capabilities() {
         return SandboxCapabilities.builder().provider("remote-worker").isolation("remote")
-                .productionSafe(true).networkDisabled(true).nonRoot(true).resourceLimits(true).build();
+                .productionSafe(true).networkDisabled(true).nonRoot(true).resourceLimits(true)
+                .protocol(RunnerProtocolFixtures.workerProtocol()).build();
     }
 
     private String readBody(HttpExchange exchange) throws IOException {

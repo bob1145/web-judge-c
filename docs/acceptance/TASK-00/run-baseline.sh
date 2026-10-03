@@ -96,6 +96,12 @@ for report in reports:
 totals["passed"] = totals["tests"] - totals["failures"] - totals["errors"] - totals["skipped"]
 result = {"command": ["mvn", "-o", "-B", "-Dstyle.color=never", *sys.argv[4:], "test"], "exit_code": int(sys.argv[3]), "report_count": len(reports), "reports_present": bool(reports) and totals["tests"] > 0, "totals": totals, "suites": suites}
 (evidence / "baseline-summary.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+python_report = snapshot / "target/runner-python-summary.json"
+if python_report.is_file():
+    python_result = json.loads(python_report.read_text(encoding="utf-8"))
+    for failure in python_result.get("nonpassing", []):
+        failure["detail"] = redact(failure.get("detail", ""))
+    (evidence / "python-summary.json").write_text(json.dumps(python_result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 raw_log = (snapshot / "maven.raw.log").read_text(encoding="utf-8", errors="replace")
 lines = []
 for line in raw_log.splitlines():

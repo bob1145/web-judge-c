@@ -3,6 +3,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
+import shutil
 from pathlib import Path
 
 
@@ -21,10 +23,10 @@ class TaskRunnerContractTest(unittest.TestCase):
             )
             spec = self._write_spec(work_dir, test_cases=2)
 
-            completed = subprocess.run([sys.executable, str(RUNNER), str(spec)], cwd=ROOT, text=True, capture_output=True)
+            completed = self._run(work_dir, spec)
 
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-            summary = json.loads((work_dir / "summary.json").read_text(encoding="utf-8"))
+            summary = json.loads((self.attempt_dir / "runner-summary.json").read_text(encoding="utf-8"))
             events = self._read_events(work_dir)
             self.assertEqual(summary["ac"], 2)
             self.assertEqual(events[-1]["type"], "COMPLETED")
@@ -39,12 +41,166 @@ class TaskRunnerContractTest(unittest.TestCase):
             )
             spec = self._write_spec(work_dir, test_cases=1)
 
-            completed = subprocess.run([sys.executable, str(RUNNER), str(spec)], cwd=ROOT, text=True, capture_output=True)
+            completed = self._run(work_dir, spec)
 
             self.assertEqual(completed.returncode, 10, completed.stdout + completed.stderr)
             events = self._read_events(work_dir)
             self.assertEqual(events[-1]["type"], "SYSTEM_ERROR")
             self.assertIn("compile failed", events[-1]["message"])
+
+    def test_v2_capability_probe_is_explicit_about_unimplemented_decimal_comparison(self):
+        completed = subprocess.run([sys.executable, "-B", str(RUNNER), "--capabilities"],
+                                   text=True, capture_output=True, timeout=10)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        capabilities = json.loads(completed.stdout)
+        self.assertEqual(capabilities["versions"], [2])
+        self.assertIn("LEGACY_TEXT", capabilities["comparisonModes"])
+        self.assertNotIn("DECIMAL_ABSOLUTE", capabilities["comparisonModes"])
+
+    def test_v2_rejects_all_unsafe_source_path_forms_without_writing(self):
+        values = ["/tmp/outside.cpp", "../outside.cpp", "a/../user.cpp", "C:/user.cpp", "C:user.cpp",
+                  "\\\\server\\share\\user.cpp", "//server/share/user.cpp", "a\\user.cpp", "./user.cpp",
+                  "a//user.cpp", "", "control/user.cpp", "Control/user.cpp", "workspace/user.cpp", "NUL.cpp",
+                  "user.cpp.", "user.cpp ", "user.cpp:stream", "missing.cpp"]
+        for value in values:
+            with self.subTest(path=value), tempfile.TemporaryDirectory() as tmp:
+                root, spec = self._fixture(Path(tmp))
+                manifest = json.loads(spec.read_text())
+                manifest["sourcePaths"]["USER"] = value
+                spec.write_text(json.dumps(manifest))
+                self._assert_rejected_unchanged(root, spec)
+
+    def test_v2_rejects_each_missing_field_unknown_fields_and_duplicates_without_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, spec = self._fixture(Path(tmp))
+            original = json.loads(spec.read_text())
+            for field in original:
+                with self.subTest(missing=field):
+                    manifest = dict(original)
+                    manifest.pop(field)
+                    spec.write_text(json.dumps(manifest))
+                    self._assert_rejected_unchanged(root, spec)
+            for field in ("workDir", "caseTimeLimit", "precision", "commands"):
+                with self.subTest(unknown=field):
+                    spec.write_text(json.dumps(dict(original, **{field: "untrusted"})))
+                    self._assert_rejected_unchanged(root, spec)
+            spec.write_text('{"protocolVersion":2,' + json.dumps(original)[1:])
+            self._assert_rejected_unchanged(root, spec)
+
+    def test_v2_rejects_wrong_versions_limits_comparison_and_types_without_writing(self):
+        changes = [("protocolVersion", value) for value in (1, 99, 2.0, True)]
+        changes += [("testCases", value) for value in (0, -1, 2.0, True, 2**31)]
+        for field in ("caseTimeLimitMillis", "maxTaskRuntimeMillis", "memoryLimitBytes", "maxOutputBytesPerCase"):
+            changes += [(field, value) for value in (0, -1, "1000", True, 2**63)]
+        changes += [("comparison", {"mode": "LEGACY_TEXT", "precision": value})
+                    for value in (None, 0, True, "NaN", "Infinity", "-0.1", "1e-9")]
+        changes += [("comparison", {"mode": mode, "precision": "0"}) for mode in ("UNKNOWN", "DECIMAL_ABSOLUTE")]
+        changes += [("stopOnFirstNonAc", value) for value in (None, "false", 0)]
+        changes += [("retention", {"completedMillis": 1, "failedMillis": 1, "cancelledMillis": 0})]
+        with tempfile.TemporaryDirectory() as tmp:
+            root, spec = self._fixture(Path(tmp))
+            original = json.loads(spec.read_text())
+            for field, value in changes:
+                with self.subTest(field=field, value=value):
+                    spec.write_text(json.dumps(dict(original, **{field: value})))
+                    self._assert_rejected_unchanged(root, spec)
+
+    def test_v2_rejects_linked_source_before_creating_workspace_or_events(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root, spec = self._fixture(base / "task")
+            outside = base / "outside.cpp"
+            outside.write_text("outside must stay unchanged")
+            (root / "linked.cpp").symlink_to(outside)
+            manifest = json.loads(spec.read_text())
+            manifest["sourcePaths"]["USER"] = "linked.cpp"
+            spec.write_text(json.dumps(manifest))
+            self._assert_rejected_unchanged(root, spec, base)
+
+    def test_v2_rejects_linked_control_directory_and_root_without_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            outside, spec = self._fixture(base / "outside")
+            root = base / "task"
+            root.mkdir()
+            (root / "control").symlink_to(outside / "control", target_is_directory=True)
+            aliased_spec = root / spec.relative_to(outside)
+            self._assert_rejected_unchanged(root, aliased_spec, base)
+            alias = base / "root-link"
+            alias.symlink_to(outside, target_is_directory=True)
+            self._assert_rejected_unchanged(alias, alias / spec.relative_to(outside), base)
+
+    def test_v2_runs_at_a_different_root_without_host_paths_or_host_history_changes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            host, spec = self._fixture(base / "host-storage")
+            audit = ''.join(json.dumps({"event": event}) + "\n" for event in ("CREATED", "QUEUED", "STARTED", "POLICY"))
+            (host / "events.jsonl").write_text(audit)
+            (host / "summary.json").write_text("host summary")
+            before = self._snapshot(host)
+            execution = base / "different-execution-root"
+            shutil.copytree(host, execution)
+            moved_spec = execution / spec.relative_to(host)
+            self.assertNotIn(str(host), moved_spec.read_text())
+            completed = self._run(execution, moved_spec)
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            self.assertEqual(self._snapshot(host), before)
+            self.assertEqual((execution / "events.jsonl").read_text(), audit)
+            self.assertEqual((execution / "summary.json").read_text(), "host summary")
+            events = [json.loads(line) for line in (moved_spec.parent / "runner-events.jsonl").read_text().splitlines()]
+            self.assertEqual(events[0]["type"], "COMPILE_STARTED")
+            self.assertEqual(events[-1]["type"], "COMPLETED")
+
+    def test_v2_rejects_replayed_attempt_and_preserves_old_stream_during_new_attempt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, first_spec = self._fixture(Path(tmp))
+            completed = self._run(root, first_spec)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            first_events = (first_spec.parent / "runner-events.jsonl").read_bytes()
+            self._assert_rejected_unchanged(root, first_spec)
+            second_spec = self._write_spec(root, 1)
+            completed = self._run(root, second_spec)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertNotEqual(first_spec, second_spec)
+            self.assertEqual((first_spec.parent / "runner-events.jsonl").read_bytes(), first_events)
+
+    def test_v2_special_judge_mode_executes_explicitly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, spec = self._fixture(Path(tmp))
+            (root / "spj.cpp").write_text("int main(){return 0;}")
+            manifest = json.loads(spec.read_text())
+            manifest["comparison"] = {"mode": "SPECIAL_JUDGE", "precision": "0"}
+            manifest["sourcePaths"].pop("ORACLE")
+            manifest["sourcePaths"]["SPECIAL_JUDGE"] = "spj.cpp"
+            spec.write_text(json.dumps(manifest))
+            completed = self._run(root, spec)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(json.loads((spec.parent / "runner-summary.json").read_text())["ac"], 1)
+
+    def _fixture(self, root):
+        root.mkdir(parents=True, exist_ok=True)
+        self._write_sources(root, "int main(){return 0;}", "int main(){return 0;}")
+        return root, self._write_spec(root, 1)
+
+    def _snapshot(self, root):
+        result = {}
+        for path in sorted(root.rglob("*")):
+            key = str(path.relative_to(root))
+            result[key] = ("link", str(path.readlink())) if path.is_symlink() else (
+                ("file", path.read_bytes()) if path.is_file() else ("directory",))
+        return result
+
+    def _assert_rejected_unchanged(self, root, spec, snapshot_root=None):
+        snapshot_root = snapshot_root or root
+        before = self._snapshot(snapshot_root)
+        completed = self._run(root, spec)
+        self.assertEqual(completed.returncode, 30, completed.stdout + completed.stderr)
+        self.assertIn("manifest rejected before execution", completed.stderr)
+        self.assertEqual(self._snapshot(snapshot_root), before)
+
+    def _run(self, root, spec):
+        return subprocess.run([sys.executable, "-B", str(RUNNER), "--work-root", str(root), str(spec)],
+                              cwd=ROOT, text=True, capture_output=True, timeout=30)
 
     def _write_sources(self, work_dir: Path, user: str, oracle: str):
         (work_dir / "generator.cpp").write_text(
@@ -56,31 +212,33 @@ class TaskRunnerContractTest(unittest.TestCase):
 
     def _write_spec(self, work_dir: Path, test_cases: int) -> Path:
         spec = {
+            "protocolVersion": 2,
             "judgeId": "runner-test",
-            "userId": "runner-user",
-            "profile": "worker-prod",
-            "workDir": str(work_dir),
+            "attemptId": str(uuid.uuid4()),
+            "comparison": {"mode": "LEGACY_TEXT", "precision": "0"},
             "sourcePaths": {
-                "GENERATOR": str(work_dir / "generator.cpp"),
-                "USER": str(work_dir / "user.cpp"),
-                "ORACLE": str(work_dir / "oracle.cpp"),
+                "GENERATOR": "generator.cpp",
+                "USER": "user.cpp",
+                "ORACLE": "oracle.cpp",
             },
             "testCases": test_cases,
-            "caseTimeLimit": 2,
-            "maxTaskRuntime": 30,
+            "caseTimeLimitMillis": 2000,
+            "maxTaskRuntimeMillis": 30000,
             "memoryLimitBytes": 134217728,
             "maxOutputBytesPerCase": 4096,
             "stopOnFirstNonAc": False,
-            "retention": {"completed": 86400, "failed": 86400, "cancelled": 86400},
+            "retention": {"completedMillis": 86400000, "failedMillis": 86400000, "cancelledMillis": 86400000},
         }
-        spec_path = work_dir / "sandbox-task.json"
+        self.attempt_dir = work_dir / "control" / "attempts" / spec["attemptId"]
+        self.attempt_dir.mkdir(parents=True)
+        spec_path = self.attempt_dir / "task-spec.json"
         spec_path.write_text(json.dumps(spec), encoding="utf-8")
         return spec_path
 
     def _read_events(self, work_dir: Path):
         return [
             json.loads(line)
-            for line in (work_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+            for line in (self.attempt_dir / "runner-events.jsonl").read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
 

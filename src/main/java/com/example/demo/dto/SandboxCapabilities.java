@@ -12,7 +12,8 @@ public record SandboxCapabilities(
         boolean resourceLimits,
         String securityProfile,
         String details,
-        String skipReason
+        String skipReason,
+        RunnerProtocolCapabilities protocol
 ) {
 
     public static Builder builder() {
@@ -29,6 +30,7 @@ public record SandboxCapabilities(
         private String securityProfile;
         private String details;
         private String skipReason;
+        private RunnerProtocolCapabilities protocol;
 
         public Builder provider(String provider) {
             this.provider = provider;
@@ -75,6 +77,11 @@ public record SandboxCapabilities(
             return this;
         }
 
+        public Builder protocol(RunnerProtocolCapabilities protocol) {
+            this.protocol = protocol;
+            return this;
+        }
+
         public SandboxCapabilities build() {
             return new SandboxCapabilities(
                     provider,
@@ -85,7 +92,8 @@ public record SandboxCapabilities(
                     resourceLimits,
                     securityProfile,
                     details,
-                    skipReason
+                    skipReason,
+                    protocol
             );
         }
     }

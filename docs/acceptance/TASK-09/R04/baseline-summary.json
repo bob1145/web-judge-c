@@ -1,0 +1,118 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=SandboxRunnerContractTest,SandboxExecutionManifestTest,LinuxContainerRunnerTest,WindowsHyperVContainerRunnerTest,RemoteWorkerRunnerTest,TaskRunnerArtifactContractTest,TaskRunnerPythonSuiteTest,RemoteWorkerTlsTest,TaskPolicyResolverTest,JudgeSandboxOrchestrationTest",
+    "test"
+  ],
+  "exit_code": 0,
+  "report_count": 10,
+  "reports_present": true,
+  "totals": {
+    "tests": 118,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 2,
+    "passed": 116
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.JudgeSandboxOrchestrationTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.LinuxContainerRunnerTest",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "nonpassing": [
+        {
+          "test": "liveProbeSkipsWithEnvironmentReasonWhenLinuxRuntimeOrImageIsUnavailable",
+          "outcome": "skipped",
+          "type": "org.opentest4j.TestAbortedException",
+          "message": "",
+          "detail": "org.opentest4j.TestAbortedException: Assumption failed: Linux container capability unavailable: linux runner image unavailable: Error response from daemon: No such image: cpp-judge-runner:latest\n\tat org.junit.jupiter.api.Assumptions.throwAssumptionFailed(Assumptions.java:321)\n\tat org.junit.jupiter.api.Assumptions.assumeTrue(Assumptions.java:120)\n\tat com.example.demo.LinuxContainerRunnerTest.liveProbeSkipsWithEnvironmentReasonWhenLinuxRuntimeOrImageIsUnavailable(LinuxContainerRunnerTest.java:212)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        }
+      ]
+    },
+    {
+      "name": "com.example.demo.RemoteWorkerRunnerTest",
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.RemoteWorkerTlsTest",
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.SandboxExecutionManifestTest",
+      "tests": 36,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.SandboxRunnerContractTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.TaskPolicyResolverTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.TaskRunnerArtifactContractTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.TaskRunnerPythonSuiteTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.WindowsHyperVContainerRunnerTest",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "nonpassing": [
+        {
+          "test": "liveProbeSkipsWithEnvironmentReasonWhenHyperVRuntimeOrImageIsUnavailable",
+          "outcome": "skipped",
+          "type": "org.opentest4j.TestAbortedException",
+          "message": "",
+          "detail": "org.opentest4j.TestAbortedException: Assumption failed: Windows Hyper-V container capability unavailable: container runtime is not Windows: linux\n\tat org.junit.jupiter.api.Assumptions.throwAssumptionFailed(Assumptions.java:321)\n\tat org.junit.jupiter.api.Assumptions.assumeTrue(Assumptions.java:120)\n\tat com.example.demo.WindowsHyperVContainerRunnerTest.liveProbeSkipsWithEnvironmentReasonWhenHyperVRuntimeOrImageIsUnavailable(WindowsHyperVContainerRunnerTest.java:209)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+[ERROR] Tests run: 2, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 0.721 s <<< FAILURE! -- in com.example.demo.TaskRunnerArtifactContractTest
+[ERROR] Tests run: 2, Failures: 2, Errors: 0, Skipped: 0
+[INFO] BUILD FAILURE
+[INFO] Total time:  6.599 s
+[INFO] Finished at: 2026-10-03T00:16:19+08:00
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.3:test (default-test) on project demo18: There are test failures.

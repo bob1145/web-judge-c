@@ -2,21 +2,24 @@
 
 The task runner is the artifact executed inside a Linux container, Windows
 Hyper-V container image, or remote worker VM. It receives one
-`sandbox-task.json`, compiles the submitted C++ sources, runs the requested
-cases, and writes machine-readable output for the Spring service.
+v2 `control/attempts/{attemptId}/task-spec.json`, compiles the submitted C++ sources,
+runs the requested cases, and writes attempt-local output for the Spring service.
+This repository provides a Python artifact, not a validated Linux image, Windows
+executable, or external Worker service.
 
 ## Commands
 
 Run the runner directly:
 
 ```bash
-python runner/scripts/task_runner.py /work/sandbox-task.json
+python3 -B runner/scripts/task_runner.py --capabilities
+python3 -B runner/scripts/task_runner.py --work-root /work /work/control/attempts/{attemptId}/task-spec.json
 ```
 
 Run the runner artifact tests:
 
 ```bash
-python -m unittest discover -s runner/tests
+python3 -B -m unittest discover -s runner/tests
 ```
 
 Run the Java contract tests that deserialize runner output through the Spring DTOs:
@@ -49,31 +52,28 @@ Run resource-intensive runner tests only within the approved isolated test envir
 
 ## Runtime Inputs
 
-The input file is a serialized `SandboxTaskSpec` with these required fields:
+The input is a SandboxExecutionManifest, not the host SandboxTaskSpec. See
+runner/task-runner-spec.md for required v2 fields, strict path rules, capability
+negotiation and the Worker manifest/source bundle. Source paths are task-relative;
+the execution root is supplied by the trusted provider. Invalid manifests exit 30
+before creating runner directories or output files.
 
-- `judgeId`, `userId`, `profile`
-- `workDir`
-- `sourcePaths.GENERATOR`
-- `sourcePaths.USER`
-- `sourcePaths.ORACLE` or `sourcePaths.SPECIAL_JUDGE`
-- `testCases`
-- `caseTimeLimit`
-- `maxTaskRuntime`
-- `memoryLimitBytes`
-- `maxOutputBytesPerCase`
-
-All source paths and the task spec must stay inside `workDir`. A path outside
-`workDir` is treated as `SECURITY_VIOLATION`.
+The artifact currently advertises SPECIAL_JUDGE and explicit LEGACY_TEXT with zero
+precision. Ordinary host requests use DECIMAL_ABSOLUTE and are rejected until the
+TASK-16 comparator is implemented; no precision-dropping fallback is allowed.
+The public double precision input remains a TASK-15 limitation.
 
 ## Runtime Outputs
 
-The runner writes these files under `workDir`:
+- control/attempts/{attemptId}/runner-events.jsonl: SandboxTaskEvent JSONL.
+- control/attempts/{attemptId}/runner-summary.json: atomic JudgeSummary projection.
+- control/attempts/{attemptId}/cancel.requested: attempt-specific cancellation flag.
+- workspace/{attemptId}/bin: compiled programs, with that attempt's workspace as cwd.
+- Existing task-root per-case .in/.out/.ans files remain for download compatibility.
 
-- `events.jsonl`: one JSON `SandboxTaskEvent` per line.
-- `summary.json`: final or partial `JudgeSummary`, written atomically through
-  `summary.json.tmp` + replace.
-- `bin/`: compiled executables.
-- Optional per-case files for special judge input/output handoff.
+Host events.jsonl and summary.json are untouched. Replaying an attempt fails rather
+than truncating its stream. Separate paths are not separate execution identities;
+TASK-10 still needs real supervisor/submission permission isolation.
 
 Example output fixtures:
 
@@ -101,7 +101,8 @@ For each case:
 4. If `SPECIAL_JUDGE` is present, the special judge executable receives the
    input and user-output file paths as arguments.
 5. Otherwise the oracle executable receives the same input on stdin, and stdout
-   is compared against the user stdout after trimming surrounding whitespace.
+   is compared using the explicitly negotiated comparison mode. LEGACY_TEXT retains
+   only the historical trimmed-text behavior; it does not implement DECIMAL_ABSOLUTE.
 
 ## Resource Controls
 

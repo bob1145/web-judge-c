@@ -100,7 +100,9 @@ class JudgeSandboxOrchestrationTest {
         ));
         JudgeService service = service(Optional.of(runner));
 
-        service.createJudgeTask(request(2), "judge-runner");
+        JudgeRequest request = request(2);
+        request.setPrecision(1e-9);
+        service.createJudgeTask(request, "judge-runner");
         service.startJudgeTask("judge-runner");
 
         JudgeProgress progress = awaitProgress(service, "judge-runner", "AC");
@@ -111,6 +113,8 @@ class JudgeSandboxOrchestrationTest {
         assertThat(spec.userId()).isEqualTo("anonymous");
         assertThat(spec.profile()).isEqualTo("linux-prod");
         assertThat(spec.testCases()).isEqualTo(2);
+        assertThat(spec.comparison().mode()).isEqualTo(com.example.demo.dto.SandboxComparison.Mode.DECIMAL_ABSOLUTE);
+        assertThat(spec.comparison().precision()).isEqualTo("1.0E-9");
         assertThat(spec.caseTimeLimit()).isEqualTo(Duration.ofSeconds(2));
         assertThat(spec.memoryLimitBytes()).isEqualTo(268_435_456L);
         assertThat(spec.maxOutputBytesPerCase()).isEqualTo(1_048_576L);

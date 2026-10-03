@@ -175,8 +175,8 @@ judge:
         work-mount: "C:\\work"
         runner-command: "C:\\judge-runner\\run-task.exe"
         probe-command: "C:\\judge-runner\\probe.cmd"
-        task-spec-file: sandbox-task.json
-        event-file: events.jsonl
+        task-spec-file: task-spec.json
+        event-file: runner-events.jsonl
         cpus: 1.0
         probe-memory-bytes: 268435456
         command-timeout: 30s
@@ -213,8 +213,8 @@ judge:
         container-user: "65532:65532"
         work-mount: /work
         runner-command: /opt/judge-runner/run-task
-        task-spec-file: sandbox-task.json
-        event-file: events.jsonl
+        task-spec-file: task-spec.json
+        event-file: runner-events.jsonl
         pids-limit: 64
         cpus: 1.0
         command-timeout: 30s

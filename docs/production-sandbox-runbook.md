@@ -129,7 +129,11 @@ Required evidence:
   Endpoints containing user-info, query strings or fragments are rejected without
   echoing the supplied value. Redirect responses are not followed; configure the
   intended final endpoint explicitly rather than forwarding credentials elsewhere.
-- Worker capability probe reports `productionSafe=true`.
+- Worker capability probe reports `productionSafe=true` and an explicit v2 `protocol`
+  object supporting the requested comparison, all required fields, and
+  `inline-sources-base64`. The v2 runs body is a manifest plus source-byte bundle,
+  not the host SandboxTaskSpec. A response must echo protocolVersion/judgeId/attemptId.
+  See runner/task-runner-spec.md; client TLS fixtures are not external Worker acceptance.
 - Worker host passes either the Windows Hyper-V or Linux container smoke,
   depending on its platform.
 - Event polling/streaming, cancellation, stale run handling, and cleanup are
@@ -238,3 +242,22 @@ If a smoke fails after deployment:
 - `scripts/smoke/linux-capability-smoke.sh`
 - `scripts/smoke/high-volume-smoke.ps1`
 - `scripts/smoke/high-volume-smoke.sh`
+
+## TASK-09 protocol cutover (not production acceptance)
+
+- Drain or terminate active runs in a maintenance window. Upgrade the host and
+  actual runner images/Windows artifact/Worker as a matching set; no mixed v1/v2
+  execution or rolling-upgrade compatibility is promised.
+- Package both task_runner.py and runner_manifest.py in Python-based artifacts.
+  Container entrypoints must implement --capabilities; old artifacts are rejected.
+- Replace task-spec-file/event-file overrides with task-spec.json/runner-events.json.
+  They are fixed basenames under a fresh control/attempts/{attemptId}, not task-root
+  host events.jsonl. Never reinterpret old mixed event files as a trusted runner stream.
+- Keep old completed tasks read-only. Do not move or replay their files as part of this
+  change. New handles persist protocolVersion and attemptId alongside provider runId.
+- The current Python artifact does not advertise DECIMAL_ABSOLUTE. Ordinary container
+  requests fail closed until TASK-16; SPJ/LEGACY_TEXT protocol fixtures do not certify
+  permission isolation, incremental reads, resource enforcement or real platforms.
+- Rollback requires matching host/artifact/Worker versions and a reviewed maintenance
+  backup. Keep v2 tasks read-only for older binaries; do not restore shared event files,
+  URL credentials, weak authentication or unvalidated production providers.

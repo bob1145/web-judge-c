@@ -2,6 +2,8 @@ package com.example.demo.service.sandbox;
 
 import com.example.demo.config.SandboxProperties;
 import com.example.demo.dto.SandboxCapabilities;
+import com.example.demo.dto.RunnerProtocolCapabilities;
+import com.example.demo.dto.SandboxExecutionManifest;
 import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.dto.SandboxTaskEvent;
 import com.example.demo.dto.SandboxTaskSpec;
@@ -127,6 +129,7 @@ public class LinuxContainerRunner implements SandboxRunner {
                             + " image=" + options.image()
                             + " imageOs=" + imageInfo.os()
                             + " cgroup=" + probeInfo.cgroup())
+                    .protocol(probeProtocol())
                     .skipReason(productionSafe ? null : String.join("; ", reasons))
                     .build();
         } catch (IOException e) {
@@ -145,14 +148,17 @@ public class LinuxContainerRunner implements SandboxRunner {
     @Override
     public SandboxRunHandle start(SandboxTaskSpec spec) {
         try {
-            Path workDir = Path.of(spec.workDir()).toAbsolutePath().normalize();
-            Files.createDirectories(workDir);
-            validateMountedSources(spec, workDir);
-            Path taskSpecPath = workDir.resolve(options.taskSpecFile());
-            objectMapper.writeValue(taskSpecPath.toFile(), spec);
+            SandboxManifestFactory.Prepared prepared = SandboxManifestFactory.prepare(spec);
+            Path workDir = prepared.workDir();
+            if (workDir.toString().contains(",")) {
+                throw new IllegalArgumentException("host workDir cannot contain a mount delimiter");
+            }
+            SandboxExecutionManifest manifest = prepared.manifest();
+            probeProtocol().require(manifest);
+            prepared.write(objectMapper);
 
             String containerName = containerName(spec.judgeId());
-            CommandResult result = commandExecutor.run(startCommand(spec, workDir, containerName), options.commandTimeout());
+            CommandResult result = commandExecutor.run(startCommand(spec, workDir, containerName, manifest), options.commandTimeout());
             if (!result.succeeded()) {
                 throw new IllegalStateException("linux container start failed: " + compact(result.combinedOutput()));
             }
@@ -160,13 +166,15 @@ public class LinuxContainerRunner implements SandboxRunner {
             if (!StringUtils.hasText(containerId)) {
                 throw new IllegalStateException("linux container start did not return a container id");
             }
-            runs.put(containerId, new RunState(workDir, options.eventFile()));
+            runs.put(containerId, new RunState(workDir, manifest.eventPath()));
             return SandboxRunHandle.builder()
                     .judgeId(spec.judgeId())
                     .runId(containerId)
                     .provider(PROVIDER)
                     .startedAt(Instant.now())
                     .eventCursor("0")
+                    .protocolVersion(manifest.protocolVersion())
+                    .attemptId(manifest.attemptId())
                     .build();
         } catch (IOException e) {
             throw new IllegalStateException("linux container start failed: " + e.getMessage(), e);
@@ -232,6 +240,20 @@ public class LinuxContainerRunner implements SandboxRunner {
                 .build();
     }
 
+    private RunnerProtocolCapabilities probeProtocol() throws IOException, InterruptedException {
+        List<String> command = baseRunCommand(true, null, PROBE_MEMORY_BYTES);
+        command.add(options.image());
+        command.add(options.runnerCommand());
+        command.add("--capabilities");
+        CommandResult result = commandExecutor.run(command, options.commandTimeout());
+        if (!result.succeeded()) {
+            throw new IllegalStateException("runner protocol capability probe failed");
+        }
+        RunnerProtocolCapabilities protocol = objectMapper.readValue(result.stdout(), RunnerProtocolCapabilities.class);
+        protocol.requireVersion2();
+        return protocol;
+    }
+
     private List<String> runtimeVersionCommand() {
         return List.of(
                 options.runtimeCommand(),
@@ -261,7 +283,8 @@ public class LinuxContainerRunner implements SandboxRunner {
         return command;
     }
 
-    private List<String> startCommand(SandboxTaskSpec spec, Path workDir, String containerName) {
+    private List<String> startCommand(SandboxTaskSpec spec, Path workDir, String containerName,
+                                      SandboxExecutionManifest manifest) {
         List<String> command = baseRunCommand(false, containerName, spec.memoryLimitBytes());
         command.add("--mount");
         command.add("type=bind,source=" + workDir + ",target=" + options.workMount());
@@ -269,7 +292,7 @@ public class LinuxContainerRunner implements SandboxRunner {
         command.add(options.workMount());
         command.add(options.image());
         command.add(options.runnerCommand());
-        command.add(options.workMount() + "/" + options.taskSpecFile());
+        command.add(options.workMount() + "/" + manifest.specPath());
         return command;
     }
 
@@ -348,14 +371,7 @@ public class LinuxContainerRunner implements SandboxRunner {
         }
     }
 
-    private void validateMountedSources(SandboxTaskSpec spec, Path workDir) {
-        for (Map.Entry<SandboxTaskSpec.SourceRole, String> source : spec.sourcePaths().entrySet()) {
-            Path sourcePath = Path.of(source.getValue()).toAbsolutePath().normalize();
-            if (!sourcePath.startsWith(workDir)) {
-                throw new IllegalArgumentException("source path " + source.getKey() + " must stay inside mounted workDir");
-            }
-        }
-    }
+
 
     private boolean terminal(SandboxTaskEvent.Type type) {
         return type == SandboxTaskEvent.Type.COMPLETED
@@ -431,9 +447,14 @@ public class LinuxContainerRunner implements SandboxRunner {
             this.image = requireText(builder.image, "image");
             this.containerUser = requireText(builder.containerUser, "containerUser");
             this.workMount = requireText(builder.workMount, "workMount");
+            SandboxManifestFactory.requireExecutionRoot(this.workMount, false);
             this.runnerCommand = requireText(builder.runnerCommand, "runnerCommand");
             this.taskSpecFile = requireText(builder.taskSpecFile, "taskSpecFile");
             this.eventFile = requireText(builder.eventFile, "eventFile");
+            if (!SandboxExecutionManifest.SPEC_FILE.equals(taskSpecFile)
+                    || !SandboxExecutionManifest.EVENT_FILE.equals(eventFile)) {
+                throw new IllegalArgumentException("runner v2 requires fixed attempt-local control filenames");
+            }
             if (builder.pidsLimit <= 0) {
                 throw new IllegalArgumentException("pidsLimit must be positive");
             }
@@ -520,8 +541,8 @@ public class LinuxContainerRunner implements SandboxRunner {
             private String containerUser = "65532:65532";
             private String workMount = "/work";
             private String runnerCommand = "/opt/judge-runner/run-task";
-            private String taskSpecFile = "sandbox-task.json";
-            private String eventFile = "events.jsonl";
+            private String taskSpecFile = SandboxExecutionManifest.SPEC_FILE;
+            private String eventFile = SandboxExecutionManifest.EVENT_FILE;
             private int pidsLimit = 64;
             private double cpus = 1.0;
             private String securityProfile = "docker-default";

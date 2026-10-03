@@ -2,6 +2,8 @@ package com.example.demo;
 
 import com.example.demo.config.WorkerProperties;
 import com.example.demo.dto.SandboxCapabilities;
+import com.example.demo.support.RunnerProtocolFixtures;
+import com.example.demo.dto.SandboxComparison;
 import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.dto.SandboxTaskEvent;
 import com.example.demo.dto.SandboxTaskSpec;
@@ -18,6 +20,10 @@ import com.sun.net.httpserver.HttpsConfigurator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import com.example.demo.dto.RunnerProtocolCapabilities;
+import java.util.Set;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
@@ -75,6 +81,7 @@ class RemoteWorkerRunnerTest {
                 .resourceLimits(true)
                 .securityProfile("linux-container")
                 .details("worker=linux-1")
+                .protocol(RunnerProtocolFixtures.workerProtocol())
                 .build();
         workerServer.respondJson("GET", "/api/v1/capabilities", 200, workerCapabilities);
         RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper, tlsMaterial.clientContext());
@@ -90,25 +97,34 @@ class RemoteWorkerRunnerTest {
     @Test
     void startSubmitsFullSandboxTaskSpecAndReceivesWorkerRunHandle() throws Exception {
         workerServer = FakeWorkerServer.start(objectMapper);
-        SandboxRunHandle workerHandle = SandboxRunHandle.builder()
-                .judgeId("judge-remote")
-                .runId("worker-run-1")
-                .provider("remote-worker")
-                .eventCursor("cursor-0")
-                .build();
-        workerServer.respondJson("POST", "/api/v1/runs", 202, workerHandle);
+        workerServer.respondJson("GET", "/api/v1/capabilities", 200,
+                SandboxCapabilities.builder().provider("remote-worker")
+                        .protocol(RunnerProtocolFixtures.workerProtocol()).build());
+        workerServer.handle("POST", "/api/v1/runs", exchange -> {
+            JsonNode manifest = objectMapper.readTree(workerServer.lastRequest("POST", "/api/v1/runs").body()).get("manifest");
+            SandboxRunHandle workerHandle = SandboxRunHandle.builder()
+                    .judgeId("judge-remote").runId("worker-run-1").provider("remote-worker")
+                    .eventCursor("cursor-0").protocolVersion(2).attemptId(manifest.get("attemptId").asText()).build();
+            send(exchange, 202, objectMapper.writeValueAsString(workerHandle));
+        });
         RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper, tlsMaterial.clientContext());
         SandboxTaskSpec spec = validSpec();
 
         SandboxRunHandle handle = runner.start(spec);
 
-        JsonNode submitted = objectMapper.readTree(workerServer.lastRequest("POST", "/api/v1/runs").body());
+        JsonNode body = objectMapper.readTree(workerServer.lastRequest("POST", "/api/v1/runs").body());
+        JsonNode submitted = body.get("manifest");
         assertThat(handle.runId()).isEqualTo("worker-run-1");
         assertThat(handle.provider()).isEqualTo("remote-worker");
         assertThat(submitted.path("judgeId").asText()).isEqualTo("judge-remote");
-        assertThat(submitted.path("userId").asText()).isEqualTo("user-remote");
-        assertThat(submitted.path("profile").asText()).isEqualTo("worker-prod");
-        assertThat(submitted.path("sourcePaths").path("USER").asText()).endsWith("user.cpp");
+        assertThat(submitted.path("sourcePaths").path("USER").asText()).isEqualTo("user.cpp");
+        assertThat(submitted.path("protocolVersion").asInt()).isEqualTo(2);
+        assertThat(submitted.path("attemptId").asText()).isEqualTo(handle.attemptId());
+        assertThat(submitted.path("comparison").path("precision").asText()).isEqualTo("1.0000000000000000000000001E-9");
+        assertThat(submitted.path("caseTimeLimitMillis").asLong()).isEqualTo(1000);
+        assertThat(body.toString()).doesNotContain(spec.workDir(), "workDir", "userId", "profile");
+        assertThat(new String(java.util.Base64.getDecoder().decode(body.path("sourceContentsBase64")
+                .path("user.cpp").asText()), StandardCharsets.UTF_8)).isEqualTo("int main(){return 0;}");
         assertThat(workerServer.lastRequest("POST", "/api/v1/runs").authorization())
                 .isEqualTo("Bearer worker-secret");
     }
@@ -191,6 +207,69 @@ class RemoteWorkerRunnerTest {
                 .hasMessageContaining("authenticated channel");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"legacy", "version", "comparison", "limits", "sources", "fractional-version", "string-version"})
+    void incompatibleWorkerNeverReceivesRunOrSources(String mode) throws Exception {
+        workerServer = FakeWorkerServer.start(objectMapper);
+        var supported = RunnerProtocolFixtures.workerProtocol();
+        var features = new java.util.HashSet<>(supported.features());
+        if (mode.equals("limits")) {
+            features.remove("explicit-limits");
+        } else if (mode.equals("sources")) {
+            features.remove(RunnerProtocolCapabilities.INLINE_SOURCES);
+        }
+        var protocol = new RunnerProtocolCapabilities(mode.equals("version") ? Set.of(1) : Set.of(2),
+                mode.equals("comparison") ? Set.of(SandboxComparison.Mode.LEGACY_TEXT) : supported.comparisonModes(), features);
+        var response = (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper.valueToTree(SandboxCapabilities.builder()
+                .provider("remote-worker").protocol(mode.equals("legacy") ? null : protocol).build());
+        if (mode.equals("fractional-version")) {
+            ((com.fasterxml.jackson.databind.node.ObjectNode) response.get("protocol")).putArray("versions").add(2.5);
+        } else if (mode.equals("string-version")) {
+            ((com.fasterxml.jackson.databind.node.ObjectNode) response.get("protocol")).putArray("versions").add("2");
+        }
+        workerServer.respondJson("GET", "/api/v1/capabilities", 200, response);
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper, tlsMaterial.clientContext());
+        SandboxTaskSpec spec = validSpec();
+
+        SandboxRunHandle handle = runner.start(spec);
+
+        assertThat(handle.runId()).isEqualTo("unavailable");
+        assertThat(runner.pollEvents(handle)).singleElement().satisfies(event ->
+                assertThat(event.type()).isEqualTo(SandboxTaskEvent.Type.SANDBOX_UNAVAILABLE));
+        assertThat(workerServer.requests("POST", "/api/v1/runs")).isEmpty();
+        assertThat(Path.of(spec.workDir()).resolve("control")).doesNotExist();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"protocolVersion", "attemptId", "judgeId", "provider", "runId", "fractional-version", "string-version"})
+    void mismatchedWorkerAcknowledgementIsNotAccepted(String field) throws Exception {
+        workerServer = FakeWorkerServer.start(objectMapper);
+        workerServer.respondJson("GET", "/api/v1/capabilities", 200, SandboxCapabilities.builder()
+                .provider("remote-worker").protocol(RunnerProtocolFixtures.workerProtocol()).build());
+        workerServer.handle("POST", "/api/v1/runs", exchange -> {
+            JsonNode manifest = objectMapper.readTree(workerServer.lastRequest("POST", "/api/v1/runs").body()).get("manifest");
+            var response = objectMapper.createObjectNode().put("judgeId", manifest.path("judgeId").asText())
+                    .put("attemptId", manifest.path("attemptId").asText()).put("protocolVersion", 2)
+                    .put("runId", "fixture-run").put("provider", "remote-worker").put("eventCursor", "0");
+            if (field.equals("fractional-version")) {
+                response.put("protocolVersion", 2.5);
+            } else if (field.equals("string-version")) {
+                response.put("protocolVersion", "2");
+            } else if (field.equals("protocolVersion")) {
+                response.put(field, 1);
+            } else {
+                response.put(field, "");
+            }
+            send(exchange, 202, objectMapper.writeValueAsString(response));
+        });
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper, tlsMaterial.clientContext());
+        SandboxRunHandle handle = runner.start(validSpec());
+        assertThat(handle.runId()).isEqualTo("unavailable");
+        assertThat(runner.pollEvents(handle)).singleElement().satisfies(event ->
+                assertThat(event.message()).contains("incompatible run acknowledgement"));
+        assertThat(workerServer.requests("POST", "/api/v1/runs")).hasSize(1);
+    }
+
     private WorkerProperties workerProperties(URI endpoint) {
         WorkerProperties properties = new WorkerProperties();
         properties.setEndpoint(endpoint.toString());
@@ -219,6 +298,7 @@ class RemoteWorkerRunnerTest {
                 .sourcePath(SandboxTaskSpec.SourceRole.GENERATOR, generator)
                 .sourcePath(SandboxTaskSpec.SourceRole.USER, user)
                 .sourcePath(SandboxTaskSpec.SourceRole.ORACLE, oracle)
+                .comparison(SandboxComparison.decimal("1.0000000000000000000000001E-9"))
                 .testCases(2)
                 .caseTimeLimit(Duration.ofSeconds(1))
                 .maxTaskRuntime(Duration.ofSeconds(10))

@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.config.ExecutionProperties;
 import com.example.demo.config.MemoryConfiguration;
 import com.example.demo.dto.JudgeRequest;
+import com.example.demo.dto.SandboxComparison;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -53,8 +54,21 @@ public class TaskPolicyResolver {
                 executionProperties.getMaxTaskRuntime(),
                 memoryLimitBytes,
                 maxOutputBytesPerCase,
-                executionProperties.isRequireSandbox()
+                executionProperties.isRequireSandbox(),
+                resolveComparison(request)
         );
+    }
+
+    private SandboxComparison resolveComparison(JudgeRequest request) {
+        if (request.isUseSpecialJudge() && request.getSpecialJudgeCode() != null
+                && !request.getSpecialJudgeCode().isBlank()) {
+            return new SandboxComparison(SandboxComparison.Mode.SPECIAL_JUDGE, "0");
+        }
+        double precision = request.getPrecision();
+        if (!Double.isFinite(precision) || precision < 0) {
+            throw reject(request.getTestCases(), "precision must be finite and nonnegative");
+        }
+        return SandboxComparison.decimal(precision == 0 ? "0" : Double.toString(precision));
     }
 
     public void validate(JudgeRequest request, ResolvedTaskPolicy policy) {

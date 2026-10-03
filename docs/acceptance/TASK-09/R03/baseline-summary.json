@@ -1,0 +1,116 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=SandboxRunnerContractTest,LinuxContainerRunnerTest,WindowsHyperVContainerRunnerTest,RemoteWorkerRunnerTest,TaskRunnerArtifactContractTest,RemoteWorkerTlsTest,TaskPolicyResolverTest,JudgeSandboxOrchestrationTest",
+    "test"
+  ],
+  "exit_code": 1,
+  "report_count": 8,
+  "reports_present": true,
+  "totals": {
+    "tests": 63,
+    "failures": 2,
+    "errors": 0,
+    "skipped": 2,
+    "passed": 59
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.JudgeSandboxOrchestrationTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.LinuxContainerRunnerTest",
+      "tests": 7,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 1,
+      "nonpassing": [
+        {
+          "test": "probeRequiresLinuxEngineImageNetworkNoneNonRootCgroupAndSecurityProfile",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "\nExpecting value to be true but was false",
+          "detail": "org.opentest4j.AssertionFailedError: \n\nExpecting value to be true but was false\n\tat com.example.demo.LinuxContainerRunnerTest.probeRequiresLinuxEngineImageNetworkNoneNonRootCgroupAndSecurityProfile(LinuxContainerRunnerTest.java:64)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        },
+        {
+          "test": "liveProbeSkipsWithEnvironmentReasonWhenLinuxRuntimeOrImageIsUnavailable",
+          "outcome": "skipped",
+          "type": "org.opentest4j.TestAbortedException",
+          "message": "",
+          "detail": "org.opentest4j.TestAbortedException: Assumption failed: Linux container capability unavailable: linux runner image unavailable: Error response from daemon: No such image: cpp-judge-runner:latest\n\tat org.junit.jupiter.api.Assumptions.throwAssumptionFailed(Assumptions.java:321)\n\tat org.junit.jupiter.api.Assumptions.assumeTrue(Assumptions.java:120)\n\tat com.example.demo.LinuxContainerRunnerTest.liveProbeSkipsWithEnvironmentReasonWhenLinuxRuntimeOrImageIsUnavailable(LinuxContainerRunnerTest.java:207)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        },
+        {
+          "test": "probeFailsClosedWhenContainerProbeShowsUnsafeCapabilities",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting actual:\n  \"container runtime unavailable: Unrecognized token 'PROBE_UID': was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line: 1, column: 10]\"\nto contain:\n  \"network\" ",
+          "detail": "java.lang.AssertionError: \n\nExpecting actual:\n  \"container runtime unavailable: Unrecognized token 'PROBE_UID': was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line: 1, column: 10]\"\nto contain:"
+        }
+      ]
+    },
+    {
+      "name": "com.example.demo.RemoteWorkerRunnerTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.RemoteWorkerTlsTest",
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.SandboxRunnerContractTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.TaskPolicyResolverTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.TaskRunnerArtifactContractTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": []
+    },
+    {
+      "name": "com.example.demo.WindowsHyperVContainerRunnerTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "nonpassing": [
+        {
+          "test": "liveProbeSkipsWithEnvironmentReasonWhenHyperVRuntimeOrImageIsUnavailable",
+          "outcome": "skipped",
+          "type": "org.opentest4j.TestAbortedException",
+          "message": "",
+          "detail": "org.opentest4j.TestAbortedException: Assumption failed: Windows Hyper-V container capability unavailable: container runtime is not Windows: linux\n\tat org.junit.jupiter.api.Assumptions.throwAssumptionFailed(Assumptions.java:321)\n\tat org.junit.jupiter.api.Assumptions.assumeTrue(Assumptions.java:120)\n\tat com.example.demo.WindowsHyperVContainerRunnerTest.liveProbeSkipsWithEnvironmentReasonWhenHyperVRuntimeOrImageIsUnavailable(WindowsHyperVContainerRunnerTest.java:204)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "command": [
+    "/usr/bin/python3",
+    "-B",
+    "runner/tests/run_contract_suite.py",
+    "target/runner-python-summary.json"
+  ],
+  "exit_code": 0,
+  "tests": 11,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "nonpassing": []
+}

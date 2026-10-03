@@ -1,0 +1,14 @@
+[WARNING] Tests run: 11, Failures: 0, Errors: 0, Skipped: 1, Time elapsed: 0.411 s -- in com.example.demo.WindowsHyperVContainerRunnerTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.215 s -- in com.example.demo.TaskRunnerPythonSuiteTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.916 s -- in com.example.demo.TaskRunnerArtifactContractTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.015 s -- in com.example.demo.TaskPolicyResolverTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.025 s -- in com.example.demo.SandboxRunnerContractTest
+[INFO] Tests run: 36, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.309 s -- in com.example.demo.SandboxExecutionManifestTest
+[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.28 s -- in com.example.demo.RemoteWorkerTlsTest
+[INFO] Tests run: 16, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.988 s -- in com.example.demo.RemoteWorkerRunnerTest
+[WARNING] Tests run: 11, Failures: 0, Errors: 0, Skipped: 1, Time elapsed: 0.072 s -- in com.example.demo.LinuxContainerRunnerTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.840 s -- in com.example.demo.JudgeSandboxOrchestrationTest
+[WARNING] Tests run: 118, Failures: 0, Errors: 0, Skipped: 2
+[INFO] BUILD SUCCESS
+[INFO] Total time:  38.950 s
+[INFO] Finished at: 2026-10-03T00:41:51+08:00

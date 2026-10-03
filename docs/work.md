@@ -44,20 +44,20 @@
 
 ## 3. 开发任务总台账
 
-任务完成：**2/30（TASK-01提交候选，[TASK-01-C01]核验后生效）**；TASK-00真实提交已核验。缺陷最终关闭和生产验收尚未完成；DONE须有§2的提交证据。
+任务完成：**5/30（TASK-09提交候选，[TASK-09-C01]核验后生效）**；TASK-00/01/02/08真实提交已核验。用户要求本项提交后暂停；缺陷最终关闭和生产验收尚未完成，DONE须有§2的提交证据。
 
 | 任务 | 名称 | 状态 | 最新记录/提交定位 |
 | --- | --- | --- | --- |
 | TASK-00 | 决策与执行基线 | DONE | 4c86d830edc9a927e32377291bac20641ac1e557；[TASK-00-C01] |
-| TASK-01 | 回归基线与解释器 | DONE（提交候选） | TASK-01 / R01～R04；[TASK-01-C01] |
-| TASK-02 | 凭证解析安全默认日志 | NOT_STARTED | — |
-| TASK-03 | 可信代理有界限流 | NOT_STARTED | — |
+| TASK-01 | 回归基线与解释器 | DONE | bcf1d5ea6f40829dac9ef02ce6d526f2eef81d57；[TASK-01-C01] |
+| TASK-02 | 凭证解析安全默认日志 | DONE | 6f3b479b8cd37bc29cb862495515318066e88618；[TASK-02-C01] |
+| TASK-03 | 可信代理有界限流 | BLOCKED | 代理/限流定量参数待批准；TASK-00延期边界，见task对应卡 |
 | TASK-04 | Cookie重定向CSRF | NOT_STARTED | — |
 | TASK-05 | 双模式登录 | NOT_STARTED | — |
 | TASK-06 | WebSocket全链路授权 | NOT_STARTED | — |
 | TASK-07 | 会话环境绑定 | NOT_STARTED | — |
-| TASK-08 | Worker真实HTTPS认证 | NOT_STARTED | — |
-| TASK-09 | Runner v2与路径 | NOT_STARTED | — |
+| TASK-08 | Worker真实HTTPS认证 | DONE | d40192bca8aa63011b60e6fa7d68d057b37be14f；[TASK-08-C01] |
+| TASK-09 | Runner v2与路径 | DONE（提交候选） | TASK-09 / R01～R06；[TASK-09-C01]核验后生效 |
 | TASK-10 | 控制面身份隔离 | NOT_STARTED | — |
 | TASK-11 | 增量事件验真 | NOT_STARTED | — |
 | TASK-12 | 轮询预算与退出收尾 | NOT_STARTED | — |
@@ -339,3 +339,28 @@
 - TASK-09预检时发现task.md任务卡已完成但总览仍未勾选TASK-02/08，属于本次台账同步遗漏。仅同步两条总览为已核验，不改需求、代码、测试或缺陷关闭状态；总览与真实已完成00/01/02/08一致，共4/30。
 - 本补正为纯文档，验证30张任务卡、30条总览以及4条勾选与真实唯一C01提交对应，执行git diff --check/暂存检查；未重复执行业务测试，沿用TASK-08 R05/R08代码验收且保留R06未定位失败风险。
 - 补充提交候选docs(task): TASK-08 reconcile completed-task index [TASK-08-C02]，父SHA d40192bca8aa63011b60e6fa7d68d057b37be14f；只包含task/work，不amend旧提交、不推送、不为回填自身SHA改写历史。
+
+### 2026-10-03 — TASK-09 / R00 — 恢复核验与开工
+
+- 本地时间以 Get-Date 的 Asia/Shanghai 输出为准。HEAD ea51d2ab8a936ccd392d9665ed78c086a554e369、唯一 TASK-08-C02、task/work 范围与既有工作区已核验；00/01/02/08 共4/30完成，其余未完成。
+- 主任务 TASK-09，契约/跨平台后端工程师；对应 RQ-R01/AC-R01/T-R01、RQ-R03、RQ-C01 参数贯通，D §2/4.1/4.2/5.2/8.1/8.3。TASK-03 的代理/限流参数继续等待批准，不阻断本项。
+- 事实：Linux/Windows 直接写含宿主绝对路径的 spec 且先建目录；Python 从 spec.workDir 建目录并截断宿主 events.jsonl 后才校验；Worker 没有版本/字段能力协商。
+- 计划先用现有可编译 API 添加真实 Python 失败回归，再建立独立 v2 wire manifest、相对路径校验、attempt 文件与显式能力拒绝；串行修改 DTO、adapter、JudgeService、Python 和测试。
+- 比较算法及 API 无损接收留15/16：保留当前请求 double 限制并如实记录，禁止将未实现十进制能力伪报可用；09不擅自冻结事件/轮询/数字资源阈值。
+- 验证执行定向五套件、真实 Python suite、不同根映射和危险路径前后快照、全量回归；保留 TASK-08 R06 的未定位 RE/SYSTEM_ERROR 风险。未验收真实容器/Windows/native/外部Worker，不关闭完整安全链路。
+
+### 2026-10-03 — TASK-09 / R01～R06 — 实施、验收与本地提交候选
+
+- R01先测后修：2项真实Python回归均失败，宿主四行audit被替换、危险workDir在拒绝前已创建。R02为测试辅助方法未声明InterruptedException导致testCompile失败，0测试；修声明，保留证据。R03定向63项/59通过/2失败/2跳过：旧Linux命令替身匹配全部run --rm，误给协议探针返回PROBE_UID文本；仅收紧旧探针到/bin/sh，未放松安全断言。R04扩展后118项/116通过/0失败/0错误/2原环境跳过。
+- 实做文件：新增SandboxComparison、SandboxExecutionManifest、RunnerProtocolCapabilities与共享SandboxManifestFactory；扩展宿主spec/capabilities/handle、ResolvedTaskPolicy/TaskPolicyResolver与JudgeService；三个adapter分别生成wire并实际协商，配置固定attempt内文件名。Python拆出无副作用runner_manifest校验，执行根由provider提供，全部校验后才写新attempt事件/摘要/workspace。
+- 路径/协议：相对源码拒绝POSIX/盘符/UNC/父级/设备名/链接/非本任务输入；源与控制目录先验，独立UUID attempt和CREATE_NEW/独占事件文件禁止截断；时间固定毫秒、资源字节、retention显式；版本不得由字符串/小数隐式转成2，缺版本/比较/限额能力拒绝。Worker先协商再发送manifest+实际源码Base64，确认回执版本和judgeId/attemptId，保持原HTTPS、Bearer/HMAC签名输入及禁止重定向。
+- 参数边界：precision从现有double请求进入策略快照后按字符串贯通；高精度内部字符串不再二次舍入，但API初始double损失未解决，留15。Python仅声明真实LEGACY_TEXT/SPJ，不假报DECIMAL_ABSOLUTE；普通host请求在当前artifact上失败关闭，算法留16。没有采用延期的事件/轮询/数字容量候选参数。
+- 测试：R05最终10套件124项、122通过/0失败/0错误/2跳过；R06全量42套件360项、358通过/0失败/0错误/2跳过，均退出0。R04/R05/R06内实际Python unittest均11/11，另存python-summary.json；真实根目录复制映射、前后文件树字节快照、重放/新attempt、SPJ及路径/字段/版本负例通过。TLS 18项仍真实执行，三认证方式GET+新v2 POST成功；新增Worker协议负例不冒充外部Worker执行。
+- 精确argv/环境/退出码/结果/失败历史见docs/acceptance/TASK-09各轮；环境为已批准WSL Ubuntu24.04.1/JDK21.0.12.1/Maven3.8.7离线/Python3.12.3/g++13.3.0，保持TASK-00外层约束。2跳过仍为缺Linux镜像与非Windows runtime，核心安全负例不skip；未安装依赖、不修改全局环境，不把受信测试约束当生产隔离。
+- 源码核验：R05/R06各150个源码/runner/scripts/POM哈希、172个完整输入哈希及harness哈希全部匹配工作树，两轮列表相同；final-hash-verification.json留证。核验后只更新验收/task/work/change-log。公共harness仅新增可选Python结果采集，不改Maven测试选择、成功条件或禁用测试。
+- 文档/兼容：更新runner规范、README、生产runbook；新旧host/artifact/Worker必须成套维护升级，旧任务只读，拒绝旧文件名和混合事件流，回滚不恢复弱认证/共享流。未修改历史任务、生产配置或真实平台，新增client源码bundle只定义并实现发送侧，外部Worker须自行严格验证并实现接收侧。
+- 逐项开发验收通过；DEF-02为IMPLEMENTED_PENDING_VALIDATION，实际Linux/Windows/native/外部Worker闭环留25/26；N2文件分面不等于权限/增量验真，完整关闭留10/11。DEF-11/12留15/16，TASK-08 R06 RE/SYSTEM_ERROR偶发失败仍未定位，不能因本轮全绿关闭N5/发布风险。
+- 主代理自审（非独立第三方）：审查路径与能力边界、host事件不变、字段类型、TLS兼容、迁移、证据一致性；DRY复用路径工厂和策略，SRP分开domain/wire/校验，KISS/YAGNI不引入框架或伪比较算法。最终独立安全放行留29。
+- 状态从IN_PROGRESS经VERIFIED_PENDING_COMMIT进入DONE提交候选；提交主题feat(runner): TASK-09 version execution manifests and paths [TASK-09-C01]，父SHA ea51d2ab8a936ccd392d9665ed78c086a554e369，真实SHA按唯一键核验。沿用已批准本地提交授权及单次Git身份，不push/amend/建分支，排除既有.mimosa/、.playwright-mcp/。
+- 用户明确要求“完成这个任务后先停一停”；本项真实提交核验后将Goal置paused，不开始TASK-10/15或其他任务。总计将为5/30完成，整体Goal未完成、不可发布。
+- 提交前一致性复核另发现本文件§3总台账仍停留TASK-01时的2/30，与后续追加日志及真实Git不一致；本次同步已核验的01/02/08、03既有阻断及09候选为5/30，保留所有历史执行条目，不把同步台账计作新增开发任务。

@@ -1,0 +1,45 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=TaskRunnerArtifactContractTest#taskRunnerPreservesHostAuditHistoryBeforeStartingItsEventStream+taskRunnerRejectsHostRootBeforeCreatingDirectoriesOrControlFiles",
+    "test"
+  ],
+  "exit_code": 1,
+  "report_count": 1,
+  "reports_present": true,
+  "totals": {
+    "tests": 2,
+    "failures": 2,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 0
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.TaskRunnerArtifactContractTest",
+      "tests": 2,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": [
+        {
+          "test": "taskRunnerPreservesHostAuditHistoryBeforeStartingItsEventStream",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "\nexpected: \n  \"{\"event\":\"CREATED\"}\n  {\"event\":\"QUEUED\"}\n  {\"event\":\"STARTED\"}\n  {\"event\":\"POLICY\"}\n  \"\n but was: \n  \"{\"judgeId\":\"judge-host-audit\",\"type\":\"COMPILE_STARTED\",\"occurredAt\":\"2026-10-02T16:16:19.026062Z\",\"message\":\"compile started\"}\n  {\"judgeId\":\"judge-host-audit\",\"type\":\"COMPILE_FINISHED\",\"occurredAt\":\"2026-10-02T16:16:19.311051Z\",\"message\":\"compile finished\",\"status\":\"OK\"}\n  {\"judgeId\":\"judge-host-audit\",\"type\":\"RUN_STARTED\",\"occurredAt\":\"2026-10-02T16:16:19.332014Z\",\"message\":\"case 1 started\",\"caseNumber\":1}\n  {\"judgeId\":\"judge-host-audit\",\"type\":\"RUN_FINISHED\",\"occurredAt\":\"2026-10-02T16:16:19.373701Z\",\"message\":\"case 1 AC\",\"status\":\"AC\",\"result\":{\"caseNumber\":1,\"status\":\"AC\",\"timeUsed\":20,\"memoryUsed\":1344},\"caseNumber\":1}\n  {\"judgeId\":\"judge-host-audit\",\"type\":\"SUMMARY\",\"occurredAt\":\"2026-10-02T16:16:19.373950Z\",\"message\":\"summary\",\"status\":\"DONE\",\"summary\":{\"totalCases\":1,\"completedCases\":1,\"ac\":1,\"wa\":0,\"tle\":0,\"mle\":0,\"re\":0,\"systemError\":0,\"outputLimitExceeded\":0,\"firstFailedCase\":null,\"failureSamples\":[],\"slowSamples\":[],\"stoppedReason\":null}}\n  {\"judgeId\":\"judge-host-audit\",\"type\":\"COMPLETED\",\"occurredAt\":\"2026-10-02T16:16:19.373976Z\",\"message\":\"completed\"}\n  \"",
+          "detail": "org.opentest4j.AssertionFailedError: \n\nexpected: \n  \"{\"event\":\"CREATED\"}\n  {\"event\":\"QUEUED\"}\n  {\"event\":\"STARTED\"}"
+        },
+        {
+          "test": "taskRunnerRejectsHostRootBeforeCreatingDirectoriesOrControlFiles",
+          "outcome": "failure",
+          "type": "java.lang.AssertionError",
+          "message": "\nExpecting path:\n  /tmp/junit-18120020939481552647/must-not-create\nnot to exist",
+          "detail": "java.lang.AssertionError: \n\nExpecting path:\n  /tmp/junit-18120020939481552647/must-not-create\nnot to exist\n\tat com.example.demo.TaskRunnerArtifactContractTest.taskRunnerRejectsHostRootBeforeCreatingDirectoriesOrControlFiles(TaskRunnerArtifactContractTest.java:298)"
+        }
+      ]
+    }
+  ]
+}

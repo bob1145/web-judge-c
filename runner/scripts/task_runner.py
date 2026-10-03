@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from runner_manifest import CAPABILITIES, ManifestError, load_manifest
 
 
 EXIT_COMPLETED = 0
@@ -38,16 +39,13 @@ class ProcessOutcome:
 
 
 class TaskRunner:
-    def __init__(self, spec_path: Path):
-        self.spec_path = spec_path.resolve()
-        with self.spec_path.open("r", encoding="utf-8") as file:
-            self.spec = json.load(file)
+    def __init__(self, spec_path: Path, work_root: Path):
+        self.spec, self.work_dir, self.attempt_dir, self.execution_dir = load_manifest(spec_path, work_root)
         self.judge_id = self.spec["judgeId"]
-        self.work_dir = Path(self.spec["workDir"]).resolve()
-        self.events_path = self.work_dir / "events.jsonl"
-        self.summary_path = self.work_dir / "summary.json"
-        self.cancel_path = self.work_dir / "cancel.requested"
-        self.bin_dir = self.work_dir / "bin"
+        self.events_path = self.attempt_dir / "runner-events.jsonl"
+        self.summary_path = self.attempt_dir / "runner-summary.json"
+        self.cancel_path = self.attempt_dir / "cancel.requested"
+        self.bin_dir = self.execution_dir / "bin"
         self.started_at = time.monotonic()
         self.summary = {
             "totalCases": int(self.spec["testCases"]),
@@ -66,11 +64,10 @@ class TaskRunner:
         }
 
     def run(self) -> int:
-        self.work_dir.mkdir(parents=True, exist_ok=True)
-        self.bin_dir.mkdir(parents=True, exist_ok=True)
-        self.events_path.write_text("", encoding="utf-8")
+        with self.events_path.open("x", encoding="utf-8"):
+            pass
+        self.bin_dir.mkdir(parents=True, exist_ok=False)
         try:
-            self.validate_paths()
             executables = self.compile_sources()
             return self.run_cases(executables)
         except Cancelled:
@@ -97,13 +94,7 @@ class TaskRunner:
             self.emit("SYSTEM_ERROR", "runner system error: " + bounded(str(exc)))
             return EXIT_SYSTEM_ERROR
 
-    def validate_paths(self) -> None:
-        if not self.spec_path.resolve().is_relative_to(self.work_dir):
-            raise SecurityViolation("task spec must stay inside mounted workDir")
-        for role, value in self.spec.get("sourcePaths", {}).items():
-            path = Path(value).resolve()
-            if not path.is_relative_to(self.work_dir):
-                raise SecurityViolation(f"source path {role} must stay inside mounted workDir")
+
 
     def compile_sources(self) -> dict[str, Path]:
         self.emit("COMPILE_STARTED", "compile started")
@@ -112,13 +103,13 @@ class TaskRunner:
         for role in ("GENERATOR", "USER", "ORACLE", "SPECIAL_JUDGE"):
             if role not in source_paths:
                 continue
-            source = Path(source_paths[role]).resolve()
+            source = self.work_dir / source_paths[role]
             output = self.bin_dir / executable_name(role.lower())
             command = ["g++", str(source), "-o", str(output), "-O2", "-std=c++17"]
             outcome = run_process(
                 command=command,
                 stdin=b"",
-                cwd=self.work_dir,
+                cwd=self.execution_dir,
                 timeout_seconds=COMPILE_TIMEOUT_SECONDS,
                 memory_limit_bytes=max(int(self.spec["memoryLimitBytes"]) * 2, 256 * 1024 * 1024),
                 output_limit_bytes=COMPILE_OUTPUT_LIMIT_BYTES,
@@ -165,7 +156,7 @@ class TaskRunner:
         outcome = run_process(
             command=[str(executable)],
             stdin=f"{case_number}\n".encode("utf-8"),
-            cwd=self.work_dir,
+            cwd=self.execution_dir,
             timeout_seconds=self.case_time_limit_seconds(),
             memory_limit_bytes=int(self.spec["memoryLimitBytes"]),
             output_limit_bytes=int(self.spec["maxOutputBytesPerCase"]),
@@ -181,7 +172,7 @@ class TaskRunner:
         user = run_process(
             command=[str(executables["USER"])],
             stdin=input_bytes,
-            cwd=self.work_dir,
+            cwd=self.execution_dir,
             timeout_seconds=self.case_time_limit_seconds(),
             memory_limit_bytes=int(self.spec["memoryLimitBytes"]),
             output_limit_bytes=int(self.spec["maxOutputBytesPerCase"]),
@@ -208,7 +199,7 @@ class TaskRunner:
         oracle = run_process(
             command=[str(executable)],
             stdin=input_bytes,
-            cwd=self.work_dir,
+            cwd=self.execution_dir,
             timeout_seconds=self.case_time_limit_seconds(),
             memory_limit_bytes=int(self.spec["memoryLimitBytes"]),
             output_limit_bytes=int(self.spec["maxOutputBytesPerCase"]),
@@ -226,7 +217,7 @@ class TaskRunner:
         spj = run_process(
             command=[str(executable), str(input_path), str(user_path)],
             stdin=b"",
-            cwd=self.work_dir,
+            cwd=self.execution_dir,
             timeout_seconds=self.case_time_limit_seconds() * 2,
             memory_limit_bytes=int(self.spec["memoryLimitBytes"]),
             output_limit_bytes=int(self.spec["maxOutputBytesPerCase"]),
@@ -299,12 +290,12 @@ class TaskRunner:
     def check_control_files(self) -> None:
         if self.cancel_path.exists():
             raise Cancelled()
-        max_runtime = parse_duration_seconds(self.spec["maxTaskRuntime"])
+        max_runtime = self.spec["maxTaskRuntimeMillis"] / 1000
         if time.monotonic() - self.started_at > max_runtime:
             raise BudgetExceeded()
 
     def case_time_limit_seconds(self) -> float:
-        return parse_duration_seconds(self.spec["caseTimeLimit"])
+        return self.spec["caseTimeLimitMillis"] / 1000
 
     def emit(self, event_type: str, message: str, **extra) -> None:
         event = {
@@ -459,19 +450,7 @@ def windows_working_set_bytes(pid: int) -> int:
         return 0
 
 
-def parse_duration_seconds(value) -> float:
-    if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
-        text = value.strip().upper()
-        if text.startswith("PT") and text.endswith("S"):
-            return float(text[2:-1])
-        if text.startswith("PT") and text.endswith("M"):
-            return float(text[2:-1]) * 60
-        if text.startswith("PT") and "M" in text and text.endswith("S"):
-            minutes, seconds = text[2:-1].split("M", 1)
-            return float(minutes) * 60 + float(seconds)
-    raise ValueError(f"unsupported duration value: {value!r}")
+
 
 
 def normalize_output(value: bytes) -> str:
@@ -521,9 +500,20 @@ class SecurityViolation(Exception):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run a sandbox task spec and emit stable judge events.")
-    parser.add_argument("task_spec", help="Path to sandbox-task.json")
+    parser.add_argument("task_spec", nargs="?", help="Path to v2 task-spec.json")
+    parser.add_argument("--work-root", type=Path, default=Path.cwd())
+    parser.add_argument("--capabilities", action="store_true")
     args = parser.parse_args()
-    return TaskRunner(Path(args.task_spec)).run()
+    if args.capabilities:
+        print(json.dumps(CAPABILITIES, separators=(",", ":")))
+        return 0
+    if args.task_spec is None:
+        parser.error("task_spec is required")
+    try:
+        return TaskRunner(Path(args.task_spec), args.work_root).run()
+    except (ManifestError, OSError, ValueError):
+        print("runner manifest rejected before execution", file=sys.stderr)
+        return EXIT_SECURITY_VIOLATION
 
 
 if __name__ == "__main__":

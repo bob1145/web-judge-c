@@ -1,0 +1,13 @@
+[WARNING] Tests run: 7, Failures: 0, Errors: 0, Skipped: 1, Time elapsed: 0.381 s -- in com.example.demo.WindowsHyperVContainerRunnerTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.09 s -- in com.example.demo.TaskRunnerArtifactContractTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.017 s -- in com.example.demo.TaskPolicyResolverTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.061 s -- in com.example.demo.SandboxRunnerContractTest
+[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.12 s -- in com.example.demo.RemoteWorkerTlsTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.050 s -- in com.example.demo.RemoteWorkerRunnerTest
+[ERROR] Tests run: 7, Failures: 2, Errors: 0, Skipped: 1, Time elapsed: 0.063 s <<< FAILURE! -- in com.example.demo.LinuxContainerRunnerTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.913 s -- in com.example.demo.JudgeSandboxOrchestrationTest
+[ERROR] Tests run: 63, Failures: 2, Errors: 0, Skipped: 2
+[INFO] BUILD FAILURE
+[INFO] Total time:  31.704 s
+[INFO] Finished at: 2026-10-03T00:33:24+08:00
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.3:test (default-test) on project demo18: There are test failures.

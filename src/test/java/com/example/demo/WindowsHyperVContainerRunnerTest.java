@@ -1,6 +1,7 @@
 package com.example.demo;
 
 import com.example.demo.dto.SandboxCapabilities;
+import com.example.demo.support.RunnerProtocolFixtures;
 import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.dto.SandboxTaskEvent;
 import com.example.demo.dto.SandboxTaskSpec;
@@ -9,6 +10,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import com.example.demo.dto.RunnerProtocolCapabilities;
+import com.example.demo.dto.SandboxComparison;
+import java.util.Set;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
@@ -119,9 +125,10 @@ class WindowsHyperVContainerRunnerTest {
         assertThat(handle.provider()).isEqualTo("windows-container");
         assertThat(handle.runId()).isEqualTo("win-run-123");
         assertThat(handle.eventCursor()).isEqualTo("0");
-        assertThat(Files.readString(Path.of(spec.workDir()).resolve("sandbox-task.json")))
+        assertThat(Files.readString(Path.of(spec.workDir()).resolve("control/attempts/" + handle.attemptId() + "/task-spec.json")))
                 .contains("\"judgeId\":\"judge-windows\"")
-                .contains("\"profile\":\"windows-prod\"");
+                .contains("\"protocolVersion\":2")
+                .doesNotContain(spec.workDir(), "workDir", "userId");
 
         List<String> command = executor.commandContaining("run", "-d");
         assertThat(command)
@@ -135,7 +142,7 @@ class WindowsHyperVContainerRunnerTest {
                 .contains("--mount", "type=bind,source=" + Path.of(spec.workDir()) + ",target=C:\\work")
                 .contains("cpp-judge-runner-windows:test")
                 .contains("C:\\judge-runner\\run-task.exe")
-                .contains("C:\\work\\sandbox-task.json");
+                .contains("C:\\work\\control\\attempts\\" + handle.attemptId() + "\\task-spec.json");
         assertThat(command)
                 .doesNotContain("g++")
                 .doesNotContain(Path.of(spec.sourcePaths().get(SandboxTaskSpec.SourceRole.USER)).toString());
@@ -150,7 +157,7 @@ class WindowsHyperVContainerRunnerTest {
         SandboxTaskSpec spec = validSpec();
         SandboxRunHandle handle = runner.start(spec);
         SandboxTaskEvent completed = SandboxTaskEvent.of("judge-windows", SandboxTaskEvent.Type.COMPLETED, "completed");
-        Files.writeString(Path.of(spec.workDir()).resolve("events.jsonl"), objectMapper.writeValueAsString(completed) + System.lineSeparator());
+        Files.writeString(Path.of(spec.workDir()).resolve("control/attempts/" + handle.attemptId() + "/runner-events.jsonl"), objectMapper.writeValueAsString(completed) + System.lineSeparator());
 
         List<SandboxTaskEvent> firstPoll = runner.pollEvents(handle);
         List<SandboxTaskEvent> secondPoll = runner.pollEvents(handle);
@@ -209,6 +216,32 @@ class WindowsHyperVContainerRunnerTest {
         assertThat(capabilities.securityProfile()).contains("job-object");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"legacy", "version", "comparison", "limits"})
+    void incompatibleArtifactIsRejectedBeforeAnyManifestWrite(String mode) throws Exception {
+        RecordingExecutor executor = new RecordingExecutor();
+        Set<Integer> versions = mode.equals("version") ? Set.of(1) : Set.of(2);
+        Set<SandboxComparison.Mode> modes = mode.equals("comparison")
+                ? Set.of(SandboxComparison.Mode.SPECIAL_JUDGE) : Set.of(SandboxComparison.Mode.LEGACY_TEXT);
+        var features = new java.util.HashSet<>(RunnerProtocolCapabilities.REQUIRED_FEATURES);
+        if (mode.equals("limits")) {
+            features.remove("explicit-limits");
+        }
+        String response = mode.equals("legacy") ? "{}"
+                : objectMapper.writeValueAsString(new RunnerProtocolCapabilities(versions, modes, features));
+        executor.when(command -> command.contains("--capabilities"), result(0, response, ""));
+        WindowsHyperVContainerRunner runner = new WindowsHyperVContainerRunner(options(), executor, objectMapper);
+        SandboxTaskSpec spec = validSpec();
+        Path workDir = Path.of(spec.workDir());
+        Files.writeString(workDir.resolve("events.jsonl"), "host audit");
+
+        assertThatThrownBy(() -> runner.start(spec)).isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(workDir.resolve("control")).doesNotExist();
+        assertThat(Files.readString(workDir.resolve("events.jsonl"))).isEqualTo("host audit");
+        assertThat(executor.commands).noneMatch(command -> command.contains("-d"));
+    }
+
     private WindowsHyperVContainerRunner.Options options() {
         return WindowsHyperVContainerRunner.Options.builder()
                 .runtimeCommand("docker")
@@ -217,8 +250,8 @@ class WindowsHyperVContainerRunnerTest {
                 .workMount("C:\\work")
                 .runnerCommand("C:\\judge-runner\\run-task.exe")
                 .probeCommand("C:\\judge-runner\\probe.cmd")
-                .taskSpecFile("sandbox-task.json")
-                .eventFile("events.jsonl")
+                .taskSpecFile("task-spec.json")
+                .eventFile("runner-events.jsonl")
                 .cpus(1.0)
                 .probeMemoryBytes(256L * 1024 * 1024)
                 .securityProfile("hyper-v;job-object")
@@ -245,6 +278,7 @@ class WindowsHyperVContainerRunnerTest {
                 .sourcePath(SandboxTaskSpec.SourceRole.GENERATOR, generator)
                 .sourcePath(SandboxTaskSpec.SourceRole.USER, user)
                 .sourcePath(SandboxTaskSpec.SourceRole.ORACLE, oracle)
+                .comparison(RunnerProtocolFixtures.legacyText())
                 .testCases(2)
                 .caseTimeLimit(Duration.ofSeconds(1))
                 .maxTaskRuntime(Duration.ofSeconds(10))
@@ -288,7 +322,9 @@ class WindowsHyperVContainerRunnerTest {
                     .filter(stub -> stub.predicate().test(command))
                     .findFirst()
                     .map(Invocation::result)
-                    .orElseGet(() -> result(1, "", "unexpected command: " + command));
+                    .orElseGet(() -> command.contains("--capabilities")
+                            ? result(0, RunnerProtocolFixtures.PYTHON_CAPABILITIES, "")
+                            : result(1, "", "unexpected command: " + command));
         }
 
         List<String> commandContaining(String... tokens) {

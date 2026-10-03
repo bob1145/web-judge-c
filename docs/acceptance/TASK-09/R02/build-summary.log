@@ -1,0 +1,6 @@
+[ERROR] /tmp/wjc-task00.OZZpRy/src/test/java/com/example/demo/TaskRunnerArtifactContractTest.java:[350,60] unreported exception java.lang.InterruptedException; must be caught or declared to be thrown
+[INFO] BUILD FAILURE
+[INFO] Total time:  5.967 s
+[INFO] Finished at: 2026-10-03T00:31:24+08:00
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.14.0:testCompile (default-testCompile) on project demo18: Compilation failure
+[ERROR] /tmp/wjc-task00.OZZpRy/src/test/java/com/example/demo/TaskRunnerArtifactContractTest.java:[350,60] unreported exception java.lang.InterruptedException; must be caught or declared to be thrown

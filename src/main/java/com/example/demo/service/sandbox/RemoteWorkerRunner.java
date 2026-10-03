@@ -3,6 +3,8 @@ package com.example.demo.service.sandbox;
 import com.example.demo.config.SandboxProperties;
 import com.example.demo.config.WorkerProperties;
 import com.example.demo.dto.SandboxCapabilities;
+import com.example.demo.dto.SandboxExecutionManifest;
+import com.example.demo.dto.RunnerProtocolCapabilities;
 import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.dto.SandboxTaskEvent;
 import com.example.demo.dto.SandboxTaskSpec;
@@ -78,7 +80,12 @@ public class RemoteWorkerRunner implements SandboxRunner {
             if (!isSuccess(response.statusCode())) {
                 return unavailableCapabilities("worker unavailable: status " + response.statusCode());
             }
-            return objectMapper.readValue(response.body(), SandboxCapabilities.class);
+            SandboxCapabilities capabilities = objectMapper.readValue(response.body(), SandboxCapabilities.class);
+            if (capabilities.protocol() == null) {
+                return unavailableCapabilities("worker does not declare a runner protocol");
+            }
+            capabilities.protocol().requireVersion2();
+            return capabilities;
         } catch (Exception e) {
             return unavailableCapabilities("worker unavailable: " + e.getMessage());
         }
@@ -87,12 +94,34 @@ public class RemoteWorkerRunner implements SandboxRunner {
     @Override
     public SandboxRunHandle start(SandboxTaskSpec spec) {
         try {
-            String body = objectMapper.writeValueAsString(spec);
+            SandboxManifestFactory.Prepared prepared = SandboxManifestFactory.prepare(spec);
+            SandboxExecutionManifest manifest = prepared.manifest();
+            SandboxCapabilities capabilities = probe();
+            if (capabilities.protocol() == null) {
+                return unavailableHandle(spec.judgeId(), "worker unavailable: does not support the requested runner protocol");
+            }
+            capabilities.protocol().require(manifest);
+            if (!capabilities.protocol().features().contains(RunnerProtocolCapabilities.INLINE_SOURCES)) {
+                return unavailableHandle(spec.judgeId(), "worker does not support inline task sources");
+            }
+            String body = objectMapper.writeValueAsString(new StartRequest(manifest, prepared.sourceContentsBase64()));
             HttpResponse<String> response = send("POST", "/api/v1/runs", body);
             if (!isSuccess(response.statusCode())) {
                 return unavailableHandle(spec.judgeId(), "worker unavailable: status " + response.statusCode());
             }
-            return objectMapper.readValue(response.body(), SandboxRunHandle.class);
+            var acknowledgement = objectMapper.readTree(response.body());
+            var version = acknowledgement.path("protocolVersion");
+            if (!version.isIntegralNumber() || !version.canConvertToInt()) {
+                return unavailableHandle(spec.judgeId(), "worker returned an incompatible run acknowledgement");
+            }
+            SandboxRunHandle handle = objectMapper.treeToValue(acknowledgement, SandboxRunHandle.class);
+            if (handle.protocolVersion() != manifest.protocolVersion()
+                    || !manifest.attemptId().equals(handle.attemptId())
+                    || !manifest.judgeId().equals(handle.judgeId())
+                    || !PROVIDER.equals(handle.provider()) || !StringUtils.hasText(handle.runId())) {
+                return unavailableHandle(spec.judgeId(), "worker returned an incompatible run acknowledgement");
+            }
+            return handle;
         } catch (Exception e) {
             return unavailableHandle(spec.judgeId(), "worker unavailable: " + e.getMessage());
         }
@@ -138,6 +167,9 @@ public class RemoteWorkerRunner implements SandboxRunner {
             }
             throw new IllegalStateException("worker cancel failed: " + e.getMessage(), e);
         }
+    }
+
+    private record StartRequest(SandboxExecutionManifest manifest, Map<String, String> sourceContentsBase64) {
     }
 
     private HttpResponse<String> send(String method, String pathAndQuery, String body)

@@ -3,6 +3,11 @@ package com.example.demo;
 import com.example.demo.dto.JudgeSummary;
 import com.example.demo.dto.SandboxTaskEvent;
 import com.example.demo.dto.SandboxTaskSpec;
+import com.example.demo.dto.SandboxComparison;
+import com.example.demo.service.sandbox.SandboxManifestFactory;
+import com.example.demo.support.RunnerProtocolFixtures;
+import java.util.HashMap;
+import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -20,7 +25,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class TaskRunnerArtifactContractTest {
 
-    private static final Path RUNNER = Path.of("runner", "scripts", "task_runner.py");
+    private static final Path RUNNER = Path.of("runner", "scripts", "task_runner.py").toAbsolutePath();
+    private final Map<Path, Path> attemptDirectories = new HashMap<>();
     private static final int EXIT_COMPLETED = 0;
     private static final int EXIT_COMPILE_ERROR = 10;
     private static final int EXIT_CANCELLED = 20;
@@ -65,7 +71,7 @@ class TaskRunnerArtifactContractTest {
         assertThat(summary.getCompletedCases()).isEqualTo(3);
         assertThat(summary.getAc()).isEqualTo(3);
         assertThat(summary.getFirstFailedCase()).isNull();
-        assertThat(Files.exists(workDir.resolve("summary.json.tmp"))).isFalse();
+        assertThat(Files.exists(attemptDirectories.get(workDir).resolve("runner-summary.json.tmp"))).isFalse();
     }
 
     @Test
@@ -204,30 +210,21 @@ class TaskRunnerArtifactContractTest {
         Files.writeString(outsideUser, "int main(){return 0;}", StandardCharsets.UTF_8);
         writeSource(workDir.resolve("generator.cpp"), "int main(){return 0;}");
         writeSource(workDir.resolve("oracle.cpp"), "int main(){return 0;}");
-        SandboxTaskSpec spec = SandboxTaskSpec.builder()
-                .judgeId("judge-security")
-                .userId("user-security")
-                .profile("worker-prod")
-                .storageBase(storageBase)
-                .workDir(workDir)
-                .sourcePath(SandboxTaskSpec.SourceRole.GENERATOR, workDir.resolve("generator.cpp"))
-                .sourcePath(SandboxTaskSpec.SourceRole.USER, outsideUser)
-                .sourcePath(SandboxTaskSpec.SourceRole.ORACLE, workDir.resolve("oracle.cpp"))
-                .testCases(1)
-                .caseTimeLimit(Duration.ofSeconds(1))
-                .maxTaskRuntime(Duration.ofSeconds(10))
-                .memoryLimitBytes(128L * 1024 * 1024)
-                .maxOutputBytesPerCase(1024)
-                .build();
-        Path specPath = writeSpec(workDir, spec);
+        writeSource(workDir.resolve("user.cpp"), "int main(){return 0;}");
+        Path specPath = writeSpec(workDir, validSpec(workDir, 1).build());
+        var node = (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper.readTree(specPath.toFile());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) node.get("sourcePaths"))
+                .put("USER", "../outside-user.cpp");
+        objectMapper.writeValue(specPath.toFile(), node);
+        String outsideBefore = Files.readString(outsideUser);
 
         RunnerResult result = runRunner(specPath);
 
-        assertThat(result.exitCode()).isEqualTo(EXIT_SECURITY_VIOLATION);
-        assertThat(readEvents(workDir)).last().satisfies(event -> {
-            assertThat(event.type()).isEqualTo(SandboxTaskEvent.Type.SECURITY_VIOLATION);
-            assertThat(event.message()).contains("source path");
-        });
+        assertThat(result.exitCode()).as(result.output()).isEqualTo(EXIT_SECURITY_VIOLATION);
+        assertThat(result.output()).contains("manifest rejected before execution");
+        assertThat(Files.readString(outsideUser)).isEqualTo(outsideBefore);
+        assertThat(attemptDirectories.get(workDir).resolve("runner-events.jsonl")).doesNotExist();
+        assertThat(workDir.resolve("workspace")).doesNotExist();
     }
 
     @Test
@@ -249,11 +246,11 @@ class TaskRunnerArtifactContractTest {
                 .maxTaskRuntime(Duration.ofSeconds(60))
                 .build());
 
-        Process process = new ProcessBuilder(PythonInterpreter.resolve(), RUNNER.toString(), spec.toString())
+        Process process = runnerProcess(spec)
                 .redirectErrorStream(true)
                 .start();
         Thread.sleep(1_000);
-        Files.writeString(workDir.resolve("cancel.requested"), "cancel", StandardCharsets.UTF_8);
+        Files.writeString(attemptDirectories.get(workDir).resolve("cancel.requested"), "cancel", StandardCharsets.UTF_8);
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         boolean exited = process.waitFor(10, java.util.concurrent.TimeUnit.SECONDS);
 
@@ -261,6 +258,43 @@ class TaskRunnerArtifactContractTest {
         assertThat(process.exitValue()).isEqualTo(EXIT_CANCELLED);
         assertThat(readEvents(workDir)).last().satisfies(event -> assertThat(event.type()).isEqualTo(SandboxTaskEvent.Type.CANCELLED));
         assertThat(readSummary(workDir).getStoppedReason()).contains("Cancellation requested");
+    }
+
+    @Test
+    void taskRunnerPreservesHostAuditHistoryBeforeStartingItsEventStream() throws Exception {
+        Path workDir = workDir("host-audit");
+        writeDefaultSources(workDir, "int main(){return 0;}", "int main(){return 0;}");
+        String audit = """
+                {"event":"CREATED"}
+                {"event":"QUEUED"}
+                {"event":"STARTED"}
+                {"event":"POLICY"}
+                """;
+        Files.writeString(workDir.resolve("events.jsonl"), audit, StandardCharsets.UTF_8);
+        Path spec = writeSpec(workDir, validSpec(workDir, 1).build());
+
+        RunnerResult result = runRunner(spec);
+
+        assertThat(result.exitCode()).as(result.output()).isEqualTo(EXIT_COMPLETED);
+        assertThat(Files.readString(workDir.resolve("events.jsonl"))).isEqualTo(audit);
+    }
+
+    @Test
+    void taskRunnerRejectsHostRootBeforeCreatingDirectoriesOrControlFiles() throws Exception {
+        Path workDir = workDir("invalid-host-root");
+        Path outside = tempDir.resolve("must-not-create");
+        writeDefaultSources(workDir, "int main(){return 0;}", "int main(){return 0;}");
+        var node = objectMapper.valueToTree(validSpec(workDir, 1).build());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) node).put("workDir", outside.toString());
+        Path spec = workDir.resolve("sandbox-task.json");
+        objectMapper.writeValue(spec.toFile(), node);
+
+        RunnerResult result = runRunner(spec);
+
+        assertThat(result.exitCode()).as(result.output()).isEqualTo(EXIT_SECURITY_VIOLATION);
+        assertThat(outside).doesNotExist();
+        assertThat(workDir.resolve("bin")).doesNotExist();
+        assertThat(workDir.resolve("events.jsonl")).doesNotExist();
     }
 
     private Path workDir(String name) throws IOException {
@@ -279,6 +313,7 @@ class TaskRunnerArtifactContractTest {
                 .sourcePath(SandboxTaskSpec.SourceRole.GENERATOR, workDir.resolve("generator.cpp"))
                 .sourcePath(SandboxTaskSpec.SourceRole.USER, workDir.resolve("user.cpp"))
                 .sourcePath(SandboxTaskSpec.SourceRole.ORACLE, workDir.resolve("oracle.cpp"))
+                .comparison(RunnerProtocolFixtures.legacyText())
                 .testCases(cases)
                 .caseTimeLimit(Duration.ofSeconds(2))
                 .maxTaskRuntime(Duration.ofSeconds(30))
@@ -300,13 +335,24 @@ class TaskRunnerArtifactContractTest {
     }
 
     private Path writeSpec(Path workDir, SandboxTaskSpec spec) throws IOException {
-        Path specPath = workDir.resolve("sandbox-task.json");
-        objectMapper.writeValue(specPath.toFile(), spec);
-        return specPath;
+        SandboxManifestFactory.Prepared prepared = SandboxManifestFactory.prepare(spec);
+        prepared.write(objectMapper);
+        Path attempt = workDir.resolve(prepared.manifest().attemptDirectory());
+        attemptDirectories.put(workDir, attempt);
+        return workDir.resolve(prepared.manifest().specPath());
+    }
+
+    private ProcessBuilder runnerProcess(Path specPath) throws IOException, InterruptedException {
+        Path workRoot = specPath.getParent();
+        if (specPath.getFileName().toString().equals("task-spec.json")) {
+            workRoot = specPath.getParent().getParent().getParent().getParent();
+        }
+        return new ProcessBuilder(PythonInterpreter.resolve(), "-B", RUNNER.toString(),
+                "--work-root", workRoot.toString(), specPath.toString()).redirectErrorStream(true);
     }
 
     private RunnerResult runRunner(Path specPath) throws Exception {
-        Process process = new ProcessBuilder(PythonInterpreter.resolve(), RUNNER.toString(), specPath.toString())
+        Process process = runnerProcess(specPath)
                 .redirectErrorStream(true)
                 .start();
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
@@ -316,7 +362,7 @@ class TaskRunnerArtifactContractTest {
     }
 
     private List<SandboxTaskEvent> readEvents(Path workDir) throws IOException {
-        return Files.readAllLines(workDir.resolve("events.jsonl"), StandardCharsets.UTF_8).stream()
+        return Files.readAllLines(attemptDirectories.get(workDir).resolve("runner-events.jsonl"), StandardCharsets.UTF_8).stream()
                 .filter(line -> !line.isBlank())
                 .map(line -> {
                     try {
@@ -329,7 +375,7 @@ class TaskRunnerArtifactContractTest {
     }
 
     private JudgeSummary readSummary(Path workDir) throws IOException {
-        return objectMapper.readValue(workDir.resolve("summary.json").toFile(), JudgeSummary.class);
+        return objectMapper.readValue(attemptDirectories.get(workDir).resolve("runner-summary.json").toFile(), JudgeSummary.class);
     }
 
     private SandboxTaskEvent firstRunFinished(Path workDir) throws IOException {

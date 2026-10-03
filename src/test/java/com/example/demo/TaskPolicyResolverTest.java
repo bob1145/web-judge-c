@@ -116,6 +116,36 @@ class TaskPolicyResolverTest {
         return new TaskPolicyResolver(properties, memoryConfiguration);
     }
 
+    @Test
+    void comparisonSnapshotPreservesExistingDefaultZeroAndExplicitPagePrecision() {
+        TaskPolicyResolver resolver = resolver(ordinaryProperties(12), memoryConfiguration());
+        JudgeRequest request = request(1);
+        assertThat(resolver.resolve(request).comparison().precision()).isEqualTo("0");
+        request.setPrecision(0);
+        assertThat(resolver.resolve(request).comparison().precision()).isEqualTo("0");
+        request.setPrecision(1e-9);
+        ResolvedTaskPolicy policy = resolver.resolve(request);
+        assertThat(policy.comparison().precision()).isEqualTo("1.0E-9");
+        assertThat(policy.comparison().mode()).isEqualTo(com.example.demo.dto.SandboxComparison.Mode.DECIMAL_ABSOLUTE);
+        request.setPrecision(0);
+        assertThatThrownBy(() -> resolver.validate(request, policy))
+                .isInstanceOf(TaskPolicyResolver.PolicyValidationException.class);
+        request.setUseSpecialJudge(true);
+        request.setSpecialJudgeCode("int main(){return 0;}");
+        assertThat(resolver.resolve(request).comparison().mode())
+                .isEqualTo(com.example.demo.dto.SandboxComparison.Mode.SPECIAL_JUDGE);
+    }
+
+    @Test
+    void comparisonSnapshotRejectsNegativeAndNonFinitePrecision() {
+        TaskPolicyResolver resolver = resolver(ordinaryProperties(12), memoryConfiguration());
+        for (double value : new double[]{-1e-9, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+            JudgeRequest request = request(1);
+            request.setPrecision(value);
+            assertRejectedWithPolicyContext(resolver, request, "precision");
+        }
+    }
+
     private ExecutionProperties ordinaryProperties(int maxCasesPerTask) {
         ExecutionProperties properties = new ExecutionProperties();
         properties.setProfile("trusted-local");

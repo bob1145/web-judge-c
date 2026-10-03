@@ -506,6 +506,7 @@ public class JudgeService {
                 .sourcePath(SandboxTaskSpec.SourceRole.GENERATOR, generatorSource)
                 .sourcePath(SandboxTaskSpec.SourceRole.USER, userSource)
                 .testCases(policy.requestedCases())
+                .comparison(policy.comparison())
                 .caseTimeLimit(policy.caseTimeLimit())
                 .maxTaskRuntime(policy.maxTaskRuntime())
                 .memoryLimitBytes(policy.memoryLimitBytes())

@@ -2,6 +2,8 @@ package com.example.demo.service.sandbox;
 
 import com.example.demo.config.SandboxProperties;
 import com.example.demo.dto.SandboxCapabilities;
+import com.example.demo.dto.RunnerProtocolCapabilities;
+import com.example.demo.dto.SandboxExecutionManifest;
 import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.dto.SandboxTaskEvent;
 import com.example.demo.dto.SandboxTaskSpec;
@@ -139,6 +141,7 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
                             + " imageOs=" + imageInfo.os()
                             + " containerId=" + probeContainerId
                             + " cleanup=" + (cleanupConfirmed ? "confirmed" : "failed"))
+                    .protocol(probeProtocol())
                     .skipReason(productionSafe ? null : String.join("; ", reasons))
                     .build();
         } catch (IOException e) {
@@ -161,14 +164,17 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
     @Override
     public SandboxRunHandle start(SandboxTaskSpec spec) {
         try {
-            Path workDir = Path.of(spec.workDir()).toAbsolutePath().normalize();
-            Files.createDirectories(workDir);
-            validateMountedSources(spec, workDir);
-            Path taskSpecPath = workDir.resolve(options.taskSpecFile());
-            objectMapper.writeValue(taskSpecPath.toFile(), spec);
+            SandboxManifestFactory.Prepared prepared = SandboxManifestFactory.prepare(spec);
+            Path workDir = prepared.workDir();
+            if (workDir.toString().contains(",")) {
+                throw new IllegalArgumentException("host workDir cannot contain a mount delimiter");
+            }
+            SandboxExecutionManifest manifest = prepared.manifest();
+            probeProtocol().require(manifest);
+            prepared.write(objectMapper);
 
             String containerName = containerName(spec.judgeId());
-            CommandResult result = commandExecutor.run(startCommand(spec, workDir, containerName), options.commandTimeout());
+            CommandResult result = commandExecutor.run(startCommand(spec, workDir, containerName, manifest), options.commandTimeout());
             if (!result.succeeded()) {
                 throw new IllegalStateException("windows hyper-v container start failed: " + compact(result.combinedOutput()));
             }
@@ -176,13 +182,15 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
             if (!StringUtils.hasText(containerId)) {
                 throw new IllegalStateException("windows hyper-v container start did not return a container id");
             }
-            runs.put(containerId, new RunState(workDir, options.eventFile()));
+            runs.put(containerId, new RunState(workDir, manifest.eventPath()));
             return SandboxRunHandle.builder()
                     .judgeId(spec.judgeId())
                     .runId(containerId)
                     .provider(PROVIDER)
                     .startedAt(Instant.now())
                     .eventCursor("0")
+                    .protocolVersion(manifest.protocolVersion())
+                    .attemptId(manifest.attemptId())
                     .build();
         } catch (IOException e) {
             throw new IllegalStateException("windows hyper-v container start failed: " + e.getMessage(), e);
@@ -248,6 +256,22 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
                 .build();
     }
 
+    private RunnerProtocolCapabilities probeProtocol() throws IOException, InterruptedException {
+        List<String> command = baseRunCommand(containerName("protocol"), options.probeMemoryBytes());
+        command.remove("-d");
+        command.add("--rm");
+        command.add(options.image());
+        command.add(options.runnerCommand());
+        command.add("--capabilities");
+        CommandResult result = commandExecutor.run(command, options.commandTimeout());
+        if (!result.succeeded()) {
+            throw new IllegalStateException("runner protocol capability probe failed");
+        }
+        RunnerProtocolCapabilities protocol = objectMapper.readValue(result.stdout(), RunnerProtocolCapabilities.class);
+        protocol.requireVersion2();
+        return protocol;
+    }
+
     private List<String> runtimeVersionCommand() {
         return List.of(
                 options.runtimeCommand(),
@@ -289,7 +313,8 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
         return List.of(options.runtimeCommand(), "logs", containerId);
     }
 
-    private List<String> startCommand(SandboxTaskSpec spec, Path workDir, String containerName) {
+    private List<String> startCommand(SandboxTaskSpec spec, Path workDir, String containerName,
+                                      SandboxExecutionManifest manifest) {
         List<String> command = baseRunCommand(containerName, spec.memoryLimitBytes());
         command.add("--env");
         command.add("JUDGE_JOB_OBJECT_REQUIRED=true");
@@ -301,7 +326,7 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
         command.add(options.workMount());
         command.add(options.image());
         command.add(options.runnerCommand());
-        command.add(options.workMount() + "\\" + options.taskSpecFile());
+        command.add(options.workMount() + "\\" + manifest.specPath().replace('/', '\\'));
         return command;
     }
 
@@ -345,14 +370,7 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
         }
     }
 
-    private void validateMountedSources(SandboxTaskSpec spec, Path workDir) {
-        for (Map.Entry<SandboxTaskSpec.SourceRole, String> source : spec.sourcePaths().entrySet()) {
-            Path sourcePath = Path.of(source.getValue()).toAbsolutePath().normalize();
-            if (!sourcePath.startsWith(workDir)) {
-                throw new IllegalArgumentException("source path " + source.getKey() + " must stay inside mounted workDir");
-            }
-        }
-    }
+
 
     private boolean terminal(SandboxTaskEvent.Type type) {
         return type == SandboxTaskEvent.Type.COMPLETED
@@ -429,10 +447,15 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
             this.image = requireText(builder.image, "image");
             this.containerUser = requireText(builder.containerUser, "containerUser");
             this.workMount = requireText(builder.workMount, "workMount");
+            SandboxManifestFactory.requireExecutionRoot(this.workMount, true);
             this.runnerCommand = requireText(builder.runnerCommand, "runnerCommand");
             this.probeCommand = requireText(builder.probeCommand, "probeCommand");
             this.taskSpecFile = requireText(builder.taskSpecFile, "taskSpecFile");
             this.eventFile = requireText(builder.eventFile, "eventFile");
+            if (!SandboxExecutionManifest.SPEC_FILE.equals(taskSpecFile)
+                    || !SandboxExecutionManifest.EVENT_FILE.equals(eventFile)) {
+                throw new IllegalArgumentException("runner v2 requires fixed attempt-local control filenames");
+            }
             if (builder.cpus <= 0) {
                 throw new IllegalArgumentException("cpus must be positive");
             }
@@ -527,8 +550,8 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
             private String workMount = "C:\\work";
             private String runnerCommand = "C:\\judge-runner\\run-task.exe";
             private String probeCommand = "C:\\judge-runner\\probe.cmd";
-            private String taskSpecFile = "sandbox-task.json";
-            private String eventFile = "events.jsonl";
+            private String taskSpecFile = SandboxExecutionManifest.SPEC_FILE;
+            private String eventFile = SandboxExecutionManifest.EVENT_FILE;
             private double cpus = 1.0;
             private long probeMemoryBytes = 268435456L;
             private String securityProfile = "hyper-v;job-object";

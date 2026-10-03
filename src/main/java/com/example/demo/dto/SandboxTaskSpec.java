@@ -22,7 +22,8 @@ public record SandboxTaskSpec(
         long memoryLimitBytes,
         long maxOutputBytesPerCase,
         boolean stopOnFirstNonAc,
-        Retention retention
+        Retention retention,
+        SandboxComparison comparison
 ) {
 
     public SandboxTaskSpec {
@@ -30,6 +31,7 @@ public record SandboxTaskSpec(
         requireText(userId, "userId");
         requireText(profile, "profile");
         requireText(workDir, "workDir");
+        comparison = comparison == null ? SandboxComparison.decimal("0") : comparison;
         if (testCases <= 0) {
             throw new IllegalArgumentException("testCases must be positive");
         }
@@ -90,6 +92,7 @@ public record SandboxTaskSpec(
         private long maxOutputBytesPerCase;
         private boolean stopOnFirstNonAc;
         private Retention retention = Retention.defaultRetention();
+        private SandboxComparison comparison = SandboxComparison.decimal("0");
 
         public Builder judgeId(String judgeId) {
             this.judgeId = judgeId;
@@ -163,6 +166,11 @@ public record SandboxTaskSpec(
             return this;
         }
 
+        public Builder comparison(SandboxComparison comparison) {
+            this.comparison = comparison;
+            return this;
+        }
+
         public SandboxTaskSpec build() {
             String normalizedWorkDir = normalizeRequiredPath(workDir, storageBase, "workDir");
             Map<SourceRole, String> normalizedSources = new LinkedHashMap<>();
@@ -184,7 +192,8 @@ public record SandboxTaskSpec(
                     memoryLimitBytes,
                     maxOutputBytesPerCase,
                     stopOnFirstNonAc,
-                    retention
+                    retention,
+                    comparison
             );
         }
     }

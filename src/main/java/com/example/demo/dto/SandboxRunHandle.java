@@ -10,7 +10,9 @@ public record SandboxRunHandle(
         String runId,
         String provider,
         Instant startedAt,
-        String eventCursor
+        String eventCursor,
+        int protocolVersion,
+        String attemptId
 ) {
 
     public static Builder builder() {
@@ -23,6 +25,8 @@ public record SandboxRunHandle(
         private String provider;
         private Instant startedAt = Instant.now();
         private String eventCursor;
+        private int protocolVersion;
+        private String attemptId;
 
         public Builder judgeId(String judgeId) {
             this.judgeId = judgeId;
@@ -49,8 +53,18 @@ public record SandboxRunHandle(
             return this;
         }
 
+        public Builder protocolVersion(int protocolVersion) {
+            this.protocolVersion = protocolVersion;
+            return this;
+        }
+
+        public Builder attemptId(String attemptId) {
+            this.attemptId = attemptId;
+            return this;
+        }
+
         public SandboxRunHandle build() {
-            return new SandboxRunHandle(judgeId, runId, provider, startedAt, eventCursor);
+            return new SandboxRunHandle(judgeId, runId, provider, startedAt, eventCursor, protocolVersion, attemptId);
         }
     }
 }

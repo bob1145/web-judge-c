@@ -1,0 +1,120 @@
+{
+  "verifiedAt": "2026-10-03T00:33:22.798Z",
+  "head": "ea51d2ab8a936ccd392d9665ed78c086a554e369",
+  "runs": {
+    "R05": {
+      "java": {
+        "tests": 124,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 2,
+        "passed": 122
+      },
+      "python": {
+        "command": [
+          "/usr/bin/python3",
+          "-B",
+          "runner/tests/run_contract_suite.py",
+          "target/runner-python-summary.json"
+        ],
+        "exit_code": 0,
+        "tests": 11,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "nonpassing": []
+      },
+      "sources": {
+        "entries": 150,
+        "missing": [],
+        "mismatched": []
+      },
+      "inputs": {
+        "entries": 172,
+        "missing": [],
+        "mismatched": []
+      },
+      "harness": {
+        "entries": 1,
+        "missing": [],
+        "mismatched": []
+      },
+      "skips": [
+        {
+          "suite": "com.example.demo.LinuxContainerRunnerTest",
+          "test": "liveProbeSkipsWithEnvironmentReasonWhenLinuxRuntimeOrImageIsUnavailable",
+          "outcome": "skipped",
+          "type": "org.opentest4j.TestAbortedException",
+          "message": "",
+          "detail": "org.opentest4j.TestAbortedException: Assumption failed: Linux container capability unavailable: linux runner image unavailable: Error response from daemon: No such image: cpp-judge-runner:latest\n\tat org.junit.jupiter.api.Assumptions.throwAssumptionFailed(Assumptions.java:321)\n\tat org.junit.jupiter.api.Assumptions.assumeTrue(Assumptions.java:120)\n\tat com.example.demo.LinuxContainerRunnerTest.liveProbeSkipsWithEnvironmentReasonWhenLinuxRuntimeOrImageIsUnavailable(LinuxContainerRunnerTest.java:212)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        },
+        {
+          "suite": "com.example.demo.WindowsHyperVContainerRunnerTest",
+          "test": "liveProbeSkipsWithEnvironmentReasonWhenHyperVRuntimeOrImageIsUnavailable",
+          "outcome": "skipped",
+          "type": "org.opentest4j.TestAbortedException",
+          "message": "",
+          "detail": "org.opentest4j.TestAbortedException: Assumption failed: Windows Hyper-V container capability unavailable: container runtime is not Windows: linux\n\tat org.junit.jupiter.api.Assumptions.throwAssumptionFailed(Assumptions.java:321)\n\tat org.junit.jupiter.api.Assumptions.assumeTrue(Assumptions.java:120)\n\tat com.example.demo.WindowsHyperVContainerRunnerTest.liveProbeSkipsWithEnvironmentReasonWhenHyperVRuntimeOrImageIsUnavailable(WindowsHyperVContainerRunnerTest.java:209)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        }
+      ]
+    },
+    "R06": {
+      "java": {
+        "tests": 360,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 2,
+        "passed": 358
+      },
+      "python": {
+        "command": [
+          "/usr/bin/python3",
+          "-B",
+          "runner/tests/run_contract_suite.py",
+          "target/runner-python-summary.json"
+        ],
+        "exit_code": 0,
+        "tests": 11,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "nonpassing": []
+      },
+      "sources": {
+        "entries": 150,
+        "missing": [],
+        "mismatched": []
+      },
+      "inputs": {
+        "entries": 172,
+        "missing": [],
+        "mismatched": []
+      },
+      "harness": {
+        "entries": 1,
+        "missing": [],
+        "mismatched": []
+      },
+      "skips": [
+        {
+          "suite": "com.example.demo.LinuxContainerRunnerTest",
+          "test": "liveProbeSkipsWithEnvironmentReasonWhenLinuxRuntimeOrImageIsUnavailable",
+          "outcome": "skipped",
+          "type": "org.opentest4j.TestAbortedException",
+          "message": "",
+          "detail": "org.opentest4j.TestAbortedException: Assumption failed: Linux container capability unavailable: linux runner image unavailable: Error response from daemon: No such image: cpp-judge-runner:latest\n\tat org.junit.jupiter.api.Assumptions.throwAssumptionFailed(Assumptions.java:321)\n\tat org.junit.jupiter.api.Assumptions.assumeTrue(Assumptions.java:120)\n\tat com.example.demo.LinuxContainerRunnerTest.liveProbeSkipsWithEnvironmentReasonWhenLinuxRuntimeOrImageIsUnavailable(LinuxContainerRunnerTest.java:212)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        },
+        {
+          "suite": "com.example.demo.WindowsHyperVContainerRunnerTest",
+          "test": "liveProbeSkipsWithEnvironmentReasonWhenHyperVRuntimeOrImageIsUnavailable",
+          "outcome": "skipped",
+          "type": "org.opentest4j.TestAbortedException",
+          "message": "",
+          "detail": "org.opentest4j.TestAbortedException: Assumption failed: Windows Hyper-V container capability unavailable: container runtime is not Windows: linux\n\tat org.junit.jupiter.api.Assumptions.throwAssumptionFailed(Assumptions.java:321)\n\tat org.junit.jupiter.api.Assumptions.assumeTrue(Assumptions.java:120)\n\tat com.example.demo.WindowsHyperVContainerRunnerTest.liveProbeSkipsWithEnvironmentReasonWhenHyperVRuntimeOrImageIsUnavailable(WindowsHyperVContainerRunnerTest.java:209)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)"
+        }
+      ]
+    }
+  },
+  "sameSourceHashLists": true,
+  "sameInputHashLists": true
+}

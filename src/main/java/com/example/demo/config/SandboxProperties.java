@@ -56,8 +56,8 @@ public class SandboxProperties {
         private String containerUser = "65532:65532";
         private String workMount = "/work";
         private String runnerCommand = "/opt/judge-runner/run-task";
-        private String taskSpecFile = "sandbox-task.json";
-        private String eventFile = "events.jsonl";
+        private String taskSpecFile = "task-spec.json";
+        private String eventFile = "runner-events.jsonl";
         private int pidsLimit = 64;
         private double cpus = 1.0;
         private Duration commandTimeout = Duration.ofSeconds(30);
@@ -71,8 +71,8 @@ public class SandboxProperties {
         private String workMount = "C:\\work";
         private String runnerCommand = "C:\\judge-runner\\run-task.exe";
         private String probeCommand = "C:\\judge-runner\\probe.cmd";
-        private String taskSpecFile = "sandbox-task.json";
-        private String eventFile = "events.jsonl";
+        private String taskSpecFile = "task-spec.json";
+        private String eventFile = "runner-events.jsonl";
         private double cpus = 1.0;
         private long probeMemoryBytes = 268435456L;
         private Duration commandTimeout = Duration.ofSeconds(30);
