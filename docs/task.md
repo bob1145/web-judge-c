@@ -142,7 +142,7 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 | [ ] | TASK-07 | 会话环境绑定 | 03、06 |
 | [x] | TASK-08 | Worker HTTPS 真实认证 | 01、02；[TASK-08-C01]已核验 |
 | [x] | TASK-09 | Runner v2 与跨平台路径 | 01；[TASK-09-C01]真实提交核验后生效 |
-| [ ] | TASK-10 | 控制面身份隔离 | 09 |
+| [x] | TASK-10 | 控制面身份隔离 | 09 |
 | [ ] | TASK-11 | 增量事件读取与验真 | 09、10 |
 | [ ] | TASK-12 | 轮询预算与退出收尾 | 11 |
 | [ ] | TASK-13 | 在线输出限额 | 10、12 |
@@ -289,9 +289,9 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-10：可信控制面与不可信执行身份隔离
 
-- **状态/角色**：VERIFIED_PENDING_COMMIT；沙箱/操作系统安全工程师。按原卡完成Linux独立阶段身份/挂载隔离、宿主与runner双事件面、可信取消及持久归属防护；真实四角色权限负例、正常执行和取消控制路径已有证据。生产provider仍失败关闭，DEF-05/N2的整链关闭留11、25/29；完整域回收和重启收敛按原依赖分别留14、19，不以其扩大TASK-10。
+- **状态/角色**：DONE（实际提交a9d2e11768972977fec03e512a9dc02bd91f3ae7）；沙箱/操作系统安全工程师。按原卡完成Linux独立阶段身份/挂载隔离、宿主与runner双事件面、可信取消及持久归属防护；真实四角色权限负例、正常执行和取消控制路径已有证据。生产provider仍失败关闭，DEF-05/N2的整链关闭留11、25/29；完整域回收和重启收敛按原依赖分别留14、19，不以其扩大TASK-10。
 - **最近已验收切片（2026-10-06；历史）**：产品源码未改；新增严格受控故障Probe/验证器。R18编译2/2、195输入/306资产独立核验；R13真实unit0/103.318973秒，真实私有CLI连接失败和supervisor/stage实际rm之后的响应丢失注入，在同attempt由新JVM恢复。PID1742→2161→2697→3407与producer3893、5101→5669→6426，三条完整runtime/stages现场链接相等，七恢复PID互异；11次成功mutation严格完整ID回显，连接错误exit1/stdout空/stderr222字节。持久STOP_REQUESTED/REMOVAL_REQUESTED/stage REMOVING后才新进程重验，卷/控制证据保留，无删除凭据。R12旧==79前置门禁失败保留，修为严格==88后R03入口和R13辅助88+13+7过。不是真实daemon故障、所有步骤失败、活跃取消或完整卷/UNKNOWN/删除；新独立复核仍缺，完整任务不DONE、不提交。
-- **交付边界（2026-10-06）**：STAGE-R02四角色编译/执行、控制文件/工具/FD/进程/信号负例及四条宿主audit保存已核实；隔离命令/输入与task_runner/volume路径未改，后续journal/准入加固已有回归。JAVA-SUPERVISOR-R16真实Runner同JVM取消得到空0600可信marker、合作ExitCode20及USER实际CANCELLED/CLEANED/阶段回收，新JVM容器恢复和无操作重试通过。最新CANCEL-CONTROL-R03四套件470项/469过/0失败错误/1旧镜像skip，取消核心零skip；覆盖扫描后新增marker的锁内校验。R28全量Java2400过/1既有TASK-18失败/2环境skip、Python142/142，受影响Journal/Discovery以R03补验，不重复全量/冻结。R20/R16为其冻结版本，不冒称当前所有Java源码对应旧bundle。两卷/控制证据保留、UNKNOWN不猜失败、不发删除凭据、不释放待回收占用；未证明完整productRecovery/productionAcceptance，生产身份/代际/终结权限留25/28冻结。提交定位TASK-10-C01，父HEAD5f672c2，实际SHA提交后核验。
+- **交付边界（2026-10-06）**：STAGE-R02四角色编译/执行、控制文件/工具/FD/进程/信号负例及四条宿主audit保存已核实；隔离命令/输入与task_runner/volume路径未改，后续journal/准入加固已有回归。JAVA-SUPERVISOR-R16真实Runner同JVM取消得到空0600可信marker、合作ExitCode20及USER实际CANCELLED/CLEANED/阶段回收，新JVM容器恢复和无操作重试通过。最新CANCEL-CONTROL-R03四套件470项/469过/0失败错误/1旧镜像skip，取消核心零skip；覆盖扫描后新增marker的锁内校验。R28全量Java2400过/1既有TASK-18失败/2环境skip、Python142/142，受影响Journal/Discovery以R03补验，不重复全量/冻结。R20/R16为其冻结版本，不冒称当前所有Java源码对应旧bundle。两卷/控制证据保留、UNKNOWN不猜失败、不发删除凭据，受管目录删除仍阻断；全程调度/资源占用保留由12/14/19/21必验，不能以此证据冒称已证明；未证明完整productRecovery/productionAcceptance，生产身份/代际/终结权限留25/28冻结。提交定位TASK-10-C01，父HEAD5f672c2，实际SHAa9d2e11768972977fec03e512a9dc02bd91f3ae7已核验，未推送。
 - **需求/设计**：RQ-R03/AC-R03/T-R03、RQ-R04/AC-R04/T-R04；N2、DEF-05；D §4.1/4.2、§8.3、§9.2。
 - **依赖**：09；DEC-07确认实际执行域与监督器方案。
 - **设计目标/预期效果**：用户代码不能改可信事件、摘要、取消控制或工具，宿主审计与runner事件不共用可写流。

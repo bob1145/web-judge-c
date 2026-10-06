@@ -1,6 +1,6 @@
 # TASK-10 开发与验收记录
 
-最新检查点（2026-10-06）：可信marker、合作退出与Runner/Discovery接入已完成，锁内marker发现竞态已修；原TASK-10隔离开发验收达到VERIFIED_PENDING_COMMIT，提交定位TASK-10-C01。最新事实以docs/task.md及docs/work.md为准，下列轮次保持历史，不表示全项目或生产验收通过。
+最新检查点（2026-10-06）：可信marker、合作退出与Runner/Discovery接入已完成，锁内marker发现竞态已修；原TASK-10隔离开发验收已实际交付，真实提交a9d2e11768972977fec03e512a9dc02bd91f3ae7（TASK-10-C01），状态DONE。最新事实以docs/task.md及docs/work.md为准，下列轮次保持历史，不表示全项目或生产验收通过。
 
 当前交付边界：STAGE-R02真实四角色/编译器控制面负例和正常执行，R16真实同JVM取消及新JVM容器恢复，CANCEL-CONTROL-R03定向470项/469过/0失败错误/1旧镜像skip、核心零skip。R28全量Java2400过/1既有TASK-18失败/2环境skip、Python142/142；受影响两模块以R03补验，不重复有效实验。完整资源回收、UNKNOWN收敛及生产参数分别归14/19/25/28，R14差异归27；受管占用/两卷/控制证据保留，productionSafe仍失败关闭，DEF-05/N2待整链关闭。
 

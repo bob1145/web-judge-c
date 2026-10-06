@@ -298,7 +298,7 @@ Python已有合作取消协议：`task_runner`检查attempt目录的`cancel.requ
 
 ## 15. 当前接续：TASK-10隔离交付与TASK-11（2026-10-06）
 
-- 沿用原active Goal和完整30任务/31缺陷；TASK-10-C01为VERIFIED_PENDING_COMMIT，先核验其唯一真实本地提交及task/work，再将前置视为满足；不得伪填SHA、push或提前complete。
+- 沿用原active Goal和完整30任务/31缺陷；TASK-10-C01真实提交a9d2e11768972977fec03e512a9dc02bd91f3ae7已核验，10为DONE、进度6/30。09/10前置满足，继续11；不得push或提前complete。
 - 当前可信取消不是占位：Journal/Launcher/Runner/Discovery均接入，锁内marker时序竞态已修。最新定向CANCEL-CONTROL-R03为470项/469过/0失败错误/1旧镜像skip、核心零skip；R28 Java2400过/1既有TASK-18失败/2环境skip、Python142/142。
 - 可复用STAGE-R02四角色真实控制面负例、正常编译和双事件面，以及R16真实同JVM取消/合作ExitCode20/USER CANCELLED+CLEANED/实际阶段回收及新JVM重试。R20/R16只代表各自冻结源码；新Java改动以R03补验，不冒称旧bundle是完整当前产物。
 - 原卡边界：11负责增量有界事件/验真；14负责整域预算与剩余卷资源回收；19负责全部非终态及UNKNOWN权威收敛；25/28冻结生产UID-GID/代际/专属域权限；27保留R14未定位差异。待回收占用和证据不释放，生产provider继续关闭。
