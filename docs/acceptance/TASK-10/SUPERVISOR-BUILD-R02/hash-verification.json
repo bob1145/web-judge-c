@@ -1,0 +1,62 @@
+[
+  {
+    "path": "runtime_preflight.py",
+    "expected": "c2240e33293af126b6ee5cf76905a8160659b0b7f7d207fa48f98c5e5a38e3ca",
+    "actual": "c2240e33293af126b6ee5cf76905a8160659b0b7f7d207fa48f98c5e5a38e3ca",
+    "matches": true
+  },
+  {
+    "path": "test_runtime_preflight.py",
+    "expected": "89046288df8bf21c946c74c1d340cd3d16d194c286c28261e5a15b22d0fa36ec",
+    "actual": "89046288df8bf21c946c74c1d340cd3d16d194c286c28261e5a15b22d0fa36ec",
+    "matches": true
+  },
+  {
+    "path": "supervisor-build/Dockerfile",
+    "expected": "eda4f7d29d30e753cbdbd1f28da6242a3b84cc9726aec62065910712f4f651e8",
+    "actual": "eda4f7d29d30e753cbdbd1f28da6242a3b84cc9726aec62065910712f4f651e8",
+    "matches": true
+  },
+  {
+    "path": "supervisor-build/.dockerignore",
+    "expected": "40553deb76411344505365714c5138620d677854910b14806d45bffe9866feeb",
+    "actual": "40553deb76411344505365714c5138620d677854910b14806d45bffe9866feeb",
+    "matches": true
+  },
+  {
+    "path": "supervisor-build/sources/SHA256SUMS",
+    "expected": "f42d9a7271ff8e02a5a835872eb410da90db83d7daddbf20808ba107ff6c8eab",
+    "actual": "f42d9a7271ff8e02a5a835872eb410da90db83d7daddbf20808ba107ff6c8eab",
+    "matches": true
+  },
+  {
+    "path": "supervisor-build/sources/linux_stage_executor.py",
+    "expected": "3ed43259e204ee71dacb727f16261a3030dd27dcefadb6434a552f37fd0a9e2f",
+    "actual": "3ed43259e204ee71dacb727f16261a3030dd27dcefadb6434a552f37fd0a9e2f",
+    "matches": true
+  },
+  {
+    "path": "supervisor-build/sources/linux_stage_volume.py",
+    "expected": "cded2b9db09dca3d7714a5117c483ede3d346f9570eacd5ebff809cedf87f90e",
+    "actual": "cded2b9db09dca3d7714a5117c483ede3d346f9570eacd5ebff809cedf87f90e",
+    "matches": true
+  },
+  {
+    "path": "supervisor-build/sources/linux_supervisor.py",
+    "expected": "bd2ab7d4c0b407ab438fb7fbec1a1c5d8801043aa7f16f9f931681ba96ce8ae4",
+    "actual": "bd2ab7d4c0b407ab438fb7fbec1a1c5d8801043aa7f16f9f931681ba96ce8ae4",
+    "matches": true
+  },
+  {
+    "path": "supervisor-build/sources/runner_manifest.py",
+    "expected": "92ff4ca050ba4aa89a573dbcfb6fc7e48fabdea31fc0cf95a80939cbb3d4294f",
+    "actual": "92ff4ca050ba4aa89a573dbcfb6fc7e48fabdea31fc0cf95a80939cbb3d4294f",
+    "matches": true
+  },
+  {
+    "path": "supervisor-build/sources/task_runner.py",
+    "expected": "bef3a6bedd2f00e8e2e8ddc2816e01b49444979f9736a2ccd1835937f872562a",
+    "actual": "bef3a6bedd2f00e8e2e8ddc2816e01b49444979f9736a2ccd1835937f872562a",
+    "matches": true
+  }
+]

@@ -1,5 +1,16 @@
 # Windows Sandbox Runbook
 
+## Current release gate
+
+The Windows adapter is not accepted for untrusted production execution. Its
+shared control domain reports `controlPlaneIsolated=false` and
+`productionSafe=false`; `start` rejects every profile other than the exact
+`trusted-local` development profile before writing a manifest or invoking Docker.
+Windows production startup validates the actual selected runner probe, regardless
+of manual probe flags. Hyper-V alone does not isolate trusted runner control
+files and processes from its children. The remaining sections are target
+requirements, not evidence of supported production deployment.
+
 This runbook covers the `windows-prod` provider for production judging on
 Windows. The production boundary is a Windows container with Hyper-V isolation.
 Host process execution, Windows process isolation, and Job Object-only sandboxing

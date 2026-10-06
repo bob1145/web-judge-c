@@ -5,6 +5,18 @@ production. Do not serve public or multi-user traffic until the selected
 profile passes its capability smoke on the actual host or worker used for
 deployment.
 
+## TASK-10 development gate (2026-10-03)
+
+The current Linux shared-workdir adapter is not production-capable. Linux
+startup now checks the actual selected runner for trusted control-plane
+isolation and the other required capabilities; configuration-only probe
+approval cannot override a failed or unavailable result. Non-trusted-local
+calls to the legacy Linux execution path are rejected before writing a
+manifest or launching a task. The independent execution-unit implementation
+and real isolation acceptance are still pending; this gate is not completion
+of TASK-10 or release approval. Do not switch to trusted-local to bypass it.
+Other providers still require their own real acceptance evidence.
+
 ## Profiles
 
 ### trusted-local
@@ -23,6 +35,14 @@ warn about a default access code, wildcard origin, disabled sandbox, and direct
 runner behavior; those warnings are blockers outside local development.
 
 ### windows-prod
+
+Current status: disabled for untrusted production execution. The legacy Windows
+adapter shares its control domain with workload processes and explicitly reports
+`controlPlaneIsolated=false` and `productionSafe=false`. Hyper-V and a configured
+`capability-probe-passed=true` cannot override this rejection. Startup consumes
+the selected runner probe; missing, failed or contradictory results fail closed.
+The configuration and validation checklist below describe target requirements,
+not an accepted Windows implementation. Do not bypass by selecting trusted-local.
 
 Use for a Windows deployment only when Windows containers run with Hyper-V
 isolation.
@@ -93,7 +113,9 @@ Required evidence:
 - The task runs as a non-root user with a read-only root filesystem.
 - seccomp and AppArmor are enabled, or an explicitly documented equivalent is
   enabled by the host platform.
-- Path isolation mounts only the task work directory at `/work`.
+- Untrusted execution units must not receive the whole task work directory:
+  expose only stage-specific inputs and scratch, never host audit or control
+  files. The legacy whole-workdir mount does not satisfy this requirement.
 - Direct Linux process execution is rejected for production.
 - Default access code and wildcard origin are rejected by startup validation.
 

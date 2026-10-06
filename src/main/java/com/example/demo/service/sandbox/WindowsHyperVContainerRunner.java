@@ -125,11 +125,13 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
             if (!cleanupConfirmed) {
                 reasons.add("container cleanup confirmation is required");
             }
+            reasons.add("control-plane isolation is not implemented by the shared-workdir runner");
             boolean productionSafe = reasons.isEmpty();
             return SandboxCapabilities.builder()
                     .provider(PROVIDER)
                     .isolation(inspectInfo.isolation())
                     .productionSafe(productionSafe)
+                    .controlPlaneIsolated(false)
                     .networkDisabled(inspectInfo.networkDisabled())
                     .nonRoot(!"ContainerAdministrator".equalsIgnoreCase(options.containerUser()))
                     .resourceLimits(inspectInfo.memoryLimited() && probeInfo.jobObjectProcessTreeEnabled())
@@ -163,6 +165,9 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
 
     @Override
     public SandboxRunHandle start(SandboxTaskSpec spec) {
+        if (!"trusted-local".equals(spec.profile())) {
+            throw new IllegalStateException("Windows execution outside trusted-local requires control-plane isolation");
+        }
         try {
             SandboxManifestFactory.Prepared prepared = SandboxManifestFactory.prepare(spec);
             Path workDir = prepared.workDir();

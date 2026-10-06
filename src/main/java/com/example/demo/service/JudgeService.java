@@ -29,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -262,7 +263,6 @@ public class JudgeService {
 
         try {
             tempDir = resolveTaskWorkDir(judgeId);
-            Files.createDirectories(tempDir);
 
             safeSendMessage(topic, new JudgeProgress("PENDING", "创建临时目录...", 0));
             if (cancellationToken.isCancellationRequested()) {
@@ -280,11 +280,9 @@ public class JudgeService {
             try {
                 safeSendMessage(topic, new JudgeProgress("COMPILING", "正在编译代码...", 5));
 
-                Path genSource = tempDir.resolve("generator.cpp");
-                Files.writeString(genSource, request.getGeneratorCode());
-
-                Path userSource = tempDir.resolve("user.cpp");
-                Files.writeString(userSource, request.getUserCode());
+                Map<SandboxTaskSpec.SourceRole, Path> sources = prepareTaskSources(request, judgeId, tempDir);
+                Path genSource = sources.get(SandboxTaskSpec.SourceRole.GENERATOR);
+                Path userSource = sources.get(SandboxTaskSpec.SourceRole.USER);
 
                 CompletableFuture<Path> genFuture = CompletableFuture.supplyAsync(() -> compile(genSource, "generator", policy), testCaseExecutor);
                 CompletableFuture<Path> userFuture = CompletableFuture.supplyAsync(() -> compile(userSource, "user", policy), testCaseExecutor);
@@ -293,13 +291,11 @@ public class JudgeService {
                 CompletableFuture<Path> judgeExecutableFuture;
                 if (request.isUseSpecialJudge() && request.getSpecialJudgeCode() != null && !request.getSpecialJudgeCode().trim().isEmpty()) {
                     // 编译Special Judge代码
-                    Path spjSource = tempDir.resolve("special_judge.cpp");
-                    Files.writeString(spjSource, request.getSpecialJudgeCode());
+                    Path spjSource = sources.get(SandboxTaskSpec.SourceRole.SPECIAL_JUDGE);
                     judgeExecutableFuture = CompletableFuture.supplyAsync(() -> compile(spjSource, "special_judge", policy), testCaseExecutor);
                 } else {
                     // 编译Brute Force代码
-                    Path bfSource = tempDir.resolve("bruteforce.cpp");
-                    Files.writeString(bfSource, request.getBruteForceCode());
+                    Path bfSource = sources.get(SandboxTaskSpec.SourceRole.ORACLE);
                     judgeExecutableFuture = CompletableFuture.supplyAsync(() -> compile(bfSource, "bruteforce", policy), testCaseExecutor);
                 }
 
@@ -331,7 +327,7 @@ public class JudgeService {
                         totalTestCases,
                         policy,
                         cancellationToken,
-                        caseNumber -> runTestCase(caseNumber, request, policy, finalTempDir, genExecutable, userExecutable, judgeExecutable),
+                        caseNumber -> runTestCase(caseNumber, judgeId, request, policy, finalTempDir, genExecutable, userExecutable, judgeExecutable),
                         result -> {
                             resultAggregator.accept(result);
                             schedulerContext.recordCompletedCase();
@@ -494,8 +490,7 @@ public class JudgeService {
             ResolvedTaskPolicy policy,
             Path workDir
     ) throws IOException {
-        Path generatorSource = writeSource(workDir, "generator.cpp", request.getGeneratorCode());
-        Path userSource = writeSource(workDir, "user.cpp", request.getUserCode());
+        Map<SandboxTaskSpec.SourceRole, Path> sources = prepareTaskSources(request, judgeId, workDir);
 
         SandboxTaskSpec.Builder builder = SandboxTaskSpec.builder()
                 .judgeId(judgeId)
@@ -503,8 +498,8 @@ public class JudgeService {
                 .profile(policy.profile())
                 .storageBase(storageBaseFor(workDir))
                 .workDir(workDir)
-                .sourcePath(SandboxTaskSpec.SourceRole.GENERATOR, generatorSource)
-                .sourcePath(SandboxTaskSpec.SourceRole.USER, userSource)
+                .sourcePath(SandboxTaskSpec.SourceRole.GENERATOR, sources.get(SandboxTaskSpec.SourceRole.GENERATOR))
+                .sourcePath(SandboxTaskSpec.SourceRole.USER, sources.get(SandboxTaskSpec.SourceRole.USER))
                 .testCases(policy.requestedCases())
                 .comparison(policy.comparison())
                 .caseTimeLimit(policy.caseTimeLimit())
@@ -521,12 +516,12 @@ public class JudgeService {
         if (request.isUseSpecialJudge() && request.getSpecialJudgeCode() != null && !request.getSpecialJudgeCode().trim().isEmpty()) {
             builder.sourcePath(
                     SandboxTaskSpec.SourceRole.SPECIAL_JUDGE,
-                    writeSource(workDir, "special_judge.cpp", request.getSpecialJudgeCode())
+                    sources.get(SandboxTaskSpec.SourceRole.SPECIAL_JUDGE)
             );
         } else {
             builder.sourcePath(
                     SandboxTaskSpec.SourceRole.ORACLE,
-                    writeSource(workDir, "bruteforce.cpp", request.getBruteForceCode())
+                    sources.get(SandboxTaskSpec.SourceRole.ORACLE)
             );
         }
         return builder.build();
@@ -558,9 +553,40 @@ public class JudgeService {
         }
     }
 
-    private Path writeSource(Path workDir, String filename, String source) throws IOException {
+    private Map<SandboxTaskSpec.SourceRole, Path> prepareTaskSources(
+            JudgeRequest request, String judgeId, Path workDir
+    ) throws IOException {
+        try (TaskLifecycleGuard.Lease admission = TaskLifecycleGuard.acquire(workDir.getParent(), false)) {
+            requireTaskWorkDir(judgeId, workDir, admission);
+            Map<SandboxTaskSpec.SourceRole, Path> sources = new EnumMap<>(SandboxTaskSpec.SourceRole.class);
+            sources.put(SandboxTaskSpec.SourceRole.GENERATOR,
+                    writeSource(admission, workDir, "generator.cpp", request.getGeneratorCode()));
+            sources.put(SandboxTaskSpec.SourceRole.USER,
+                    writeSource(admission, workDir, "user.cpp", request.getUserCode()));
+            if (request.isUseSpecialJudge() && request.getSpecialJudgeCode() != null
+                    && !request.getSpecialJudgeCode().trim().isEmpty()) {
+                sources.put(SandboxTaskSpec.SourceRole.SPECIAL_JUDGE,
+                        writeSource(admission, workDir, "special_judge.cpp", request.getSpecialJudgeCode()));
+            } else {
+                sources.put(SandboxTaskSpec.SourceRole.ORACLE,
+                        writeSource(admission, workDir, "bruteforce.cpp", request.getBruteForceCode()));
+            }
+            return Map.copyOf(sources);
+        }
+    }
+
+    private Path writeTaskFile(String judgeId, Path workDir, String filename, String content) throws IOException {
+        try (TaskLifecycleGuard.Lease admission = TaskLifecycleGuard.acquire(workDir.getParent(), false)) {
+            requireTaskWorkDir(judgeId, workDir, admission);
+            return writeSource(admission, workDir, filename, content);
+        }
+    }
+
+    private Path writeSource(TaskLifecycleGuard.Lease admission, Path workDir, String filename, String source) throws IOException {
+        admission.requireTaskDirectory(workDir);
         Path sourcePath = workDir.resolve(filename);
         Files.writeString(sourcePath, source == null ? "" : source);
+        admission.requireTaskDirectory(workDir);
         return sourcePath;
     }
 
@@ -572,7 +598,7 @@ public class JudgeService {
         return parent == null ? workDir.toAbsolutePath().normalize() : parent;
     }
 
-    private TestCaseResult runTestCase(int caseNumber, JudgeRequest request, ResolvedTaskPolicy policy, Path tempDir, Path genExecutable, Path userExecutable, Path judgeExecutable) {
+    private TestCaseResult runTestCase(int caseNumber, String judgeId, JudgeRequest request, ResolvedTaskPolicy policy, Path tempDir, Path genExecutable, Path userExecutable, Path judgeExecutable) {
         try {
             Path inputFile = tempDir.resolve(caseNumber + ".in");
             Path userOutputFile = tempDir.resolve(caseNumber + ".out");
@@ -600,7 +626,7 @@ public class JudgeService {
             // 根据是否启用Special Judge选择不同的判题逻辑
             if (request.isUseSpecialJudge() && request.getSpecialJudgeCode() != null && !request.getSpecialJudgeCode().trim().isEmpty()) {
                 // 使用Special Judge进行判题
-                return runSpecialJudge(caseNumber, request, policy, tempDir, judgeExecutable, inputFile, userOutputFile, userResult);
+                return runSpecialJudge(caseNumber, judgeId, request, policy, tempDir, judgeExecutable, inputFile, userOutputFile, userResult);
             } else {
                 // 使用Brute Force进行判题
                 return runBruteForceJudge(caseNumber, request, policy, tempDir, judgeExecutable, inputFile, userOutputFile, userResult);
@@ -621,7 +647,7 @@ public class JudgeService {
     /**
      * 使用Special Judge进行判题
      */
-    private TestCaseResult runSpecialJudge(int caseNumber, JudgeRequest request, ResolvedTaskPolicy policy, Path tempDir, Path spjExecutable,
+    private TestCaseResult runSpecialJudge(int caseNumber, String judgeId, JudgeRequest request, ResolvedTaskPolicy policy, Path tempDir, Path spjExecutable,
                                          Path inputFile, Path userOutputFile, ProcessResult userResult) throws IOException, InterruptedException {
         // Special Judge通常接受三个参数：输入文件、用户输出文件、标准输出文件（可选）
         // 这里我们只传递输入文件和用户输出文件，SPJ程序负责验证输出是否正确
@@ -629,9 +655,8 @@ public class JudgeService {
         
         long spjTimeLimit = policy.caseTimeLimit().toMillis() * 2;
         // 为SPJ创建参数文件，传递必要信息
-        Path spjArgsFile = tempDir.resolve(caseNumber + ".spj_args");
         String args = String.format("%s\n%s\n", inputFile.toAbsolutePath(), userOutputFile.toAbsolutePath());
-        Files.writeString(spjArgsFile, args);
+        Path spjArgsFile = writeTaskFile(judgeId, tempDir, caseNumber + ".spj_args", args);
         
         // 重新运行SPJ，这次传递参数文件
         ProcessResult spjResult = runProcess(
@@ -693,11 +718,25 @@ public class JudgeService {
     }
 
     private Path resolveTaskWorkDir(String judgeId) throws IOException {
-        Optional<JudgeTask> task = taskStore.find(judgeId);
-        if (task.isPresent()) {
-            return Path.of(task.get().getWorkDir()).toAbsolutePath().normalize();
+        Path workDir = taskStore.taskDirectory(judgeId);
+        try (TaskLifecycleGuard.Lease admission = TaskLifecycleGuard.acquire(workDir.getParent(), false)) {
+            requireTaskWorkDir(judgeId, workDir, admission);
+            return workDir;
         }
-        return taskStore.taskDirectory(judgeId);
+    }
+
+    private void requireTaskWorkDir(String judgeId, Path workDir, TaskLifecycleGuard.Lease admission) throws IOException {
+        if (!workDir.equals(taskStore.taskDirectory(judgeId))) {
+            throw new IOException("Task work directory does not match its storage identity");
+        }
+        admission.requireTaskDirectory(workDir);
+        JudgeTask task = taskStore.find(judgeId)
+                .orElseThrow(() -> new IOException("Task must be explicitly created before execution"));
+        if (!judgeId.equals(task.getJudgeId()) || task.getWorkDir() == null
+                || !workDir.equals(Path.of(task.getWorkDir()))) {
+            throw new IOException("Task metadata does not match its storage identity");
+        }
+        admission.requireTaskDirectory(workDir);
     }
 
     private boolean outputsMatch(String userOutput, String bfOutput, double precision) {

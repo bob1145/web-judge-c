@@ -1,0 +1,197 @@
+{
+  "Id" : "96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630",
+  "Created" : "2026-10-06T10:36:26.041010431Z",
+  "Path" : "python3",
+  "Args" : [ "-B", "/opt/web-judge/linux_supervisor.py", "/work/control/attempts/d031c810-3e93-44cc-a639-ce5694e31588/task-spec.json", "--work-root", "/work", "--stage-config", "/work/control/attempts/d031c810-3e93-44cc-a639-ce5694e31588/supervisor-config.json", "--config-owner-uid", "0" ],
+  "State" : {
+    "Status" : "exited",
+    "Running" : false,
+    "Paused" : false,
+    "Restarting" : false,
+    "OOMKilled" : false,
+    "Dead" : false,
+    "Pid" : 0,
+    "ExitCode" : 20,
+    "Error" : "",
+    "StartedAt" : "2026-10-06T10:36:26.315977802Z",
+    "FinishedAt" : "2026-10-06T10:36:30.56046901Z"
+  },
+  "Image" : "sha256:6f7e70984cfff475fdd0fecc315cc7620c16b8f0e0faa23a22414b7271bbd901",
+  "ResolvConfPath" : "/var/lib/wjc/docker/containers/96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630/resolv.conf",
+  "HostnamePath" : "/var/lib/wjc/docker/containers/96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630/hostname",
+  "HostsPath" : "/var/lib/wjc/docker/containers/96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630/hosts",
+  "LogPath" : "",
+  "Name" : "/wjc-supervisor-d031c810-3e93-44cc-a639-ce5694e31588",
+  "RestartCount" : 0,
+  "Driver" : "vfs",
+  "Platform" : "linux",
+  "MountLabel" : "",
+  "ProcessLabel" : "",
+  "AppArmorProfile" : "",
+  "ExecIDs" : null,
+  "HostConfig" : {
+    "Binds" : null,
+    "ContainerIDFile" : "",
+    "LogConfig" : {
+      "Type" : "none",
+      "Config" : { }
+    },
+    "NetworkMode" : "none",
+    "PortBindings" : { },
+    "RestartPolicy" : {
+      "Name" : "no",
+      "MaximumRetryCount" : 0
+    },
+    "AutoRemove" : false,
+    "VolumeDriver" : "",
+    "VolumesFrom" : null,
+    "ConsoleSize" : [ 0, 0 ],
+    "CapAdd" : null,
+    "CapDrop" : [ "ALL" ],
+    "CgroupnsMode" : "private",
+    "Dns" : null,
+    "DnsOptions" : [ ],
+    "DnsSearch" : [ ],
+    "ExtraHosts" : null,
+    "GroupAdd" : null,
+    "IpcMode" : "private",
+    "Cgroup" : "",
+    "Links" : null,
+    "OomScoreAdj" : 0,
+    "PidMode" : "",
+    "Privileged" : false,
+    "PublishAllPorts" : false,
+    "ReadonlyRootfs" : true,
+    "SecurityOpt" : [ "no-new-privileges" ],
+    "UTSMode" : "",
+    "UsernsMode" : "",
+    "ShmSize" : 67108864,
+    "Runtime" : "runc",
+    "Isolation" : "",
+    "CpuShares" : 0,
+    "Memory" : 268435456,
+    "NanoCpus" : 500000000,
+    "CgroupParent" : "",
+    "BlkioWeight" : 0,
+    "BlkioWeightDevice" : [ ],
+    "BlkioDeviceReadBps" : [ ],
+    "BlkioDeviceWriteBps" : [ ],
+    "BlkioDeviceReadIOps" : [ ],
+    "BlkioDeviceWriteIOps" : [ ],
+    "CpuPeriod" : 0,
+    "CpuQuota" : 0,
+    "CpuRealtimePeriod" : 0,
+    "CpuRealtimeRuntime" : 0,
+    "CpusetCpus" : "",
+    "CpusetMems" : "",
+    "Devices" : [ ],
+    "DeviceCgroupRules" : null,
+    "DeviceRequests" : null,
+    "MemoryReservation" : 0,
+    "MemorySwap" : 268435456,
+    "MemorySwappiness" : null,
+    "OomKillDisable" : null,
+    "PidsLimit" : 64,
+    "Ulimits" : [ ],
+    "CpuCount" : 0,
+    "CpuPercent" : 0,
+    "IOMaximumIOps" : 0,
+    "IOMaximumBandwidth" : 0,
+    "Mounts" : [ {
+      "Type" : "bind",
+      "Source" : "/lab/java-storage/judge-task10-java-active-recovery",
+      "Target" : "/work"
+    }, {
+      "Type" : "volume",
+      "Source" : "wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588",
+      "Target" : "/var/lib/wjc/docker/volumes/wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588/_data",
+      "VolumeOptions" : {
+        "NoCopy" : true,
+        "DriverConfig" : { }
+      }
+    }, {
+      "Type" : "bind",
+      "Source" : "/run/wjc/docker.sock",
+      "Target" : "/run/wjc/docker.sock"
+    } ],
+    "MaskedPaths" : [ "/proc/acpi", "/proc/asound", "/proc/interrupts", "/proc/kcore", "/proc/keys", "/proc/latency_stats", "/proc/sched_debug", "/proc/scsi", "/proc/timer_list", "/proc/timer_stats", "/sys/devices/virtual/powercap", "/sys/firmware" ],
+    "ReadonlyPaths" : [ "/proc/bus", "/proc/fs", "/proc/irq", "/proc/sys", "/proc/sysrq-trigger" ]
+  },
+  "GraphDriver" : {
+    "Data" : {
+      "ID" : "96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630",
+      "SourceDir" : "/var/lib/wjc/docker/vfs/dir/1fc876b659d67e2145eb1e36a6a4ab60b78e57a96d98cfdbf8d862d1a36c5e7a"
+    },
+    "Name" : "vfs"
+  },
+  "Mounts" : [ {
+    "Type" : "bind",
+    "Source" : "/lab/java-storage/judge-task10-java-active-recovery",
+    "Destination" : "/work",
+    "Mode" : "",
+    "RW" : true,
+    "Propagation" : "rprivate"
+  }, {
+    "Type" : "volume",
+    "Name" : "wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588",
+    "Source" : "/var/lib/wjc/docker/volumes/wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588/_data",
+    "Destination" : "/var/lib/wjc/docker/volumes/wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588/_data",
+    "Driver" : "local",
+    "Mode" : "z",
+    "RW" : true,
+    "Propagation" : ""
+  }, {
+    "Type" : "bind",
+    "Source" : "/run/wjc/docker.sock",
+    "Destination" : "/run/wjc/docker.sock",
+    "Mode" : "",
+    "RW" : true,
+    "Propagation" : "rprivate"
+  } ],
+  "Config" : {
+    "Hostname" : "96195eee1385",
+    "Domainname" : "",
+    "User" : "0:0",
+    "AttachStdin" : false,
+    "AttachStdout" : true,
+    "AttachStderr" : true,
+    "Tty" : false,
+    "OpenStdin" : false,
+    "StdinOnce" : false,
+    "Env" : [ "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL=C", "PYTHONDONTWRITEBYTECODE=1", "PYTHONUNBUFFERED=1" ],
+    "Cmd" : [ "/work/control/attempts/d031c810-3e93-44cc-a639-ce5694e31588/task-spec.json", "--work-root", "/work", "--stage-config", "/work/control/attempts/d031c810-3e93-44cc-a639-ce5694e31588/supervisor-config.json", "--config-owner-uid", "0" ],
+    "Image" : "sha256:6f7e70984cfff475fdd0fecc315cc7620c16b8f0e0faa23a22414b7271bbd901",
+    "Volumes" : null,
+    "WorkingDir" : "/opt/web-judge",
+    "Entrypoint" : [ "python3", "-B", "/opt/web-judge/linux_supervisor.py" ],
+    "Labels" : {
+      "io.webjudge.attempt" : "d031c810-3e93-44cc-a639-ce5694e31588",
+      "io.webjudge.judge" : "task10-java-active-recovery",
+      "io.webjudge.managed" : "supervisor"
+    }
+  },
+  "NetworkSettings" : {
+    "SandboxID" : "",
+    "SandboxKey" : "",
+    "Ports" : { },
+    "Networks" : {
+      "none" : {
+        "IPAMConfig" : null,
+        "Links" : null,
+        "Aliases" : null,
+        "DriverOpts" : null,
+        "GwPriority" : 0,
+        "NetworkID" : "3cd1939f37dff12bf4f063967ffc42ea724f9b2a503bffa28c27548608a00a81",
+        "EndpointID" : "",
+        "Gateway" : "",
+        "IPAddress" : "",
+        "MacAddress" : "",
+        "IPPrefixLen" : 0,
+        "IPv6Gateway" : "",
+        "GlobalIPv6Address" : "",
+        "GlobalIPv6PrefixLen" : 0,
+        "DNSNames" : null
+      }
+    }
+  }
+}

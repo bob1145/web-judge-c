@@ -4,12 +4,20 @@ This runbook covers the `linux-prod` provider for production judging. The
 service must not serve untrusted C++ tasks in `linux-prod` unless the capability
 probe and smoke checks pass on the real deployment host.
 
+TASK-10 development status (2026-10-03): the current shared-workdir adapter
+explicitly lacks trusted control-plane isolation and cannot start production
+tasks. Setting capability-probe-passed=true or capability-probe-required=false
+does not override the actual runner probe. The implementation and real
+acceptance of separate trusted supervision and execution units remain pending.
+The historical configuration examples below are not an enablement procedure
+for the current adapter; never bypass this gate using trusted-local.
+
 ## Scope
 
 - Provider: `judge.sandbox.production.provider=linux-container`
 - Isolation: Linux container engine, not host `ProcessBuilder`
 - Required controls: `--network none`, non-root container user, cgroup memory/CPU/pids limits, read-only root filesystem, tmpfs for writable runtime paths, `no-new-privileges`, seccomp/AppArmor or an equivalent enforced LSM policy
-- Task execution: the web process starts a container and mounts only the judge work directory at `/work`. The in-container runner command is `/opt/judge-runner/run-task /work/sandbox-task.json`.
+- Target execution: a trusted supervisor manages separate untrusted execution units with only stage-specific inputs and scratch. The legacy whole-workdir mount is available only for trusted-local contract development, not production isolation.
 
 Windows note: Windows development machines may run this probe through Docker
 Desktop's Linux engine, but production Windows hosting should use the Windows

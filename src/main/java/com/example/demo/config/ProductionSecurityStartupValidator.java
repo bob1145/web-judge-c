@@ -1,9 +1,12 @@
 package com.example.demo.config;
 
+import com.example.demo.dto.SandboxCapabilities;
+import com.example.demo.service.sandbox.SandboxRunner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -30,6 +33,7 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
     private final SandboxProperties sandboxProperties;
     private final WebSocketConfig webSocketConfig;
     private final WorkerProperties workerProperties;
+    private final ObjectProvider<SandboxRunner> sandboxRunners;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
@@ -72,6 +76,7 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
         if (sandboxProperties.getIsolation() != SandboxProperties.Isolation.HYPER_V) {
             risks.add("isolation must be hyper-v");
         }
+        validateContainerRunner(risks, "windows-container", "hyperv");
     }
 
     private void validateLinuxProd(List<String> risks) {
@@ -81,6 +86,29 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
         }
         if (!StringUtils.hasText(sandboxProperties.getSecurityProfile())) {
             risks.add("security profile is required");
+        }
+        validateContainerRunner(risks, "linux-container", "container");
+    }
+
+    private void validateContainerRunner(List<String> risks, String provider, String isolation) {
+        SandboxCapabilities capabilities;
+        try {
+            SandboxRunner runner = sandboxRunners.getIfAvailable();
+            capabilities = runner == null ? null : runner.probe();
+        } catch (RuntimeException exception) {
+            risks.add(provider + " control-plane isolation capability probe failed");
+            return;
+        }
+        if (capabilities == null) {
+            risks.add(provider + " control-plane isolation capability probe is unavailable");
+            return;
+        }
+        if (!provider.equals(capabilities.provider())
+                || !isolation.equals(capabilities.isolation())
+                || !capabilities.productionSafe() || !capabilities.controlPlaneIsolated()
+                || !capabilities.networkDisabled() || !capabilities.nonRoot() || !capabilities.resourceLimits()
+                || !StringUtils.hasText(capabilities.securityProfile())) {
+            risks.add(provider + " control-plane isolation and production safety must be verified by the runner");
         }
     }
 
@@ -107,7 +135,9 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
         if (sandboxProperties.getProvider() == SandboxProperties.Provider.DIRECT) {
             risks.add("direct sandbox provider is not allowed");
         }
-        if (sandboxProperties.isCapabilityProbeRequired() && !sandboxProperties.isCapabilityProbePassed()) {
+        if (!LINUX_PROD.equals(normalizedProfile())
+                && !WINDOWS_PROD.equals(normalizedProfile())
+                && sandboxProperties.isCapabilityProbeRequired() && !sandboxProperties.isCapabilityProbePassed()) {
             risks.add("sandbox capability probe has not passed");
         }
         if (executionProperties.getMaxOutputBytesPerCase() <= 0) {

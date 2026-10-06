@@ -1,16 +1,21 @@
 package com.example.demo;
 
 import com.example.demo.config.ExecutionProperties;
+import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
 import com.example.demo.service.FileTaskStore;
 import com.example.demo.service.ResolvedTaskPolicy;
 import com.example.demo.service.TaskCleanupService;
+import com.example.demo.service.sandbox.SandboxRunner;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,10 +23,14 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class TaskCleanupServiceTest {
 
@@ -122,6 +131,98 @@ class TaskCleanupServiceTest {
         assertThat(source)
                 .doesNotContain("FileUtils.deleteDirectory")
                 .doesNotContain("CompletableFuture.delayedExecutor(30, TimeUnit.MINUTES)");
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "COMPLETED, false, absent",
+            "COMPLETED, true, confirmed-supervisor-id",
+            "SYSTEM_ERROR, false, absent",
+            "STALE, true, null",
+            "SYSTEM_ERROR, true, blank"
+    })
+    void expiredManagedEvidenceSurvivesMissingOrSuccessfullyCleanedHandle(
+            JudgeStatus status, boolean hasHandle, String runIdKind
+    ) throws Exception {
+        FileTaskStore store = store();
+        SandboxRunner runner = mock(SandboxRunner.class);
+        TaskCleanupService cleanupService = new TaskCleanupService(store, cleanupProperties(), Optional.of(runner));
+        Instant now = Instant.parse("2026-07-02T12:00:00Z");
+        String managedId = createTask(store, status, now.minus(Duration.ofHours(2)), now.minus(Duration.ofMinutes(31)));
+        String legacyId = createTask(store, JudgeStatus.COMPLETED, now.minus(Duration.ofHours(2)), now.minus(Duration.ofMinutes(11)));
+        String ordinaryId = createTask(store, JudgeStatus.COMPLETED, now.minus(Duration.ofHours(2)), now.minus(Duration.ofMinutes(11)));
+        SandboxRunHandle handle = SandboxRunHandle.builder()
+                .judgeId(managedId)
+                .runId("null".equals(runIdKind) ? null : "blank".equals(runIdKind) ? "" : runIdKind)
+                .provider("linux-container")
+                .build();
+        if (hasHandle) {
+            store.saveRunHandle(managedId, handle);
+        }
+        Path workDir = store.taskDirectory(managedId);
+        Path journal = workDir.resolve("control/attempts/not-a-uuid/stage-journal/late-create.json");
+        Files.createDirectories(journal.getParent());
+        Files.writeString(journal, "{\"state\":\"CREATE_UNKNOWN\"}");
+        Path legacyManifest = store.taskDirectory(legacyId).resolve("control/attempts/legacy/manifest.json");
+        Files.createDirectories(legacyManifest.getParent());
+        Files.writeString(legacyManifest, "{}");
+        String metadata = Files.readString(workDir.resolve("metadata.json"));
+        String events = Files.readString(workDir.resolve("events.jsonl"));
+
+        TaskCleanupService.CleanupReport report = cleanupService.cleanupExpiredTasks(now);
+
+        assertThat(report.inspectedTasks()).isEqualTo(3);
+        assertThat(report.deletedJudgeIds()).containsExactly(ordinaryId);
+        assertThat(report.failedJudgeIds()).containsExactlyInAnyOrder(managedId, legacyId);
+        assertDeleted(store, ordinaryId);
+        assertPreserved(store, legacyId, JudgeStatus.COMPLETED);
+        assertThat(legacyManifest).hasContent("{}");
+        assertThat(store.taskDirectory(legacyId).resolve("case-data.txt")).hasContent(legacyId);
+        assertPreserved(store, managedId, status);
+        assertThat(journal).hasContent("{\"state\":\"CREATE_UNKNOWN\"}");
+        assertThat(workDir.resolve("metadata.json")).hasContent(metadata);
+        assertThat(workDir.resolve("events.jsonl")).hasContent(events);
+        assertThat(workDir.resolve("case-data.txt")).hasContent(managedId);
+        if (hasHandle && handle.runId() != null && !handle.runId().isBlank()) {
+            verify(runner).cleanupResidual(handle);
+        } else {
+            verifyNoInteractions(runner);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "task-spec.json", "manifest.json"})
+    void successfulHandleCleanupDoesNotAuthorizeDeletionOfMarkerlessAttempt(String retainedFile) throws Exception {
+        FileTaskStore store = store();
+        SandboxRunner runner = mock(SandboxRunner.class);
+        TaskCleanupService cleanupService = new TaskCleanupService(store, cleanupProperties(), Optional.of(runner));
+        Instant now = Instant.parse("2026-07-02T12:00:00Z");
+        String judgeId = createTask(store, JudgeStatus.COMPLETED, now.minus(Duration.ofHours(2)), now.minus(Duration.ofMinutes(11)));
+        SandboxRunHandle handle = SandboxRunHandle.builder()
+                .judgeId(judgeId).runId("confirmed-supervisor-id").provider("linux-container").build();
+        store.saveRunHandle(judgeId, handle);
+        Path workDir = store.taskDirectory(judgeId);
+        Path attempt = Files.createDirectories(workDir.resolve("control/attempts/" + UUID.randomUUID()));
+        if (!retainedFile.isEmpty()) {
+            Files.writeString(attempt.resolve(retainedFile), "retained evidence");
+        }
+        String metadata = Files.readString(workDir.resolve("metadata.json"));
+        String events = Files.readString(workDir.resolve("events.jsonl"));
+
+        TaskCleanupService.CleanupReport report = cleanupService.cleanupExpiredTasks(now);
+
+        assertThat(report.inspectedTasks()).isEqualTo(1);
+        assertThat(report.deletedJudgeIds()).isEmpty();
+        assertThat(report.failedJudgeIds()).containsExactly(judgeId);
+        assertPreserved(store, judgeId, JudgeStatus.COMPLETED);
+        assertThat(attempt).isDirectory();
+        if (!retainedFile.isEmpty()) {
+            assertThat(attempt.resolve(retainedFile)).hasContent("retained evidence");
+        }
+        assertThat(workDir.resolve("metadata.json")).hasContent(metadata);
+        assertThat(workDir.resolve("events.jsonl")).hasContent(events);
+        assertThat(workDir.resolve("case-data.txt")).hasContent(judgeId);
+        verify(runner).cleanupResidual(handle);
     }
 
     private FileTaskStore store() {

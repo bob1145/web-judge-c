@@ -1,0 +1,243 @@
+{
+  "Id": "cf4ffe307004a1a622bab55a721011ea0d9922cac27834c496b5c0e5ac8265d0",
+  "Created": "2026-10-03T08:23:38.943960125Z",
+  "Path": "g++",
+  "Args": [
+    "/input/source.cpp",
+    "-o",
+    "/scratch/program",
+    "-O2",
+    "-std=c++17"
+  ],
+  "State": {
+    "Status": "created",
+    "Running": false,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 0,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "0001-01-01T00:00:00Z",
+    "FinishedAt": "0001-01-01T00:00:00Z"
+  },
+  "Image": "sha256:360a2877270d6ce26675f4867588dcbffba5a743947557c169713967b2a2f33f",
+  "ResolvConfPath": "",
+  "HostnamePath": "",
+  "HostsPath": "",
+  "LogPath": "",
+  "Name": "/wjc-stage-7476dc13-b336-4733-9ea8-a614b32032fa",
+  "RestartCount": 0,
+  "Driver": "vfs",
+  "Platform": "linux",
+  "MountLabel": "",
+  "ProcessLabel": "",
+  "AppArmorProfile": "",
+  "ExecIDs": null,
+  "HostConfig": {
+    "Binds": null,
+    "ContainerIDFile": "",
+    "LogConfig": {
+      "Type": "none",
+      "Config": {}
+    },
+    "NetworkMode": "none",
+    "PortBindings": {},
+    "RestartPolicy": {
+      "Name": "no",
+      "MaximumRetryCount": 0
+    },
+    "AutoRemove": false,
+    "VolumeDriver": "",
+    "VolumesFrom": null,
+    "ConsoleSize": [
+      0,
+      0
+    ],
+    "CapAdd": null,
+    "CapDrop": [
+      "ALL"
+    ],
+    "CgroupnsMode": "private",
+    "Dns": null,
+    "DnsOptions": [],
+    "DnsSearch": [],
+    "ExtraHosts": null,
+    "GroupAdd": null,
+    "IpcMode": "private",
+    "Cgroup": "",
+    "Links": null,
+    "OomScoreAdj": 0,
+    "PidMode": "",
+    "Privileged": false,
+    "PublishAllPorts": false,
+    "ReadonlyRootfs": true,
+    "SecurityOpt": [
+      "no-new-privileges"
+    ],
+    "UTSMode": "",
+    "UsernsMode": "",
+    "ShmSize": 67108864,
+    "Runtime": "runc",
+    "Isolation": "",
+    "CpuShares": 0,
+    "Memory": 268435456,
+    "NanoCpus": 500000000,
+    "CgroupParent": "",
+    "BlkioWeight": 0,
+    "BlkioWeightDevice": [],
+    "BlkioDeviceReadBps": [],
+    "BlkioDeviceWriteBps": [],
+    "BlkioDeviceReadIOps": [],
+    "BlkioDeviceWriteIOps": [],
+    "CpuPeriod": 0,
+    "CpuQuota": 0,
+    "CpuRealtimePeriod": 0,
+    "CpuRealtimeRuntime": 0,
+    "CpusetCpus": "",
+    "CpusetMems": "",
+    "Devices": [],
+    "DeviceCgroupRules": null,
+    "DeviceRequests": null,
+    "MemoryReservation": 0,
+    "MemorySwap": 268435456,
+    "MemorySwappiness": null,
+    "OomKillDisable": false,
+    "PidsLimit": 32,
+    "Ulimits": [],
+    "CpuCount": 0,
+    "CpuPercent": 0,
+    "IOMaximumIOps": 0,
+    "IOMaximumBandwidth": 0,
+    "Mounts": [
+      {
+        "Type": "volume",
+        "Source": "wjc-task10-stage-0f5c16dd-4069-42c8-843c-2e15ae195d18",
+        "Target": "/input",
+        "ReadOnly": true,
+        "VolumeOptions": {
+          "Subpath": "7476dc13-b336-4733-9ea8-a614b32032fa/input",
+          "DriverConfig": {}
+        }
+      },
+      {
+        "Type": "volume",
+        "Source": "wjc-task10-stage-0f5c16dd-4069-42c8-843c-2e15ae195d18",
+        "Target": "/scratch",
+        "VolumeOptions": {
+          "Subpath": "7476dc13-b336-4733-9ea8-a614b32032fa/scratch",
+          "DriverConfig": {}
+        }
+      }
+    ],
+    "MaskedPaths": [
+      "/proc/acpi",
+      "/proc/asound",
+      "/proc/interrupts",
+      "/proc/kcore",
+      "/proc/keys",
+      "/proc/latency_stats",
+      "/proc/sched_debug",
+      "/proc/scsi",
+      "/proc/timer_list",
+      "/proc/timer_stats",
+      "/sys/devices/virtual/powercap",
+      "/sys/firmware"
+    ],
+    "ReadonlyPaths": [
+      "/proc/bus",
+      "/proc/fs",
+      "/proc/irq",
+      "/proc/sys",
+      "/proc/sysrq-trigger"
+    ]
+  },
+  "GraphDriver": {
+    "Data": {
+      "ID": "cf4ffe307004a1a622bab55a721011ea0d9922cac27834c496b5c0e5ac8265d0",
+      "SourceDir": "/var/lib/wjc/docker/vfs/dir/dd428b8bd86bec2f4f529fe6278a1fa32ef061b82dea2ab9f631b7147c711851"
+    },
+    "Name": "vfs"
+  },
+  "Mounts": [
+    {
+      "Type": "volume",
+      "Name": "wjc-task10-stage-0f5c16dd-4069-42c8-843c-2e15ae195d18",
+      "Source": "/var/lib/wjc/docker/volumes/wjc-task10-stage-0f5c16dd-4069-42c8-843c-2e15ae195d18/_data",
+      "Destination": "/input",
+      "Driver": "local",
+      "Mode": "z",
+      "RW": false,
+      "Propagation": ""
+    },
+    {
+      "Type": "volume",
+      "Name": "wjc-task10-stage-0f5c16dd-4069-42c8-843c-2e15ae195d18",
+      "Source": "/var/lib/wjc/docker/volumes/wjc-task10-stage-0f5c16dd-4069-42c8-843c-2e15ae195d18/_data",
+      "Destination": "/scratch",
+      "Driver": "local",
+      "Mode": "z",
+      "RW": true,
+      "Propagation": ""
+    }
+  ],
+  "Config": {
+    "Hostname": "cf4ffe307004",
+    "Domainname": "",
+    "User": "65532:65532",
+    "AttachStdin": true,
+    "AttachStdout": true,
+    "AttachStderr": true,
+    "Tty": false,
+    "OpenStdin": true,
+    "StdinOnce": true,
+    "Env": [
+      "TMPDIR=/scratch",
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "LC_ALL=C"
+    ],
+    "Cmd": [
+      "g++",
+      "/input/source.cpp",
+      "-o",
+      "/scratch/program",
+      "-O2",
+      "-std=c++17"
+    ],
+    "Image": "sha256:360a2877270d6ce26675f4867588dcbffba5a743947557c169713967b2a2f33f",
+    "Volumes": null,
+    "WorkingDir": "/scratch",
+    "Entrypoint": null,
+    "Labels": {
+      "io.webjudge.attempt": "0f5c16dd-4069-42c8-843c-2e15ae195d18",
+      "io.webjudge.managed": "stage",
+      "io.webjudge.role": "USER",
+      "io.webjudge.stage": "7476dc13-b336-4733-9ea8-a614b32032fa"
+    }
+  },
+  "NetworkSettings": {
+    "SandboxID": "",
+    "SandboxKey": "",
+    "Ports": {},
+    "Networks": {
+      "none": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": null,
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "",
+        "EndpointID": "",
+        "Gateway": "",
+        "IPAddress": "",
+        "MacAddress": "",
+        "IPPrefixLen": 0,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": null
+      }
+    }
+  }
+}

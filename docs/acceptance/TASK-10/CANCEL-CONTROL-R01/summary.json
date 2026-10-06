@@ -1,0 +1,197 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=LinuxRuntimeJournalTest,LinuxSupervisorLauncherTest,LinuxAttemptDiscoveryTest,LinuxContainerRunnerTest",
+    "test"
+  ],
+  "exit_code": 1,
+  "report_count": 4,
+  "reports_present": true,
+  "reports_complete": true,
+  "mandatoryCancellationSkips": 0,
+  "totals": {
+    "tests": 452,
+    "failures": 16,
+    "errors": 1,
+    "skipped": 1,
+    "passed": 434
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.LinuxContainerRunnerTest",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "nonpassing": [
+        {
+          "test": "liveProbeSkipsWithEnvironmentReasonWhenLinuxRuntimeOrImageIsUnavailable",
+          "outcome": "skipped",
+          "type": "org.opentest4j.TestAbortedException",
+          "message": "",
+          "detail": "org.opentest4j.TestAbortedException: Assumption failed: Linux container capability unavailable: linux runner image unavailable: Error response from daemon: No such image: cpp-judge-runner:latest\n\tat org.junit.jupiter.api.Assumptions.throwAssumptionFailed(Assumptions.java:321)\n\tat org.junit.jupiter.api.Assumptions.assumeTrue(Assumptions.java:120)\n\tat com.example.demo.LinuxContainerRunnerTest.liveProbeSkipsWithEnvironmentReasonWhenLinuxRuntimeOrImageIsUnavailable(LinuxContainerRunnerTest.java:222)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n"
+        }
+      ],
+      "reportSha256": "777b424f012e7d65df70932e5032d02749989240fdeda614d798f9522605ac99",
+      "reportBytes": 25865
+    },
+    {
+      "name": "com.example.demo.service.sandbox.LinuxAttemptDiscoveryTest",
+      "tests": 65,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": [
+        {
+          "test": "trustedEmptyCancellationMarkerIsDiscoveredWithoutMutationOrRuntimeCalls",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "expected: <true> but was: <false>",
+          "detail": "org.opentest4j.AssertionFailedError: expected: <true> but was: <false>\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)\n\tat org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)\n\tat org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)\n\tat org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)\n\tat org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:31)\n\tat org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:183)\n\tat com.example.demo.service.sandbox.LinuxAttemptDiscoveryTest.trustedEmptyCancellationMarkerIsDiscoveredWithoutMutationOrRuntimeCalls(LinuxAttemptDiscoveryTest.java:77)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n"
+        }
+      ],
+      "reportSha256": "3a95d18489c2dde0dab53807a71153b7ba23f276f603a1274fb7499d037eab61",
+      "reportBytes": 34687
+    },
+    {
+      "name": "com.example.demo.service.sandbox.LinuxRuntimeJournalTest",
+      "tests": 32,
+      "failures": 8,
+      "errors": 1,
+      "skipped": 0,
+      "nonpassing": [
+        {
+          "test": "cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(String)[1]",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "Expected java.io.IOException to be thrown, but nothing was thrown.",
+          "detail": "org.opentest4j.AssertionFailedError: Expected java.io.IOException to be thrown, but nothing was thrown.\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:73)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)\n\tat org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)\n\tat com.example.demo.service.sandbox.LinuxRuntimeJournalTest.cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(LinuxRuntimeJournalTest.java:167)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174)\n\tat java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)\n\tat java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:596)\n\tat java.base/java.util.stream.ReferencePipeline$7$1.accept(ReferencePipeline.java:276)\n\tat java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1708)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/ja"
+        },
+        {
+          "test": "cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(String)[2]",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "Expected java.io.IOException to be thrown, but nothing was thrown.",
+          "detail": "org.opentest4j.AssertionFailedError: Expected java.io.IOException to be thrown, but nothing was thrown.\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:73)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)\n\tat org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)\n\tat com.example.demo.service.sandbox.LinuxRuntimeJournalTest.cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(LinuxRuntimeJournalTest.java:167)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174)\n\tat java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)\n\tat java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:596)\n\tat java.base/java.util.stream.ReferencePipeline$7$1.accept(ReferencePipeline.java:276)\n\tat java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1708)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/ja"
+        },
+        {
+          "test": "cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(String)[3]",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "Expected java.io.IOException to be thrown, but nothing was thrown.",
+          "detail": "org.opentest4j.AssertionFailedError: Expected java.io.IOException to be thrown, but nothing was thrown.\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:73)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)\n\tat org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)\n\tat com.example.demo.service.sandbox.LinuxRuntimeJournalTest.cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(LinuxRuntimeJournalTest.java:167)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174)\n\tat java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)\n\tat java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:596)\n\tat java.base/java.util.stream.ReferencePipeline$7$1.accept(ReferencePipeline.java:276)\n\tat java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1708)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/ja"
+        },
+        {
+          "test": "cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(String)[4]",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "Expected java.io.IOException to be thrown, but nothing was thrown.",
+          "detail": "org.opentest4j.AssertionFailedError: Expected java.io.IOException to be thrown, but nothing was thrown.\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:73)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)\n\tat org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)\n\tat com.example.demo.service.sandbox.LinuxRuntimeJournalTest.cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(LinuxRuntimeJournalTest.java:167)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174)\n\tat java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)\n\tat java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:596)\n\tat java.base/java.util.stream.ReferencePipeline$7$1.accept(ReferencePipeline.java:276)\n\tat java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1708)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/ja"
+        },
+        {
+          "test": "cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(String)[5]",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "Expected java.io.IOException to be thrown, but nothing was thrown.",
+          "detail": "org.opentest4j.AssertionFailedError: Expected java.io.IOException to be thrown, but nothing was thrown.\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:73)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)\n\tat org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)\n\tat com.example.demo.service.sandbox.LinuxRuntimeJournalTest.cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(LinuxRuntimeJournalTest.java:167)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174)\n\tat java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)\n\tat java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:596)\n\tat java.base/java.util.stream.ReferencePipeline$7$1.accept(ReferencePipeline.java:276)\n\tat java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1708)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/ja"
+        },
+        {
+          "test": "cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(String)[6]",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "Expected java.io.IOException to be thrown, but nothing was thrown.",
+          "detail": "org.opentest4j.AssertionFailedError: Expected java.io.IOException to be thrown, but nothing was thrown.\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:73)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)\n\tat org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)\n\tat com.example.demo.service.sandbox.LinuxRuntimeJournalTest.cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(LinuxRuntimeJournalTest.java:167)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174)\n\tat java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)\n\tat java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:596)\n\tat java.base/java.util.stream.ReferencePipeline$7$1.accept(ReferencePipeline.java:276)\n\tat java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1708)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/ja"
+        },
+        {
+          "test": "cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(String)[7]",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "Expected java.io.IOException to be thrown, but nothing was thrown.",
+          "detail": "org.opentest4j.AssertionFailedError: Expected java.io.IOException to be thrown, but nothing was thrown.\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:73)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)\n\tat org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)\n\tat com.example.demo.service.sandbox.LinuxRuntimeJournalTest.cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(LinuxRuntimeJournalTest.java:167)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174)\n\tat java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)\n\tat java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:596)\n\tat java.base/java.util.stream.ReferencePipeline$7$1.accept(ReferencePipeline.java:276)\n\tat java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1708)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/ja"
+        },
+        {
+          "test": "cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(String)[8]",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "Expected java.io.IOException to be thrown, but nothing was thrown.",
+          "detail": "org.opentest4j.AssertionFailedError: Expected java.io.IOException to be thrown, but nothing was thrown.\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:73)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)\n\tat org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)\n\tat com.example.demo.service.sandbox.LinuxRuntimeJournalTest.cancellationRejectsUnsafeExistingMarkerPoisonsLeaseAndRetainsEvidence(LinuxRuntimeJournalTest.java:167)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174)\n\tat java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)\n\tat java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:596)\n\tat java.base/java.util.stream.ReferencePipeline$7$1.accept(ReferencePipeline.java:276)\n\tat java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1708)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/ja"
+        },
+        {
+          "test": "cancellationMarkerIsPrivateEmptyDurableAndIdempotentAcrossReopen",
+          "outcome": "error",
+          "type": "java.io.IOException",
+          "message": "Trusted cancellation marker is not implemented",
+          "detail": "java.io.IOException: Trusted cancellation marker is not implemented\n\tat com.example.demo.service.sandbox.LinuxRuntimeJournal.requestCancellation(LinuxRuntimeJournal.java:209)\n\tat com.example.demo.service.sandbox.LinuxRuntimeJournalTest.cancellationMarkerIsPrivateEmptyDurableAndIdempotentAcrossReopen(LinuxRuntimeJournalTest.java:119)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n"
+        }
+      ],
+      "reportSha256": "2fe57a0d8248a35bdec5920f10e9f38137b4b8bed12df812c7a0a6b00b3b1c24",
+      "reportBytes": 58286
+    },
+    {
+      "name": "com.example.demo.service.sandbox.LinuxSupervisorLauncherTest",
+      "tests": 338,
+      "failures": 7,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": [
+        {
+          "test": "runnerCancellationPublishesMarkerButKeepsOriginalPendingBoundaryOnRetry",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "expected: <true> but was: <false>",
+          "detail": "org.opentest4j.AssertionFailedError: expected: <true> but was: <false>\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)\n\tat org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)\n\tat org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)\n\tat org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)\n\tat org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:31)\n\tat org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:183)\n\tat com.example.demo.service.sandbox.LinuxSupervisorLauncherTest.runnerCancellationPublishesMarkerButKeepsOriginalPendingBoundaryOnRetry(LinuxSupervisorLauncherTest.java:855)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n"
+        },
+        {
+          "test": "cancellationTimesOutWithinConfiguredBudgetAndRetainsResourceRecoveryBoundary",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "expected: <true> but was: <false>",
+          "detail": "org.opentest4j.AssertionFailedError: expected: <true> but was: <false>\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)\n\tat org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)\n\tat org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)\n\tat org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)\n\tat org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:31)\n\tat org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:183)\n\tat com.example.demo.service.sandbox.LinuxSupervisorLauncherTest.cancellationTimesOutWithinConfiguredBudgetAndRetainsResourceRecoveryBoundary(LinuxSupervisorLauncherTest.java:874)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n"
+        },
+        {
+          "test": "cancellationInterruptionAfterPublicationLeavesIntentWithoutForcedStop",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "Expected java.lang.InterruptedException to be thrown, but nothing was thrown.",
+          "detail": "org.opentest4j.AssertionFailedError: Expected java.lang.InterruptedException to be thrown, but nothing was thrown.\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:73)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)\n\tat org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)\n\tat com.example.demo.service.sandbox.LinuxSupervisorLauncherTest.cancellationInterruptionAfterPublicationLeavesIntentWithoutForcedStop(LinuxSupervisorLauncherTest.java:913)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n"
+        },
+        {
+          "test": "cancellationPublishesTrustedMarkerAndAllowsCooperativeExitWhileStageFlockIsHeld",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "expected: <true> but was: <false>",
+          "detail": "org.opentest4j.AssertionFailedError: expected: <true> but was: <false>\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)\n\tat org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)\n\tat org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)\n\tat org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)\n\tat org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:31)\n\tat org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:183)\n\tat com.example.demo.service.sandbox.LinuxSupervisorLauncherTest.cancellationPublishesTrustedMarkerAndAllowsCooperativeExitWhileStageFlockIsHeld(LinuxSupervisorLauncherTest.java:829)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n"
+        },
+        {
+          "test": "cancellationRefusesUnsafeMarkerBeforeStoppingAndKeepsDurableIntent(String)[1]",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "Expected java.io.IOException to be thrown, but nothing was thrown.",
+          "detail": "org.opentest4j.AssertionFailedError: Expected java.io.IOException to be thrown, but nothing was thrown.\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:73)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)\n\tat org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)\n\tat com.example.demo.service.sandbox.LinuxSupervisorLauncherTest.cancellationRefusesUnsafeMarkerBeforeStoppingAndKeepsDurableIntent(LinuxSupervisorLauncherTest.java:900)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174)\n\tat java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)\n\tat java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:596)\n\tat java.base/java.util.stream.ReferencePipeline$7$1.accept(ReferencePipeline.java:276)\n\tat java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1708)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.ba"
+        },
+        {
+          "test": "cancellationRefusesUnsafeMarkerBeforeStoppingAndKeepsDurableIntent(String)[2]",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "Expected java.io.IOException to be thrown, but nothing was thrown.",
+          "detail": "org.opentest4j.AssertionFailedError: Expected java.io.IOException to be thrown, but nothing was thrown.\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:73)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)\n\tat org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)\n\tat com.example.demo.service.sandbox.LinuxSupervisorLauncherTest.cancellationRefusesUnsafeMarkerBeforeStoppingAndKeepsDurableIntent(LinuxSupervisorLauncherTest.java:900)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174)\n\tat java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)\n\tat java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:596)\n\tat java.base/java.util.stream.ReferencePipeline$7$1.accept(ReferencePipeline.java:276)\n\tat java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1708)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.ba"
+        },
+        {
+          "test": "cancellationRefusesUnsafeMarkerBeforeStoppingAndKeepsDurableIntent(String)[3]",
+          "outcome": "failure",
+          "type": "org.opentest4j.AssertionFailedError",
+          "message": "Expected java.io.IOException to be thrown, but nothing was thrown.",
+          "detail": "org.opentest4j.AssertionFailedError: Expected java.io.IOException to be thrown, but nothing was thrown.\n\tat org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:73)\n\tat org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)\n\tat org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)\n\tat com.example.demo.service.sandbox.LinuxSupervisorLauncherTest.cancellationRefusesUnsafeMarkerBeforeStoppingAndKeepsDurableIntent(LinuxSupervisorLauncherTest.java:900)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.Optional.ifPresent(Optional.java:178)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)\n\tat java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)\n\tat java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151)\n\tat java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174)\n\tat java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)\n\tat java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:596)\n\tat java.base/java.util.stream.ReferencePipeline$7$1.accept(ReferencePipeline.java:276)\n\tat java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1708)\n\tat java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509)\n\tat java.ba"
+        }
+      ],
+      "reportSha256": "09f571a7c5dfdfe7afa7ee720b0b853a4b9d393353072d4c8fc6f17ce95c4296",
+      "reportBytes": 102065
+    }
+  ],
+  "mode": "targeted",
+  "productAcceptance": false,
+  "scope": "offline Java contracts only; not real supervisor or production acceptance"
+}

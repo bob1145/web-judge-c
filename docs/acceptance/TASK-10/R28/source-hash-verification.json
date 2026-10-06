@@ -1,0 +1,27 @@
+{
+  "inputCount": 216,
+  "productSourceCount": 195,
+  "currentInputsMatchAtReview": true,
+  "retainedInputsMatch": true,
+  "sameProductInputsAsR02": true,
+  "scriptMatchesRetained": true,
+  "coversEveryR26Suite": true,
+  "totals": {
+    "tests": 2403,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 2,
+    "passed": 2400
+  },
+  "soleFailure": [
+    "com.example.demo.JudgeBaselineTest.runtimeErrorIsRecordedAsSingleCaseRe"
+  ],
+  "pythonTests": 142,
+  "pythonExit": 0,
+  "executionTerminal": {
+    "unifiedExecSession": 65735,
+    "exitCode": 1
+  },
+  "fullRegressionPassed": false,
+  "productAcceptance": false
+}

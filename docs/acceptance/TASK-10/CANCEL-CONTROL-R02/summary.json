@@ -1,0 +1,75 @@
+{
+  "command": [
+    "mvn",
+    "-o",
+    "-B",
+    "-Dstyle.color=never",
+    "-Dtest=LinuxRuntimeJournalTest,LinuxSupervisorLauncherTest,LinuxAttemptDiscoveryTest,LinuxContainerRunnerTest",
+    "test"
+  ],
+  "exit_code": 0,
+  "report_count": 4,
+  "reports_present": true,
+  "reports_complete": true,
+  "mandatoryCancellationSkips": 0,
+  "totals": {
+    "tests": 468,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "passed": 467
+  },
+  "suites": [
+    {
+      "name": "com.example.demo.LinuxContainerRunnerTest",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "nonpassing": [
+        {
+          "test": "liveProbeSkipsWithEnvironmentReasonWhenLinuxRuntimeOrImageIsUnavailable",
+          "outcome": "skipped",
+          "type": "org.opentest4j.TestAbortedException",
+          "message": "",
+          "detail": "org.opentest4j.TestAbortedException: Assumption failed: Linux container capability unavailable: linux runner image unavailable: Error response from daemon: No such image: cpp-judge-runner:latest\n\tat org.junit.jupiter.api.Assumptions.throwAssumptionFailed(Assumptions.java:321)\n\tat org.junit.jupiter.api.Assumptions.assumeTrue(Assumptions.java:120)\n\tat com.example.demo.LinuxContainerRunnerTest.liveProbeSkipsWithEnvironmentReasonWhenLinuxRuntimeOrImageIsUnavailable(LinuxContainerRunnerTest.java:222)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n\tat java.base/java.util.ArrayList.forEach(ArrayList.java:1596)\n"
+        }
+      ],
+      "reportSha256": "14d5704b0c719ea6bec90199280b6905686870089b6073a563d766af351277b1",
+      "reportBytes": 25866
+    },
+    {
+      "name": "com.example.demo.service.sandbox.LinuxAttemptDiscoveryTest",
+      "tests": 65,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": [],
+      "reportSha256": "ddad7e90f0bb3d3ae19041ab8a53f071f33df9ac12a52e3358ab78ebb88ea5a5",
+      "reportBytes": 33641
+    },
+    {
+      "name": "com.example.demo.service.sandbox.LinuxRuntimeJournalTest",
+      "tests": 33,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": [],
+      "reportSha256": "2d00d46bec5c0663635b000318cff0bc4bbf8479b1c3cc49e0025aeea564687f",
+      "reportBytes": 27777
+    },
+    {
+      "name": "com.example.demo.service.sandbox.LinuxSupervisorLauncherTest",
+      "tests": 353,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nonpassing": [],
+      "reportSha256": "ffd4d3a9f8112514fe5fa19e5c44d77310a320233ffee14b1ecc72ed61cdb0e7",
+      "reportBytes": 89266
+    }
+  ],
+  "mode": "targeted",
+  "productAcceptance": false,
+  "scope": "offline Java contracts only; not real supervisor or production acceptance"
+}

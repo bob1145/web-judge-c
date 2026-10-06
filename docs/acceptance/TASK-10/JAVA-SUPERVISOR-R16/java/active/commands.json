@@ -1,0 +1,93 @@
+[ {
+  "exitCode" : 0,
+  "stdoutBytes" : 1410,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "image", "inspect", "sha256:360a2877270d6ce26675f4867588dcbffba5a743947557c169713967b2a2f33f" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 1718,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "image", "inspect", "sha256:6f7e70984cfff475fdd0fecc315cc7620c16b8f0e0faa23a22414b7271bbd901" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 54,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "volume", "create", "--driver", "local", "--opt", "type=tmpfs", "--opt", "device=tmpfs", "--opt", "o=size=33554432,nodev,nosuid,uid=0,gid=0,mode=0755", "--label", "io.webjudge.judge=task10-java-active-recovery", "--label", "io.webjudge.attempt=d031c810-3e93-44cc-a639-ce5694e31588", "--label", "io.webjudge.managed=stage-volume", "wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 679,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "volume", "inspect", "wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 65,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "create", "--name", "wjc-stage-holder-d031c810-3e93-44cc-a639-ce5694e31588", "--network", "none", "--ipc", "private", "--cgroupns", "private", "--read-only", "--user", "65532:65532", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--memory", "67108864", "--memory-swap", "67108864", "--pids-limit", "16", "--cpus", "0.25", "--log-driver", "none", "--label", "io.webjudge.judge=task10-java-active-recovery", "--label", "io.webjudge.attempt=d031c810-3e93-44cc-a639-ce5694e31588", "--label", "io.webjudge.managed=stage-volume-holder", "--mount", "type=volume,source=wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588,target=/stage-root,volume-nocopy", "sha256:360a2877270d6ce26675f4867588dcbffba5a743947557c169713967b2a2f33f", "/bin/sleep", "300" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 7014,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "inspect", "867ebbbcc67ed6fd17c7976e8153cb33e3a748e6bb4ce2de3ca41d7a863594a3" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 65,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "start", "867ebbbcc67ed6fd17c7976e8153cb33e3a748e6bb4ce2de3ca41d7a863594a3" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 7561,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "inspect", "867ebbbcc67ed6fd17c7976e8153cb33e3a748e6bb4ce2de3ca41d7a863594a3" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 65,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "create", "--name", "wjc-supervisor-d031c810-3e93-44cc-a639-ce5694e31588", "--network", "none", "--ipc", "private", "--cgroupns", "private", "--read-only", "--user", "0:0", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--memory", "268435456", "--memory-swap", "268435456", "--pids-limit", "64", "--cpus", "0.5", "--log-driver", "none", "--label", "io.webjudge.judge=task10-java-active-recovery", "--label", "io.webjudge.attempt=d031c810-3e93-44cc-a639-ce5694e31588", "--label", "io.webjudge.managed=supervisor", "--mount", "type=bind,source=/lab/java-storage/judge-task10-java-active-recovery,target=/work", "--mount", "type=volume,source=wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588,target=/var/lib/wjc/docker/volumes/wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588/_data,volume-nocopy", "--mount", "type=bind,source=/run/wjc/docker.sock,target=/run/wjc/docker.sock", "sha256:6f7e70984cfff475fdd0fecc315cc7620c16b8f0e0faa23a22414b7271bbd901", "/work/control/attempts/d031c810-3e93-44cc-a639-ce5694e31588/task-spec.json", "--work-root", "/work", "--stage-config", "/work/control/attempts/d031c810-3e93-44cc-a639-ce5694e31588/supervisor-config.json", "--config-owner-uid", "0" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 8891,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "inspect", "96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 65,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "start", "96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 9438,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "inspect", "96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 9438,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "inspect", "96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 9438,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "inspect", "96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 9438,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "inspect", "96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 9285,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "inspect", "96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 65,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "stop", "-t", "0", "96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630" ],
+  "stdout" : "96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630\n",
+  "stderr" : ""
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 9285,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "inspect", "96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630" ]
+} ]

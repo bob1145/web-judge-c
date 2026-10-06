@@ -1,0 +1,56 @@
+﻿[
+    {
+        "path":  "runtime_preflight.py",
+        "expected":  "c36d579712a7be4d6fe1068a4319e88fb8b1d0c3990b9b20d16153de94cb773f",
+        "actual":  "c36d579712a7be4d6fe1068a4319e88fb8b1d0c3990b9b20d16153de94cb773f",
+        "matches":  true
+    },
+    {
+        "path":  "stage_probe.py",
+        "expected":  "7336c15351c16e50c5a01028fd5104c4c6db7b9b64cde70d99c499c70b858817",
+        "actual":  "7336c15351c16e50c5a01028fd5104c4c6db7b9b64cde70d99c499c70b858817",
+        "matches":  true
+    },
+    {
+        "path":  "role_probe.py",
+        "expected":  "86229ccbd83441dcaa8a34c656502844051bf6561fcfcb994bb40236392ac0ab",
+        "actual":  "86229ccbd83441dcaa8a34c656502844051bf6561fcfcb994bb40236392ac0ab",
+        "matches":  true
+    },
+    {
+        "path":  "test_role_probe.py",
+        "expected":  "7c7926ebbb6c7badc3128632410414be7746105c8e84e45ab80f7693ca3a9bd0",
+        "actual":  "7c7926ebbb6c7badc3128632410414be7746105c8e84e45ab80f7693ca3a9bd0",
+        "matches":  true
+    },
+    {
+        "path":  "test_stage_probe.py",
+        "expected":  "67739ba5ed726e12decce86a2386d149d3e79128915a8c72a4391cfff6781259",
+        "actual":  "67739ba5ed726e12decce86a2386d149d3e79128915a8c72a4391cfff6781259",
+        "matches":  true
+    },
+    {
+        "path":  "product/linux_stage_executor.py",
+        "expected":  "fd57faf0bcf9e227473e08c8c6c00972dfa66f5f88bf6c724e8419382c1c937b",
+        "actual":  "fd57faf0bcf9e227473e08c8c6c00972dfa66f5f88bf6c724e8419382c1c937b",
+        "matches":  true
+    },
+    {
+        "path":  "product/linux_stage_volume.py",
+        "expected":  "cded2b9db09dca3d7714a5117c483ede3d346f9570eacd5ebff809cedf87f90e",
+        "actual":  "cded2b9db09dca3d7714a5117c483ede3d346f9570eacd5ebff809cedf87f90e",
+        "matches":  true
+    },
+    {
+        "path":  "product/runner_manifest.py",
+        "expected":  "92ff4ca050ba4aa89a573dbcfb6fc7e48fabdea31fc0cf95a80939cbb3d4294f",
+        "actual":  "92ff4ca050ba4aa89a573dbcfb6fc7e48fabdea31fc0cf95a80939cbb3d4294f",
+        "matches":  true
+    },
+    {
+        "path":  "product/task_runner.py",
+        "expected":  "bef3a6bedd2f00e8e2e8ddc2816e01b49444979f9736a2ccd1835937f872562a",
+        "actual":  "bef3a6bedd2f00e8e2e8ddc2816e01b49444979f9736a2ccd1835937f872562a",
+        "matches":  true
+    }
+]

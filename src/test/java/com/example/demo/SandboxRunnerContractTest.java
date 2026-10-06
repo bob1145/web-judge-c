@@ -118,6 +118,7 @@ class SandboxRunnerContractTest {
                 .provider("linux-container")
                 .isolation("container")
                 .productionSafe(true)
+                .controlPlaneIsolated(true)
                 .networkDisabled(true)
                 .nonRoot(true)
                 .resourceLimits(true)
@@ -136,6 +137,7 @@ class SandboxRunnerContractTest {
         assertThat(json)
                 .contains("linux-container")
                 .contains("productionSafe")
+                .contains("controlPlaneIsolated")
                 .contains("run-1")
                 .doesNotContain("secret")
                 .doesNotContain("token")
@@ -148,6 +150,19 @@ class SandboxRunnerContractTest {
         assertThat(SandboxRunner.class.getMethod("start", SandboxTaskSpec.class).getReturnType()).isEqualTo(SandboxRunHandle.class);
         assertThat(SandboxRunner.class.getMethod("pollEvents", SandboxRunHandle.class).getReturnType()).isEqualTo(List.class);
         assertThat(SandboxRunner.class.getMethod("cancel", SandboxRunHandle.class).getReturnType()).isEqualTo(Void.TYPE);
+    }
+
+    @Test
+    void omittedControlPlaneCapabilityDefaultsToFalse() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        SandboxCapabilities legacy = objectMapper.readValue("{\"provider\":\"linux-container\",\"productionSafe\":true}",
+                SandboxCapabilities.class);
+        assertThat(legacy.controlPlaneIsolated()).isFalse();
+        assertThat(SandboxCapabilities.builder().productionSafe(true).build().controlPlaneIsolated()).isFalse();
+        SandboxCapabilities isolated = SandboxCapabilities.builder().provider("linux-container")
+                .controlPlaneIsolated(true).build();
+        assertThat(objectMapper.readValue(objectMapper.writeValueAsString(isolated), SandboxCapabilities.class))
+                .isEqualTo(isolated);
     }
 
     private SandboxTaskSpec.Builder validSpec(Path storageBase) {

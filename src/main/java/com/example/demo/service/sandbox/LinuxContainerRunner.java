@@ -17,6 +17,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.FileSystems;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -53,24 +54,62 @@ public class LinuxContainerRunner implements SandboxRunner {
     private final Options options;
     private final CommandExecutor commandExecutor;
     private final ObjectMapper objectMapper;
+    private final LinuxSupervisorLauncher supervisorLauncher;
     private final Map<String, RunState> runs = new ConcurrentHashMap<>();
 
     public LinuxContainerRunner(SandboxProperties sandboxProperties, ObjectMapper objectMapper) {
-        this(Options.fromProperties(sandboxProperties), new ProcessCommandExecutor(), objectMapper);
+        this(Options.fromProperties(sandboxProperties), null, objectMapper);
     }
 
     public LinuxContainerRunner(Options options, CommandExecutor commandExecutor, ObjectMapper objectMapper) {
         this.options = options == null ? Options.builder().build() : options;
-        this.commandExecutor = commandExecutor == null ? new ProcessCommandExecutor() : commandExecutor;
+        this.commandExecutor = commandExecutor != null ? commandExecutor
+                : this.options.supervisor() == null ? new ProcessCommandExecutor()
+                : new LinuxSupervisorCommandExecutor(this.options.supervisor().controlOutputLimitBytes());
         this.objectMapper = objectMapper == null ? new ObjectMapper().findAndRegisterModules() : objectMapper;
+        this.supervisorLauncher = this.options.supervisor() == null ? null
+                : new LinuxSupervisorLauncher(this.options.supervisor(), this.commandExecutor, this.objectMapper);
     }
 
     public static LinuxContainerRunner withDefaults(ObjectMapper objectMapper) {
         return new LinuxContainerRunner(Options.builder().build(), new ProcessCommandExecutor(), objectMapper);
     }
 
+    public LinuxAttemptDiscovery.Report inspectRetainedAttempts(Path storageRoot, LinuxAttemptDiscovery.Budget budget) throws IOException {
+        if (supervisorLauncher == null) {
+            throw new IllegalStateException("retained attempt discovery requires explicit supervisor configuration");
+        }
+        return supervisorLauncher.inspectRetainedAttempts(storageRoot, budget);
+    }
+
+    public LinuxStageRecoveryPreparation.Preparation prepareRetainedStageRecovery(Path storageRoot,
+                                                                                  String judgeId, String attemptId) throws IOException {
+        if (supervisorLauncher == null) {
+            throw new IllegalStateException("stage recovery preparation requires explicit supervisor configuration");
+        }
+        return supervisorLauncher.prepareStageRecovery(storageRoot, judgeId, attemptId);
+    }
+
+    public LinuxSupervisorLauncher.ContainerReclamation recoverRetainedConfirmedContainers(Path storageRoot,
+                                                                                            String judgeId, String attemptId)
+            throws IOException, InterruptedException {
+        if (supervisorLauncher == null) {
+            throw new IllegalStateException("confirmed recovery requires explicit supervisor configuration");
+        }
+        if (storageRoot == null || storageRoot.getFileSystem() != FileSystems.getDefault()
+                || !storageRoot.isAbsolute() || !storageRoot.equals(storageRoot.normalize())
+                || judgeId == null || judgeId.length() > 256 || !judgeId.matches("[A-Za-z0-9][A-Za-z0-9._-]*")) {
+            throw new IOException("confirmed recovery requires a canonical storage root and bound judge identity");
+        }
+        return supervisorLauncher.recoverConfirmedContainers(storageRoot.resolve("judge-" + judgeId), judgeId, attemptId);
+    }
+
     @Override
     public SandboxCapabilities probe() {
+        if (supervisorLauncher != null) {
+            return unavailable("isolated supervisor integration is experimental; production acceptance is incomplete",
+                    "supervisor lifecycle integration; production gate remains closed");
+        }
         try {
             CommandResult runtime = commandExecutor.run(runtimeVersionCommand(), options.commandTimeout());
             if (!runtime.succeeded()) {
@@ -114,11 +153,13 @@ public class LinuxContainerRunner implements SandboxRunner {
             if (!probeInfo.securityProfileActive()) {
                 reasons.add("security profile is required");
             }
+            reasons.add("control-plane isolation is not implemented by the shared-workdir adapter");
             boolean productionSafe = reasons.isEmpty();
             return SandboxCapabilities.builder()
                     .provider(PROVIDER)
                     .isolation("container")
                     .productionSafe(productionSafe)
+                    .controlPlaneIsolated(false)
                     .networkDisabled(probeInfo.networkDisabled())
                     .nonRoot(probeInfo.nonRoot())
                     .resourceLimits(probeInfo.resourceLimits())
@@ -147,6 +188,21 @@ public class LinuxContainerRunner implements SandboxRunner {
 
     @Override
     public SandboxRunHandle start(SandboxTaskSpec spec) {
+        if (!"trusted-local".equals(spec.profile())) {
+            throw new IllegalStateException("Linux execution outside trusted-local requires control-plane isolation");
+        }
+        if (supervisorLauncher != null) {
+            try {
+                LinuxSupervisorLauncher.Launch launch = supervisorLauncher.start(spec);
+                runs.put(launch.handle().runId(), new RunState(launch.workDir(), launch.eventFile()));
+                return launch.handle();
+            } catch (IOException e) {
+                throw new IllegalStateException("Linux supervisor launch requires trusted recovery", e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Linux supervisor launch interrupted; trusted recovery required", e);
+            }
+        }
         try {
             SandboxManifestFactory.Prepared prepared = SandboxManifestFactory.prepare(spec);
             Path workDir = prepared.workDir();
@@ -208,7 +264,7 @@ public class LinuxContainerRunner implements SandboxRunner {
                 }
             }
             state.cursor().set(lines.size());
-            if (events.stream().anyMatch(event -> terminal(event.type()))) {
+            if (supervisorLauncher == null && events.stream().anyMatch(event -> terminal(event.type()))) {
                 cleanupContainer(handle.runId());
             }
             return events;
@@ -223,6 +279,21 @@ public class LinuxContainerRunner implements SandboxRunner {
 
     @Override
     public void cancel(SandboxRunHandle handle) {
+        if (supervisorLauncher != null) {
+            RunState state = handle == null ? null : runs.get(handle.runId());
+            if (state == null) {
+                throw new IllegalStateException("Linux supervisor attempt requires persistent recovery");
+            }
+            try {
+                supervisorLauncher.cancelAndStop(handle, state.workDir());
+            } catch (IOException e) {
+                throw new IllegalStateException("Linux supervisor stop requires trusted recovery", e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Linux supervisor stop interrupted; trusted recovery required", e);
+            }
+            throw new IllegalStateException("Linux supervisor stopped; stage and volume recovery remains pending");
+        }
         cleanupContainer(handle.runId());
     }
 
@@ -441,6 +512,7 @@ public class LinuxContainerRunner implements SandboxRunner {
         private final double cpus;
         private final String securityProfile;
         private final Duration commandTimeout;
+        private final LinuxSupervisorOptions supervisor;
 
         private Options(Builder builder) {
             this.runtimeCommand = requireText(builder.runtimeCommand, "runtimeCommand");
@@ -468,6 +540,7 @@ public class LinuxContainerRunner implements SandboxRunner {
             this.cpus = builder.cpus;
             this.securityProfile = StringUtils.hasText(builder.securityProfile) ? builder.securityProfile : "docker-default";
             this.commandTimeout = builder.commandTimeout;
+            this.supervisor = builder.supervisor;
         }
 
         static Options fromProperties(SandboxProperties properties) {
@@ -484,6 +557,8 @@ public class LinuxContainerRunner implements SandboxRunner {
                     .cpus(linux.getCpus())
                     .securityProfile(properties.getSecurityProfile())
                     .commandTimeout(linux.getCommandTimeout())
+                    .supervisor(linux.getSupervisor() == null ? null
+                            : LinuxSupervisorOptions.fromProperties(linux.getSupervisor()))
                     .build();
         }
 
@@ -535,6 +610,10 @@ public class LinuxContainerRunner implements SandboxRunner {
             return commandTimeout;
         }
 
+        public LinuxSupervisorOptions supervisor() {
+            return supervisor;
+        }
+
         public static final class Builder {
             private String runtimeCommand = "docker";
             private String image = "cpp-judge-runner:latest";
@@ -547,6 +626,12 @@ public class LinuxContainerRunner implements SandboxRunner {
             private double cpus = 1.0;
             private String securityProfile = "docker-default";
             private Duration commandTimeout = Duration.ofSeconds(30);
+            private LinuxSupervisorOptions supervisor;
+
+            public Builder supervisor(LinuxSupervisorOptions supervisor) {
+                this.supervisor = supervisor;
+                return this;
+            }
 
             public Builder runtimeCommand(String runtimeCommand) {
                 this.runtimeCommand = runtimeCommand;

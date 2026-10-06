@@ -1,0 +1,63 @@
+{
+  "version" : 1,
+  "judgeId" : "task10-java-active-recovery",
+  "attemptId" : "d031c810-3e93-44cc-a639-ce5694e31588",
+  "provider" : "linux-container",
+  "state" : "CLEANUP_PENDING",
+  "configuration" : {
+    "hostRuntimeCommand" : "/usr/bin/docker",
+    "hostRuntimeEndpoint" : "unix:///run/wjc/docker.sock",
+    "supervisorRuntimeCommand" : "/usr/bin/docker",
+    "supervisorRuntimeEndpoint" : "unix:///run/wjc/docker.sock",
+    "supervisorImageId" : "sha256:6f7e70984cfff475fdd0fecc315cc7620c16b8f0e0faa23a22414b7271bbd901",
+    "executorImageId" : "sha256:360a2877270d6ce26675f4867588dcbffba5a743947557c169713967b2a2f33f",
+    "workDir" : "/lab/java-storage/judge-task10-java-active-recovery",
+    "workMount" : "/work",
+    "configWriterUid" : 0,
+    "configWriterGid" : 0,
+    "supervisorUid" : 0,
+    "supervisorGid" : 0,
+    "holderUid" : 65532,
+    "holderGid" : 65532,
+    "workloadUid" : 65532,
+    "workloadGid" : 65532,
+    "holderLifetimeSeconds" : 300,
+    "stagePidsLimit" : 64,
+    "stageCpus" : 1.0,
+    "inputLimitBytes" : 1048576,
+    "artifactLimitBytes" : 16777216,
+    "volumeLimitBytes" : 33554432,
+    "controlOutputLimitBytes" : 131072,
+    "commandTimeoutMillis" : 15000,
+    "stageCommandTimeoutMillis" : 30000,
+    "supervisorLimits" : {
+      "memoryBytes" : 268435456,
+      "pidsLimit" : 64,
+      "cpus" : 0.5
+    },
+    "holderLimits" : {
+      "memoryBytes" : 67108864,
+      "pidsLimit" : 16,
+      "cpus" : 0.25
+    }
+  },
+  "volume" : {
+    "name" : "wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588",
+    "creationState" : "CONFIRMED",
+    "state" : "CREATED",
+    "mountpoint" : "/var/lib/wjc/docker/volumes/wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588/_data",
+    "runtimeId" : "wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588"
+  },
+  "holder" : {
+    "name" : "wjc-stage-holder-d031c810-3e93-44cc-a639-ce5694e31588",
+    "creationState" : "CONFIRMED",
+    "state" : "STARTED",
+    "runtimeId" : "867ebbbcc67ed6fd17c7976e8153cb33e3a748e6bb4ce2de3ca41d7a863594a3"
+  },
+  "supervisor" : {
+    "name" : "wjc-supervisor-d031c810-3e93-44cc-a639-ce5694e31588",
+    "creationState" : "CONFIRMED",
+    "state" : "STOPPED",
+    "runtimeId" : "96195eee13850efdf35e396f956da1e2c8dc4bd70311ca5af2af2bbfb90f3630"
+  }
+}

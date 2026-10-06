@@ -8,6 +8,8 @@ import com.example.demo.config.SandboxProperties;
 import com.example.demo.config.WebSocketConfig;
 import com.example.demo.config.WorkerProperties;
 import com.example.demo.dto.AuthRequest;
+import com.example.demo.dto.SandboxCapabilities;
+import com.example.demo.service.sandbox.SandboxRunner;
 import com.example.demo.model.UserSession;
 import com.example.demo.service.AccessCodeService;
 import com.example.demo.service.UserAccountService;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -31,6 +34,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -230,13 +235,22 @@ class ProductionAuthenticationTest {
         sandboxProperties.setCapabilityProbeRequired(true);
         sandboxProperties.setCapabilityProbePassed(true);
 
+        SandboxRunner startupContractRunner = mock(SandboxRunner.class);
+        when(startupContractRunner.probe()).thenReturn(SandboxCapabilities.builder()
+                .provider("linux-container").isolation("container").productionSafe(true)
+                .controlPlaneIsolated(true).networkDisabled(true).nonRoot(true).resourceLimits(true)
+                .securityProfile("test-only-authentication-startup-contract").build());
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("startupContractRunner", startupContractRunner);
+
         return new ProductionSecurityStartupValidator(
                 auth,
                 execution,
                 sandbox,
                 sandboxProperties,
                 new WebSocketConfig("https://safe.example.com"),
-                new WorkerProperties()
+                new WorkerProperties(),
+                beanFactory.getBeanProvider(SandboxRunner.class)
         );
     }
 }

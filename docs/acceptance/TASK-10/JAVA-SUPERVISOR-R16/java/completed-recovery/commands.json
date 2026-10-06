@@ -1,0 +1,200 @@
+[ {
+  "exitCode" : 0,
+  "stdoutBytes" : 65,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "label=io.webjudge.attempt=956ffccf-2b5c-45cc-8325-9b9a9e8e1573" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 65,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "label=io.webjudge.attempt=956ffccf-2b5c-45cc-8325-9b9a9e8e1573", "--filter", "label=io.webjudge.managed" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=acd550da7b1af19d8e0a31eb3de28a92ab2b2aca4d1d78600b78e14102d49424" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 65,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=f8c8fd0f039da54936b0bbd48efa65e357bdda23c17aca607c6ee15aa756d111" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 7555,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "inspect", "f8c8fd0f039da54936b0bbd48efa65e357bdda23c17aca607c6ee15aa756d111" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=86564040bb79a5cfae7798b2a36e3515438e465be9d78ae60150bef1cc2e949d" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=ad2f2e7cb030e7798e7fe7bd159b055f83cbe305b5a0ca98c075e4a3edf05eb8" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=4cf1be5ab3464837dbb14c348e7dda56a749e750876043c4975702a56b3fc03e" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=58fccc27f101426390e3fc39203d180863410818ccd7b69c61c98a0d55b0c51c" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=83310bd19d47b19a65a7a9b0d42ee4f53378a6696a86e88ce03cc1d14f404a8a" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=995ef3c8530c33dc63c5e3686ebdd339cd73d422c5ccba8a4a03b85bf9e1fc7e" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=acd550da7b1af19d8e0a31eb3de28a92ab2b2aca4d1d78600b78e14102d49424" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=86564040bb79a5cfae7798b2a36e3515438e465be9d78ae60150bef1cc2e949d" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=ad2f2e7cb030e7798e7fe7bd159b055f83cbe305b5a0ca98c075e4a3edf05eb8" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=4cf1be5ab3464837dbb14c348e7dda56a749e750876043c4975702a56b3fc03e" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=58fccc27f101426390e3fc39203d180863410818ccd7b69c61c98a0d55b0c51c" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=83310bd19d47b19a65a7a9b0d42ee4f53378a6696a86e88ce03cc1d14f404a8a" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=995ef3c8530c33dc63c5e3686ebdd339cd73d422c5ccba8a4a03b85bf9e1fc7e" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=acd550da7b1af19d8e0a31eb3de28a92ab2b2aca4d1d78600b78e14102d49424" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=acd550da7b1af19d8e0a31eb3de28a92ab2b2aca4d1d78600b78e14102d49424" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 65,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=f8c8fd0f039da54936b0bbd48efa65e357bdda23c17aca607c6ee15aa756d111" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 7555,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "inspect", "f8c8fd0f039da54936b0bbd48efa65e357bdda23c17aca607c6ee15aa756d111" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 65,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "stop", "-t", "0", "f8c8fd0f039da54936b0bbd48efa65e357bdda23c17aca607c6ee15aa756d111" ],
+  "stdout" : "f8c8fd0f039da54936b0bbd48efa65e357bdda23c17aca607c6ee15aa756d111\n",
+  "stderr" : ""
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 65,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=f8c8fd0f039da54936b0bbd48efa65e357bdda23c17aca607c6ee15aa756d111" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 7405,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "inspect", "f8c8fd0f039da54936b0bbd48efa65e357bdda23c17aca607c6ee15aa756d111" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 65,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=f8c8fd0f039da54936b0bbd48efa65e357bdda23c17aca607c6ee15aa756d111" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 7405,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "inspect", "f8c8fd0f039da54936b0bbd48efa65e357bdda23c17aca607c6ee15aa756d111" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 65,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "rm", "f8c8fd0f039da54936b0bbd48efa65e357bdda23c17aca607c6ee15aa756d111" ],
+  "stdout" : "f8c8fd0f039da54936b0bbd48efa65e357bdda23c17aca607c6ee15aa756d111\n",
+  "stderr" : ""
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=f8c8fd0f039da54936b0bbd48efa65e357bdda23c17aca607c6ee15aa756d111" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "label=io.webjudge.attempt=956ffccf-2b5c-45cc-8325-9b9a9e8e1573" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "label=io.webjudge.attempt=956ffccf-2b5c-45cc-8325-9b9a9e8e1573", "--filter", "label=io.webjudge.managed" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=4cf1be5ab3464837dbb14c348e7dda56a749e750876043c4975702a56b3fc03e" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=58fccc27f101426390e3fc39203d180863410818ccd7b69c61c98a0d55b0c51c" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=acd550da7b1af19d8e0a31eb3de28a92ab2b2aca4d1d78600b78e14102d49424" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=86564040bb79a5cfae7798b2a36e3515438e465be9d78ae60150bef1cc2e949d" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=83310bd19d47b19a65a7a9b0d42ee4f53378a6696a86e88ce03cc1d14f404a8a" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=995ef3c8530c33dc63c5e3686ebdd339cd73d422c5ccba8a4a03b85bf9e1fc7e" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=ad2f2e7cb030e7798e7fe7bd159b055f83cbe305b5a0ca98c075e4a3edf05eb8" ]
+}, {
+  "exitCode" : 0,
+  "stdoutBytes" : 0,
+  "stderrBytes" : 0,
+  "arguments" : [ "/usr/bin/docker", "--host", "unix:///run/wjc/docker.sock", "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", "id=f8c8fd0f039da54936b0bbd48efa65e357bdda23c17aca607c6ee15aa756d111" ]
+} ]

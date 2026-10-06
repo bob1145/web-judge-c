@@ -8,6 +8,8 @@ import com.example.demo.config.SandboxProperties;
 import com.example.demo.config.SecurityModeStartupValidator;
 import com.example.demo.config.WebSocketConfig;
 import com.example.demo.config.WorkerProperties;
+import com.example.demo.dto.SandboxCapabilities;
+import com.example.demo.service.sandbox.SandboxRunner;
 import com.example.demo.model.AuthStatus;
 import com.example.demo.service.AccessCodeService;
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.autoconfigure.context.ConfigurationPropertiesAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
@@ -28,6 +31,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class AuthenticationSafeDefaultsTest {
 
@@ -167,7 +172,16 @@ class AuthenticationSafeDefaultsTest {
         production.setIsolation(SandboxProperties.Isolation.CONTAINER);
         production.setSecurityProfile("test-only-policy");
         production.setCapabilityProbePassed(true);
-        return new ProductionSecurityStartupValidator(auth, execution, sandbox, production, new WebSocketConfig("https://safe.example"), new WorkerProperties());
+        SandboxRunner startupContractRunner = mock(SandboxRunner.class);
+        when(startupContractRunner.probe()).thenReturn(SandboxCapabilities.builder()
+                .provider("linux-container").isolation("container").productionSafe(true)
+                .controlPlaneIsolated(true).networkDisabled(true).nonRoot(true).resourceLimits(true)
+                .securityProfile("test-only-authentication-startup-contract").build());
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("startupContractRunner", startupContractRunner);
+        return new ProductionSecurityStartupValidator(auth, execution, sandbox, production,
+                new WebSocketConfig("https://safe.example"), new WorkerProperties(),
+                beanFactory.getBeanProvider(SandboxRunner.class));
     }
 
     @Configuration(proxyBeanMethods = false)

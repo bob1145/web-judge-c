@@ -185,7 +185,13 @@ class JudgeBaselineTest {
         startJudgeTask(judgeId);
 
         JsonNode statusJson = awaitTerminalStatus(judgeId);
-        assertThat(statusJson.path("status").asText()).isEqualTo("RE");
+        assertThat(statusJson.path("status").asText())
+                .as("terminal status=%.80s message=%.1024s progress=%s results=%.2048s",
+                        statusJson.path("status").asText(),
+                        statusJson.path("message").asText(),
+                        statusJson.path("progress").asInt(),
+                        statusJson.path("results").toString())
+                .isEqualTo("RE");
         assertThat(statusJson.path("message").asText()).isEqualTo("RE on Test Case #1");
         assertThat(statusJson.path("progress").asInt()).isEqualTo(100);
 

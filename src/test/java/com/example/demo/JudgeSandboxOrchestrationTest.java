@@ -35,6 +35,13 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -43,6 +50,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 class JudgeSandboxOrchestrationTest {
@@ -53,6 +61,7 @@ class JudgeSandboxOrchestrationTest {
     private ExecutorService schedulerExecutor;
     private ThreadPoolTaskExecutor caseExecutor;
     private JudgeScheduler scheduler;
+    private FileTaskStore store;
 
     @TempDir
     Path tempDir;
@@ -159,10 +168,106 @@ class JudgeSandboxOrchestrationTest {
         assertThat(progress.getMessage()).contains("runner exploded");
     }
 
+    @Test
+    void deletedTaskCannotBeRecreatedByDirectJudgeExecution() throws Exception {
+        LocalFakeSandboxRunner runner = new LocalFakeSandboxRunner(List.of());
+        JudgeService service = service(Optional.of(runner));
+        JudgeRequest request = request(1);
+        String judgeId = "deleted-before-execution";
+        service.createJudgeTask(request, judgeId);
+        Path workDir = store.taskDirectory(judgeId);
+        assertThat(store.deleteTaskDirectory(judgeId)).isTrue();
+
+        service.judge(request, judgeId, policy(request), taskContext(judgeId));
+
+        assertThat(workDir).doesNotExist();
+        assertThat(workDir.resolve("control")).doesNotExist();
+        assertThat(runner.startedSpecs()).isEmpty();
+    }
+
+    @Test
+    void neverCreatedTaskCannotEnterDirectJudgeExecution() throws Exception {
+        LocalFakeSandboxRunner runner = new LocalFakeSandboxRunner(List.of());
+        JudgeService service = service(Optional.of(runner));
+        JudgeRequest request = request(1);
+        String judgeId = "never-created";
+
+        service.judge(request, judgeId, policy(request), taskContext(judgeId));
+
+        assertThat(store.taskDirectory(judgeId)).doesNotExist();
+        assertThat(runner.startedSpecs()).isEmpty();
+    }
+
+    @Test
+    void sandboxSourceWritesRejectHeldExternalLifecycleLockBeforeChangingFiles() throws Exception {
+        JudgeService service = service(Optional.of(new LocalFakeSandboxRunner(List.of())));
+        JudgeRequest request = request(1);
+        String judgeId = "source-admission";
+        service.createJudgeTask(request, judgeId);
+        Path workDir = store.taskDirectory(judgeId);
+        Path generatorSource = workDir.resolve("generator.cpp");
+        Path userSource = workDir.resolve("user.cpp");
+        Files.writeString(generatorSource, "original generator");
+        Files.writeString(userSource, "original user");
+        Method buildSpec = JudgeService.class.getDeclaredMethod("buildSandboxTaskSpec",
+                JudgeRequest.class, String.class, ResolvedTaskPolicy.class, Path.class);
+        buildSpec.setAccessible(true);
+
+        try (FileChannel channel = FileChannel.open(tempDir.resolve(".task-lifecycle.lock"),
+                StandardOpenOption.READ, StandardOpenOption.WRITE);
+             FileLock held = channel.lock()) {
+            assertThat(held.isValid()).isTrue();
+            assertThatThrownBy(() -> buildSpec.invoke(service, request, judgeId, policy(request), workDir))
+                    .isInstanceOf(InvocationTargetException.class)
+                    .hasCauseInstanceOf(IOException.class);
+            assertThat(Files.readString(generatorSource)).isEqualTo("original generator");
+            assertThat(Files.readString(userSource)).isEqualTo("original user");
+            assertThat(workDir.resolve("bruteforce.cpp")).doesNotExist();
+        }
+
+        SandboxTaskSpec spec = (SandboxTaskSpec) buildSpec.invoke(service, request, judgeId, policy(request), workDir);
+        assertThat(spec.workDir()).isEqualTo(workDir.toString());
+        assertThat(Files.readString(generatorSource)).isEqualTo(request.getGeneratorCode());
+        assertThat(Files.readString(userSource)).isEqualTo(request.getUserCode());
+    }
+
+    @Test
+    void sandboxSourceWritesRejectAnotherTasksDirectoryBeforeChangingFiles() throws Exception {
+        JudgeService service = service(Optional.of(new LocalFakeSandboxRunner(List.of())));
+        JudgeRequest request = request(1);
+        service.createJudgeTask(request, "source-owner");
+        service.createJudgeTask(request, "other-owner");
+        Path otherDirectory = store.taskDirectory("other-owner");
+        Path otherSource = otherDirectory.resolve("generator.cpp");
+        Files.writeString(otherSource, "other task source");
+        Method buildSpec = JudgeService.class.getDeclaredMethod("buildSandboxTaskSpec",
+                JudgeRequest.class, String.class, ResolvedTaskPolicy.class, Path.class);
+        buildSpec.setAccessible(true);
+
+        assertThatThrownBy(() -> buildSpec.invoke(service, request, "source-owner", policy(request), otherDirectory))
+                .isInstanceOf(InvocationTargetException.class)
+                .hasCauseInstanceOf(IOException.class);
+
+        assertThat(Files.readString(otherSource)).isEqualTo("other task source");
+        assertThat(otherDirectory.resolve("user.cpp")).doesNotExist();
+        assertThat(otherDirectory.resolve("bruteforce.cpp")).doesNotExist();
+    }
+
+    private ResolvedTaskPolicy policy(JudgeRequest request) {
+        return new TaskPolicyResolver(executionProperties(), new MemoryConfiguration()).resolve(request);
+    }
+
+    private JudgeScheduler.TaskContext taskContext(String judgeId) throws Exception {
+        Constructor<JudgeScheduler.TaskContext> constructor = JudgeScheduler.TaskContext.class
+                .getDeclaredConstructor(String.class, int.class, Duration.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance(judgeId, 1, Duration.ofSeconds(5));
+    }
+
     private JudgeService service(Optional<SandboxRunner> runner) {
         ExecutionProperties execution = executionProperties();
         MemoryConfiguration memory = new MemoryConfiguration();
-        FileTaskStore store = new FileTaskStore(objectMapper, tempDir);
+        store = new FileTaskStore(objectMapper, tempDir);
         TaskPolicyResolver policyResolver = new TaskPolicyResolver(execution, memory);
         schedulerExecutor = Executors.newSingleThreadExecutor();
         scheduler = new JudgeScheduler(execution, store, schedulerExecutor);

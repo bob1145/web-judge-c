@@ -13,7 +13,8 @@ public record SandboxCapabilities(
         String securityProfile,
         String details,
         String skipReason,
-        RunnerProtocolCapabilities protocol
+        RunnerProtocolCapabilities protocol,
+        boolean controlPlaneIsolated
 ) {
 
     public static Builder builder() {
@@ -31,6 +32,7 @@ public record SandboxCapabilities(
         private String details;
         private String skipReason;
         private RunnerProtocolCapabilities protocol;
+        private boolean controlPlaneIsolated;
 
         public Builder provider(String provider) {
             this.provider = provider;
@@ -82,6 +84,11 @@ public record SandboxCapabilities(
             return this;
         }
 
+        public Builder controlPlaneIsolated(boolean controlPlaneIsolated) {
+            this.controlPlaneIsolated = controlPlaneIsolated;
+            return this;
+        }
+
         public SandboxCapabilities build() {
             return new SandboxCapabilities(
                     provider,
@@ -93,7 +100,8 @@ public record SandboxCapabilities(
                     securityProfile,
                     details,
                     skipReason,
-                    protocol
+                    protocol,
+                    controlPlaneIsolated
             );
         }
     }

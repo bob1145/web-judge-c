@@ -50,9 +50,17 @@ class LinuxContainerRunnerTest {
         assertThat(capabilities.details()).contains("docker");
     }
 
-    @Test
-    void probeRequiresLinuxEngineImageNetworkNoneNonRootCgroupAndSecurityProfile() {
+    @ParameterizedTest
+    @ValueSource(strings = {"absent", "trusted-control-plane"})
+    void outerContainerLimitsDoNotProveTrustedControlPlaneIsolation(String claimedFeature) throws Exception {
         RecordingExecutor executor = new RecordingExecutor();
+        var claimedFeatures = new java.util.HashSet<>(RunnerProtocolCapabilities.REQUIRED_FEATURES);
+        if (!claimedFeature.equals("absent")) {
+            claimedFeatures.add(claimedFeature);
+        }
+        executor.when(command -> command.contains("--capabilities"), result(0,
+                objectMapper.writeValueAsString(new RunnerProtocolCapabilities(Set.of(2),
+                        Set.of(SandboxComparison.Mode.LEGACY_TEXT), claimedFeatures)), ""));
         executor.when(command -> command.contains("version"), result(0, "linux|25.0.0|2", ""));
         executor.when(command -> command.contains("image") && command.contains("inspect"), result(0, "linux|amd64", ""));
         executor.when(command -> command.contains("run") && command.contains("/bin/sh"), result(0, """
@@ -66,7 +74,9 @@ class LinuxContainerRunnerTest {
 
         SandboxCapabilities capabilities = runner.probe();
 
-        assertThat(capabilities.productionSafe()).isTrue();
+        assertThat(capabilities.productionSafe()).isFalse();
+        assertThat(capabilities.skipReason()).contains("control-plane isolation");
+        assertThat(capabilities.controlPlaneIsolated()).isFalse();
         assertThat(capabilities.isolation()).isEqualTo("container");
         assertThat(capabilities.networkDisabled()).isTrue();
         assertThat(capabilities.nonRoot()).isTrue();
@@ -187,7 +197,7 @@ class LinuxContainerRunnerTest {
         SandboxTaskSpec spec = SandboxTaskSpec.builder()
                 .judgeId("judge-linux")
                 .userId("user-linux")
-                .profile("linux-prod")
+                .profile("trusted-local")
                 .storageBase(storageBase)
                 .workDir(workDir)
                 .sourcePath(SandboxTaskSpec.SourceRole.USER, outsideSource)
@@ -245,6 +255,26 @@ class LinuxContainerRunnerTest {
         assertThat(executor.commands).noneMatch(command -> command.contains("-d"));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"linux-prod", "windows-prod", "worker-prod", "intranet-large", "TRUSTED-LOCAL"})
+    void nonTrustedProfilesCannotStartSharedControlPlane(String profile) throws Exception {
+        RecordingExecutor executor = new RecordingExecutor();
+        LinuxContainerRunner runner = new LinuxContainerRunner(options(), executor, objectMapper);
+        SandboxTaskSpec spec = validSpec(profile);
+        Path workDir = Path.of(spec.workDir());
+        String audit = "audit-1\naudit-2\naudit-3\naudit-4\n";
+        Files.writeString(workDir.resolve("events.jsonl"), audit);
+
+        assertThatThrownBy(() -> runner.start(spec))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("control-plane isolation");
+
+        assertThat(workDir.resolve("control")).doesNotExist();
+        assertThat(workDir.resolve("workspace")).doesNotExist();
+        assertThat(Files.readString(workDir.resolve("events.jsonl"))).isEqualTo(audit);
+        assertThat(executor.commands).isEmpty();
+    }
+
     private LinuxContainerRunner.Options options() {
         return LinuxContainerRunner.Options.builder()
                 .runtimeCommand("docker")
@@ -262,6 +292,10 @@ class LinuxContainerRunnerTest {
     }
 
     private SandboxTaskSpec validSpec() throws IOException {
+        return validSpec("trusted-local");
+    }
+
+    private SandboxTaskSpec validSpec(String profile) throws IOException {
         Path storageBase = tempDir.resolve("storage").toAbsolutePath().normalize();
         Path workDir = storageBase.resolve("judge-linux");
         Files.createDirectories(workDir);
@@ -274,7 +308,7 @@ class LinuxContainerRunnerTest {
         return SandboxTaskSpec.builder()
                 .judgeId("judge-linux")
                 .userId("user-linux")
-                .profile("linux-prod")
+                .profile(profile)
                 .storageBase(storageBase)
                 .workDir(workDir)
                 .sourcePath(SandboxTaskSpec.SourceRole.GENERATOR, generator)

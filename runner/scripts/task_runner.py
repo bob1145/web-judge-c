@@ -39,8 +39,9 @@ class ProcessOutcome:
 
 
 class TaskRunner:
-    def __init__(self, spec_path: Path, work_root: Path):
+    def __init__(self, spec_path: Path, work_root: Path, stage_executor=None):
         self.spec, self.work_dir, self.attempt_dir, self.execution_dir = load_manifest(spec_path, work_root)
+        self.stage_executor = stage_executor
         self.judge_id = self.spec["judgeId"]
         self.events_path = self.attempt_dir / "runner-events.jsonl"
         self.summary_path = self.attempt_dir / "runner-summary.json"
@@ -105,16 +106,18 @@ class TaskRunner:
                 continue
             source = self.work_dir / source_paths[role]
             output = self.bin_dir / executable_name(role.lower())
-            command = ["g++", str(source), "-o", str(output), "-O2", "-std=c++17"]
-            outcome = run_process(
-                command=command,
-                stdin=b"",
-                cwd=self.execution_dir,
-                timeout_seconds=COMPILE_TIMEOUT_SECONDS,
-                memory_limit_bytes=max(int(self.spec["memoryLimitBytes"]) * 2, 256 * 1024 * 1024),
-                output_limit_bytes=COMPILE_OUTPUT_LIMIT_BYTES,
-                cancel_path=self.cancel_path,
-            )
+            limits = {
+                "stdin": b"",
+                "timeout_seconds": COMPILE_TIMEOUT_SECONDS,
+                "memory_limit_bytes": max(int(self.spec["memoryLimitBytes"]) * 2, 256 * 1024 * 1024),
+                "output_limit_bytes": COMPILE_OUTPUT_LIMIT_BYTES,
+                "cancel_path": self.cancel_path,
+            }
+            if self.stage_executor is None:
+                outcome = run_process(command=["g++", str(source), "-o", str(output), "-O2", "-std=c++17"],
+                                      cwd=self.execution_dir, **limits)
+            else:
+                outcome = self.call_stage("compile", role, source, output, **limits)
             if outcome.status == "CANCELLED":
                 raise Cancelled()
             if outcome.status == "TIME_LIMIT_EXCEEDED":
@@ -153,15 +156,7 @@ class TaskRunner:
         return EXIT_COMPLETED
 
     def run_generator(self, executable: Path, case_number: int) -> bytes:
-        outcome = run_process(
-            command=[str(executable)],
-            stdin=f"{case_number}\n".encode("utf-8"),
-            cwd=self.execution_dir,
-            timeout_seconds=self.case_time_limit_seconds(),
-            memory_limit_bytes=int(self.spec["memoryLimitBytes"]),
-            output_limit_bytes=int(self.spec["maxOutputBytesPerCase"]),
-            cancel_path=self.cancel_path,
-        )
+        outcome = self.run_role("GENERATOR", executable, f"{case_number}\n".encode("utf-8"))
         self.raise_control_outcome(outcome)
         if outcome.status != "SUCCESS" or outcome.exit_code != 0:
             raise RuntimeError("generator failed")
@@ -169,15 +164,7 @@ class TaskRunner:
 
     def run_user_and_judge(self, executables: dict[str, Path], case_number: int, input_bytes: bytes) -> tuple[str, int, int]:
         self.emit("RUN_STARTED", f"case {case_number} started", case_number=case_number)
-        user = run_process(
-            command=[str(executables["USER"])],
-            stdin=input_bytes,
-            cwd=self.execution_dir,
-            timeout_seconds=self.case_time_limit_seconds(),
-            memory_limit_bytes=int(self.spec["memoryLimitBytes"]),
-            output_limit_bytes=int(self.spec["maxOutputBytesPerCase"]),
-            cancel_path=self.cancel_path,
-        )
+        user = self.run_role("USER", executables["USER"], input_bytes)
         self.raise_control_outcome(user)
         self.write_case_artifacts(case_number, user_output=user.stdout)
         if user.status == "TIME_LIMIT_EXCEEDED":
@@ -196,15 +183,7 @@ class TaskRunner:
         return status, user.elapsed_ms, user.peak_memory_kb
 
     def run_oracle(self, executable: Path, input_bytes: bytes, user_output: bytes) -> tuple[str, bytes]:
-        oracle = run_process(
-            command=[str(executable)],
-            stdin=input_bytes,
-            cwd=self.execution_dir,
-            timeout_seconds=self.case_time_limit_seconds(),
-            memory_limit_bytes=int(self.spec["memoryLimitBytes"]),
-            output_limit_bytes=int(self.spec["maxOutputBytesPerCase"]),
-            cancel_path=self.cancel_path,
-        )
+        oracle = self.run_role("ORACLE", executable, input_bytes)
         self.raise_control_outcome(oracle)
         if oracle.status != "SUCCESS" or oracle.exit_code != 0:
             return "System Error", oracle.stdout
@@ -214,17 +193,33 @@ class TaskRunner:
     def run_special_judge(self, executable: Path, case_number: int, input_bytes: bytes, user_output: bytes) -> str:
         input_path = self.work_dir / f"{case_number}.in"
         user_path = self.work_dir / f"{case_number}.out"
-        spj = run_process(
-            command=[str(executable), str(input_path), str(user_path)],
-            stdin=b"",
-            cwd=self.execution_dir,
-            timeout_seconds=self.case_time_limit_seconds() * 2,
-            memory_limit_bytes=int(self.spec["memoryLimitBytes"]),
-            output_limit_bytes=int(self.spec["maxOutputBytesPerCase"]),
-            cancel_path=self.cancel_path,
-        )
+        spj = self.run_role("SPECIAL_JUDGE", executable, b"",
+                            input_files={"case.in": input_path, "case.out": user_path}, timeout_multiplier=2)
         self.raise_control_outcome(spj)
         return "AC" if spj.status == "SUCCESS" and spj.exit_code == 0 else "WA"
+
+    def call_stage(self, method, *arguments, **limits):
+        from linux_stage_executor import StageSecurityError
+        try:
+            return getattr(self.stage_executor, method)(*arguments, **limits)
+        except StageSecurityError:
+            raise SecurityViolation("isolated execution stage rejected") from None
+        except Exception:
+            raise RuntimeError("isolated execution stage failed") from None
+
+    def run_role(self, role, executable, stdin, input_files=None, timeout_multiplier=1):
+        files = input_files or {}
+        limits = {
+            "stdin": stdin,
+            "timeout_seconds": self.case_time_limit_seconds() * timeout_multiplier,
+            "memory_limit_bytes": int(self.spec["memoryLimitBytes"]),
+            "output_limit_bytes": int(self.spec["maxOutputBytesPerCase"]),
+            "cancel_path": self.cancel_path,
+        }
+        if self.stage_executor is None:
+            return run_process(command=[str(executable)] + [str(path) for path in files.values()],
+                               cwd=self.execution_dir, **limits)
+        return self.call_stage("execute", role, executable, ["/input/" + name for name in files], files, **limits)
 
     def accept_case_result(self, case_number: int, status: str, elapsed_ms: int, memory_kb: int) -> None:
         result = {

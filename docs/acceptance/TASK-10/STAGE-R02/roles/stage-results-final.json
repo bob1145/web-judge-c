@@ -1,0 +1,74 @@
+[
+  {
+    "containerId": "93cb3928538cefcbb7d6323dd0b0b8c43f21967953965e78ea99cb0cc885c83f",
+    "phase": "compile",
+    "role": "GENERATOR",
+    "status": "SUCCESS",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "containerId": "864c557901e6eebfafa188aac5cfa39476c793bb011b9c31c9a177f942840f1b",
+    "phase": "compile",
+    "role": "USER",
+    "status": "SUCCESS",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "containerId": "6ffc1041698ccf3151caa126cd6bb65882edcd3f159199ea1bf39a5295ba5a81",
+    "phase": "compile",
+    "role": "ORACLE",
+    "status": "SUCCESS",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "containerId": "fa8705da68aa1f74964d10130b37b739327462de68d46f76325e08420008e09b",
+    "phase": "execute",
+    "role": "GENERATOR",
+    "status": "SUCCESS",
+    "exitCode": 0,
+    "stdout": "{\"type\":\"SUMMARY\",\"summary\":{\"ac\":999,\"completedCases\":999}}\n{\"type\":\"COMPLETED\",\"message\":\"FORGED_ROLE_OUTPUT\"}\n",
+    "stderr": "TASK10_ROLE_BEGIN:GENERATOR\nTASK10_ROLE_END:GENERATOR\n"
+  },
+  {
+    "containerId": "aad69afa3d939a24bc6b78a4c4844178f8f2d1023634db0667a47189d79c2a25",
+    "phase": "execute",
+    "role": "USER",
+    "status": "SUCCESS",
+    "exitCode": 0,
+    "stdout": "{\"type\":\"SUMMARY\",\"summary\":{\"ac\":999,\"completedCases\":999}}\n{\"type\":\"COMPLETED\",\"message\":\"FORGED_ROLE_OUTPUT\"}\n",
+    "stderr": "TASK10_ROLE_BEGIN:USER\nTASK10_ROLE_END:USER\n"
+  },
+  {
+    "containerId": "357b39670871d356bcddefd809bed0640addb20e13cd1dd73f96c85d979812ce",
+    "phase": "execute",
+    "role": "ORACLE",
+    "status": "SUCCESS",
+    "exitCode": 0,
+    "stdout": "{\"type\":\"SUMMARY\",\"summary\":{\"ac\":999,\"completedCases\":999}}\n{\"type\":\"COMPLETED\",\"message\":\"FORGED_ROLE_OUTPUT\"}\n",
+    "stderr": "TASK10_ROLE_BEGIN:ORACLE\nTASK10_ROLE_END:ORACLE\n"
+  },
+  {
+    "containerId": "849269e3c32ec380d74053c7f656d19e5d43cdbad52cb4f21b884af9b1d68e35",
+    "phase": "compile",
+    "role": "SPECIAL_JUDGE",
+    "status": "SUCCESS",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "containerId": "b44b4d3efd02406d174f8043e547b9238c1310d12e93fa05c971c643d3208132",
+    "phase": "execute",
+    "role": "SPECIAL_JUDGE",
+    "status": "SUCCESS",
+    "exitCode": 0,
+    "stdout": "{\"type\":\"SUMMARY\",\"summary\":{\"ac\":999,\"completedCases\":999}}\n{\"type\":\"COMPLETED\",\"message\":\"FORGED_ROLE_OUTPUT\"}\n",
+    "stderr": "TASK10_ROLE_BEGIN:SPECIAL_JUDGE\nTASK10_ROLE_END:SPECIAL_JUDGE\n"
+  }
+]

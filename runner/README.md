@@ -7,6 +7,14 @@ runs the requested cases, and writes attempt-local output for the Spring service
 This repository provides a Python artifact, not a validated Linux image, Windows
 executable, or external Worker service.
 
+The current shared-workdir Linux and Windows adapters are restricted to trusted-local
+development. It reports controlPlaneIsolated=false and productionSafe=false:
+outer container limits and v2 protocol support do not isolate this Python
+supervisor from its children. Both container production profiles require an actual
+runner probe, not a configured capabilityProbePassed flag. Separate trusted
+supervision and isolated execution units remain TASK-10 work in progress;
+do not enable production by downgrading the profile or overriding a probe flag.
+
 ## Commands
 
 Run the runner directly:
@@ -106,13 +114,14 @@ For each case:
 
 ## Resource Controls
 
-The runner enforces per-process timeout, output limit, cancellation, and a
-best-effort process memory monitor. Production security still depends on the
-provider boundary:
+The local runner provides per-process timeout, cancellation, and a best-effort
+process memory monitor. Its current buffered output check happens after process
+collection; it is not a bounded streaming-output guarantee (TASK-12 remains
+pending). Production security still depends on the provider boundary:
 
-- Linux production images must run this inside the `linux-container` provider
-  with cgroup memory/pids/CPU limits, no network, non-root user, and
-  seccomp/AppArmor.
+- Linux production requires trusted control-plane isolation in addition to
+  cgroup memory/pids/CPU limits, no network, non-root user, and seccomp/AppArmor.
+  The current shared-identity artifact does not satisfy that boundary.
 - Windows production images should wrap this contract behind
   `C:\judge-runner\run-task.exe` or an equivalent native entrypoint that applies
   Job Object process-tree control before invoking the same event/summary
@@ -121,3 +130,61 @@ provider boundary:
   authenticated worker API.
 
 The runner does not claim to be a complete sandbox by itself.
+
+## Linux executor image development evidence
+
+`linux-executor/Dockerfile` now has an actual offline build and a fixed trusted
+C++17 compile/run smoke result in `docs/acceptance/TASK-10/BUILD-R05`. The exported
+image is only a compiler/execution toolchain: it does not contain the trusted
+supervisor and is not a replacement for the legacy full runner image. It has not
+been loaded into the shared daemon. Do not enable Linux production mode by
+changing the old adapter image tag. See `docs/acceptance/TASK-10/build.md` for
+exact inputs and failures.
+
+## Experimental Linux stage supervisor
+
+`scripts/linux_stage_executor.py` now compiles and executes each role in separate
+containers, verifies ownership before removal, and exports bounded regular
+artifacts only after the compiler container has been removed. Stage inputs are
+read-only and only that stage's scratch directory is writable. Both stage mounts
+disable volume copy-up explicitly, preserving the supervisor-prepared directory
+ownership even before an executor container starts.
+`scripts/linux_stage_volume.py` rejects unowned, unbounded, or incorrectly mounted
+volumes; the trusted supervisor must see the daemon's exact volume Mountpoint.
+The volume is executable for program inputs; scratch noexec is not claimed.
+Stage journals use `journalVersion: 1` and a separate `creationState`. A create
+request is durably marked UNKNOWN before transmission and becomes CONFIRMED
+only after a complete container ID and matching ownership inspection. A timeout,
+invalid reply or uncertain inspection never counts as cleanup success: the stage
+directory and CREATE_UNKNOWN record are retained, even if a currently visible
+container can be removed. Descriptor-relative bounded journal validation and a
+nonblocking directory lock prevent the same attempt from starting another stage,
+including through a fresh executor instance. This is conservative quarantine,
+not a runtime creation barrier or automatic crash-recovery implementation.
+
+`scripts/linux_supervisor.py` is a separate stage-only entrypoint. Execution
+requires explicit task spec, work root, and a `supervisor-config.json` in the same
+attempt directory, plus a separate mandatory `--config-owner-uid`. The expected
+writer UID must not come from the configuration being validated. Descriptor-based
+owner/mode checks reject group/other-writable control paths and configurations;
+the workload UID must differ from both trusted identities. These checks protect
+integrity, not confidentiality. Configuration contains `configVersion: 1`, the matching
+`attemptId`, and every field of `LinuxStageConfig`; there are no implicit image,
+socket, identity, or resource defaults. Invalid configuration fails closed and
+never selects the local process backend. `--capabilities` reports only the static
+protocol, not production security.
+
+`docs/acceptance/TASK-10/STAGE-R01` contains real separate compilation, artifact
+handoff, and execution evidence. `STAGE-R02` additionally covers all four roles
+against bounded control-file/process/FD/signal probes and fake result output;
+the LEGACY_TEXT path uses the actual TaskRunner, while SPJ is a separate backend
+probe. `CONTRACT-R09` has 118 passing contract tests, including uncertain-create
+and persistent journal rejection cases. `SUPERVISOR-R02` exercises the
+actual CLI with four invalid configuration/permission cases and a successful
+one-case run in the dedicated Linux domain. `SUPERVISOR-CONTAINER-R04` additionally
+passes these checks inside the separate supervisor image with only three mounts
+and no added capabilities. `RECOVERY-R02` verifies quarantine across a real delayed
+create; its cleanup is performed by the experimental harness, not the product.
+These do not establish Java integration, automatic crash recovery, production
+identity mapping, or full production acceptance. The existing
+Linux production gate remains closed. See `docs/acceptance/TASK-10/stages.md`.

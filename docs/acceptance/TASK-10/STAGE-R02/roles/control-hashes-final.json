@@ -1,0 +1,11 @@
+{
+  "/lab/stage-control/task/control/attempts/0f5c16dd-4069-42c8-843c-2e15ae195d18/task-spec.json": "8153ba1cd2b363856f5eecbbd56939cb98238888eb6b6f869aad35c68be56be2",
+  "/lab/stage-control/task/events.jsonl": "4bda27323660ea0dc8d06c6e52d37c0ffd147ef5b65c2111499dd367daf73532",
+  "/lab/stage-control/task/metadata.json": "540cee6727b54d8fb7729a3b464cc2d7a22d02f6680cfec16ccf0997ea9fe313",
+  "/lab/stage-control/task/final.json": "5bbcbacab7ba979f2ee612aa02559d3e9a953befec8b728dd63d54fc9e594a8d",
+  "/lab/stage-control/trusted-tool.sh": "da68f4acc6915d6b6ca28891d1700ab69758ab721f1c90dba3f9925e62dd13ba",
+  "/lab/stage-control/private-data.txt": "fa399ca2a0fd9c4d7dc86855902f803561849e8de791439b16e3e8b1ea5ddfef",
+  "/lab/product/task_runner.py": "bef3a6bedd2f00e8e2e8ddc2816e01b49444979f9736a2ccd1835937f872562a",
+  "/lab/product/linux_stage_executor.py": "fd57faf0bcf9e227473e08c8c6c00972dfa66f5f88bf6c724e8419382c1c937b",
+  "/lab/product/linux_stage_volume.py": "cded2b9db09dca3d7714a5117c483ede3d346f9570eacd5ebff809cedf87f90e"
+}

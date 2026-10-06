@@ -1,0 +1,14 @@
+{
+  "command": [
+    "/usr/bin/python3",
+    "-B",
+    "runner/tests/run_contract_suite.py",
+    "/mnt/c/Users/29901/Documents/dp/web-judge-c/docs/acceptance/TASK-10/R28/python-summary.json"
+  ],
+  "exit_code": 0,
+  "tests": 142,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "nonpassing": []
+}

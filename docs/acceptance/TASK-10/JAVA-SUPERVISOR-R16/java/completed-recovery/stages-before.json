@@ -1,0 +1,140 @@
+{
+  "dea6015e-27d0-4bd2-bd10-d75c7f4db5b9.json" : {
+    "journalVersion" : 1,
+    "creationState" : "CONFIRMED",
+    "stage" : "dea6015e-27d0-4bd2-bd10-d75c7f4db5b9",
+    "attempt" : "956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+    "role" : "ORACLE",
+    "phase" : "execute",
+    "name" : "wjc-stage-dea6015e-27d0-4bd2-bd10-d75c7f4db5b9",
+    "labels" : {
+      "io.webjudge.attempt" : "956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+      "io.webjudge.stage" : "dea6015e-27d0-4bd2-bd10-d75c7f4db5b9",
+      "io.webjudge.role" : "ORACLE",
+      "io.webjudge.managed" : "stage"
+    },
+    "volume" : "wjc-stage-volume-956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+    "state" : "CLEANED",
+    "containerId" : "83310bd19d47b19a65a7a9b0d42ee4f53378a6696a86e88ce03cc1d14f404a8a",
+    "outcome" : {
+      "status" : "SUCCESS",
+      "exitCode" : 0,
+      "oomKilled" : false
+    }
+  },
+  "36d6fa4d-902d-48a0-8499-5ddfda525be4.json" : {
+    "journalVersion" : 1,
+    "creationState" : "CONFIRMED",
+    "stage" : "36d6fa4d-902d-48a0-8499-5ddfda525be4",
+    "attempt" : "956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+    "role" : "USER",
+    "phase" : "execute",
+    "name" : "wjc-stage-36d6fa4d-902d-48a0-8499-5ddfda525be4",
+    "labels" : {
+      "io.webjudge.attempt" : "956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+      "io.webjudge.stage" : "36d6fa4d-902d-48a0-8499-5ddfda525be4",
+      "io.webjudge.role" : "USER",
+      "io.webjudge.managed" : "stage"
+    },
+    "volume" : "wjc-stage-volume-956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+    "state" : "CLEANED",
+    "containerId" : "ad2f2e7cb030e7798e7fe7bd159b055f83cbe305b5a0ca98c075e4a3edf05eb8",
+    "outcome" : {
+      "status" : "SUCCESS",
+      "exitCode" : 0,
+      "oomKilled" : false
+    }
+  },
+  "8ec8a08e-f9ea-4bb5-8d46-cc024539f4f4.json" : {
+    "journalVersion" : 1,
+    "creationState" : "CONFIRMED",
+    "stage" : "8ec8a08e-f9ea-4bb5-8d46-cc024539f4f4",
+    "attempt" : "956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+    "role" : "GENERATOR",
+    "phase" : "execute",
+    "name" : "wjc-stage-8ec8a08e-f9ea-4bb5-8d46-cc024539f4f4",
+    "labels" : {
+      "io.webjudge.attempt" : "956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+      "io.webjudge.stage" : "8ec8a08e-f9ea-4bb5-8d46-cc024539f4f4",
+      "io.webjudge.role" : "GENERATOR",
+      "io.webjudge.managed" : "stage"
+    },
+    "volume" : "wjc-stage-volume-956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+    "state" : "CLEANED",
+    "containerId" : "58fccc27f101426390e3fc39203d180863410818ccd7b69c61c98a0d55b0c51c",
+    "outcome" : {
+      "status" : "SUCCESS",
+      "exitCode" : 0,
+      "oomKilled" : false
+    }
+  },
+  "5c91c3e7-9172-4c47-b72b-bef65a294e52.json" : {
+    "journalVersion" : 1,
+    "creationState" : "CONFIRMED",
+    "stage" : "5c91c3e7-9172-4c47-b72b-bef65a294e52",
+    "attempt" : "956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+    "role" : "ORACLE",
+    "phase" : "compile",
+    "name" : "wjc-stage-5c91c3e7-9172-4c47-b72b-bef65a294e52",
+    "labels" : {
+      "io.webjudge.attempt" : "956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+      "io.webjudge.stage" : "5c91c3e7-9172-4c47-b72b-bef65a294e52",
+      "io.webjudge.role" : "ORACLE",
+      "io.webjudge.managed" : "stage"
+    },
+    "volume" : "wjc-stage-volume-956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+    "state" : "CLEANED",
+    "containerId" : "4cf1be5ab3464837dbb14c348e7dda56a749e750876043c4975702a56b3fc03e",
+    "outcome" : {
+      "status" : "SUCCESS",
+      "exitCode" : 0,
+      "oomKilled" : false
+    }
+  },
+  "0db0a6b3-002c-4351-baf0-23b9bdd56727.json" : {
+    "journalVersion" : 1,
+    "creationState" : "CONFIRMED",
+    "stage" : "0db0a6b3-002c-4351-baf0-23b9bdd56727",
+    "attempt" : "956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+    "role" : "USER",
+    "phase" : "compile",
+    "name" : "wjc-stage-0db0a6b3-002c-4351-baf0-23b9bdd56727",
+    "labels" : {
+      "io.webjudge.attempt" : "956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+      "io.webjudge.stage" : "0db0a6b3-002c-4351-baf0-23b9bdd56727",
+      "io.webjudge.role" : "USER",
+      "io.webjudge.managed" : "stage"
+    },
+    "volume" : "wjc-stage-volume-956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+    "state" : "CLEANED",
+    "containerId" : "86564040bb79a5cfae7798b2a36e3515438e465be9d78ae60150bef1cc2e949d",
+    "outcome" : {
+      "status" : "SUCCESS",
+      "exitCode" : 0,
+      "oomKilled" : false
+    }
+  },
+  "e3c57c23-9dfd-40c4-aa6e-1c0e4cac5f51.json" : {
+    "journalVersion" : 1,
+    "creationState" : "CONFIRMED",
+    "stage" : "e3c57c23-9dfd-40c4-aa6e-1c0e4cac5f51",
+    "attempt" : "956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+    "role" : "GENERATOR",
+    "phase" : "compile",
+    "name" : "wjc-stage-e3c57c23-9dfd-40c4-aa6e-1c0e4cac5f51",
+    "labels" : {
+      "io.webjudge.attempt" : "956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+      "io.webjudge.stage" : "e3c57c23-9dfd-40c4-aa6e-1c0e4cac5f51",
+      "io.webjudge.role" : "GENERATOR",
+      "io.webjudge.managed" : "stage"
+    },
+    "volume" : "wjc-stage-volume-956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+    "state" : "CLEANED",
+    "containerId" : "995ef3c8530c33dc63c5e3686ebdd339cd73d422c5ccba8a4a03b85bf9e1fc7e",
+    "outcome" : {
+      "status" : "SUCCESS",
+      "exitCode" : 0,
+      "oomKilled" : false
+    }
+  }
+}

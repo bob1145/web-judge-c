@@ -1,0 +1,112 @@
+{
+  "5e44b73d-c53d-4c31-969c-8110348be734.json" : {
+    "journalVersion" : 1,
+    "creationState" : "CONFIRMED",
+    "stage" : "5e44b73d-c53d-4c31-969c-8110348be734",
+    "attempt" : "d031c810-3e93-44cc-a639-ce5694e31588",
+    "role" : "USER",
+    "phase" : "execute",
+    "name" : "wjc-stage-5e44b73d-c53d-4c31-969c-8110348be734",
+    "labels" : {
+      "io.webjudge.attempt" : "d031c810-3e93-44cc-a639-ce5694e31588",
+      "io.webjudge.stage" : "5e44b73d-c53d-4c31-969c-8110348be734",
+      "io.webjudge.role" : "USER",
+      "io.webjudge.managed" : "stage"
+    },
+    "volume" : "wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588",
+    "state" : "STARTING",
+    "containerId" : "231d361de3351ef48d946b4aeedd6319a3e8695c20445339659e312e9bb5fab5"
+  },
+  "b770cfe0-0e47-4f66-90da-5dcf8812d99a.json" : {
+    "journalVersion" : 1,
+    "creationState" : "CONFIRMED",
+    "stage" : "b770cfe0-0e47-4f66-90da-5dcf8812d99a",
+    "attempt" : "d031c810-3e93-44cc-a639-ce5694e31588",
+    "role" : "GENERATOR",
+    "phase" : "execute",
+    "name" : "wjc-stage-b770cfe0-0e47-4f66-90da-5dcf8812d99a",
+    "labels" : {
+      "io.webjudge.attempt" : "d031c810-3e93-44cc-a639-ce5694e31588",
+      "io.webjudge.stage" : "b770cfe0-0e47-4f66-90da-5dcf8812d99a",
+      "io.webjudge.role" : "GENERATOR",
+      "io.webjudge.managed" : "stage"
+    },
+    "volume" : "wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588",
+    "state" : "CLEANED",
+    "containerId" : "a7e957598c26887e2c1b7a86460c0a20804b8f5e44659f10ac331d5ca78750aa",
+    "outcome" : {
+      "status" : "SUCCESS",
+      "exitCode" : 0,
+      "oomKilled" : false
+    }
+  },
+  "d6766aa7-d7ec-48de-a128-24af91641148.json" : {
+    "journalVersion" : 1,
+    "creationState" : "CONFIRMED",
+    "stage" : "d6766aa7-d7ec-48de-a128-24af91641148",
+    "attempt" : "d031c810-3e93-44cc-a639-ce5694e31588",
+    "role" : "ORACLE",
+    "phase" : "compile",
+    "name" : "wjc-stage-d6766aa7-d7ec-48de-a128-24af91641148",
+    "labels" : {
+      "io.webjudge.attempt" : "d031c810-3e93-44cc-a639-ce5694e31588",
+      "io.webjudge.stage" : "d6766aa7-d7ec-48de-a128-24af91641148",
+      "io.webjudge.role" : "ORACLE",
+      "io.webjudge.managed" : "stage"
+    },
+    "volume" : "wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588",
+    "state" : "CLEANED",
+    "containerId" : "7418c85167542ae71d79d3381c98f4d8a42d1d22ceaaa4310a8fa5ad52849028",
+    "outcome" : {
+      "status" : "SUCCESS",
+      "exitCode" : 0,
+      "oomKilled" : false
+    }
+  },
+  "57791509-794b-4979-96c3-32654872a256.json" : {
+    "journalVersion" : 1,
+    "creationState" : "CONFIRMED",
+    "stage" : "57791509-794b-4979-96c3-32654872a256",
+    "attempt" : "d031c810-3e93-44cc-a639-ce5694e31588",
+    "role" : "USER",
+    "phase" : "compile",
+    "name" : "wjc-stage-57791509-794b-4979-96c3-32654872a256",
+    "labels" : {
+      "io.webjudge.attempt" : "d031c810-3e93-44cc-a639-ce5694e31588",
+      "io.webjudge.stage" : "57791509-794b-4979-96c3-32654872a256",
+      "io.webjudge.role" : "USER",
+      "io.webjudge.managed" : "stage"
+    },
+    "volume" : "wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588",
+    "state" : "CLEANED",
+    "containerId" : "2fd07072910104d9711b6984bf43ac170d4ba77538e811319af9bcfe7d55793b",
+    "outcome" : {
+      "status" : "SUCCESS",
+      "exitCode" : 0,
+      "oomKilled" : false
+    }
+  },
+  "6fadfb84-99b4-49f0-82ec-1166b7529d64.json" : {
+    "journalVersion" : 1,
+    "creationState" : "CONFIRMED",
+    "stage" : "6fadfb84-99b4-49f0-82ec-1166b7529d64",
+    "attempt" : "d031c810-3e93-44cc-a639-ce5694e31588",
+    "role" : "GENERATOR",
+    "phase" : "compile",
+    "name" : "wjc-stage-6fadfb84-99b4-49f0-82ec-1166b7529d64",
+    "labels" : {
+      "io.webjudge.attempt" : "d031c810-3e93-44cc-a639-ce5694e31588",
+      "io.webjudge.stage" : "6fadfb84-99b4-49f0-82ec-1166b7529d64",
+      "io.webjudge.role" : "GENERATOR",
+      "io.webjudge.managed" : "stage"
+    },
+    "volume" : "wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588",
+    "state" : "CLEANED",
+    "containerId" : "237960fec2ac0e1a9006cd3abdd98a67a8991bd361813e0384cd3014eedd5ce0",
+    "outcome" : {
+      "status" : "SUCCESS",
+      "exitCode" : 0,
+      "oomKilled" : false
+    }
+  }
+}

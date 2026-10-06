@@ -1,0 +1,44 @@
+{
+  "Id": "sha256:6f7e70984cfff475fdd0fecc315cc7620c16b8f0e0faa23a22414b7271bbd901",
+  "RepoTags": [],
+  "RepoDigests": [],
+  "Created": "2026-10-03T16:24:08.23431055Z",
+  "Config": {
+    "User": "root",
+    "Env": [
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "LC_ALL=C",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "PYTHONUNBUFFERED=1"
+    ],
+    "Entrypoint": [
+      "python3",
+      "-B",
+      "/opt/web-judge/linux_supervisor.py"
+    ],
+    "WorkingDir": "/opt/web-judge"
+  },
+  "Architecture": "amd64",
+  "Os": "linux",
+  "Size": 118468922,
+  "GraphDriver": {
+    "Data": {
+      "SourceDir": "/var/lib/wjc/docker/vfs/dir/50491f447b63cf2afede39108e28403edf6c861a6d7c961f7ff4d1db10b412a6"
+    },
+    "Name": "vfs"
+  },
+  "RootFS": {
+    "Type": "layers",
+    "Layers": [
+      "sha256:256f393e029fa2063d8c93720da36a74a032bed3355a2bc3e313ad12f8bde9d1",
+      "sha256:434ac0341ec422ec2173d791fb8a83a5380c3a19da5630df31cb766c68598091",
+      "sha256:4db0054eccfc9e6dcee882ad29ed082f8f198f2c8fc009eaddc55c429fd03c2c",
+      "sha256:1bd4ce4447220b1b196046c0ddf443d9a6f4b1f8bce7713119fd3f3d818da727",
+      "sha256:15b63dbf636e1ee8d979b95d0ed1f5018edc827e32a39be36837bc3fff71c92e",
+      "sha256:f1c29c48614ffa755a1004b12500b1c4bb486823db582cd6b218ce598c8be481"
+    ]
+  },
+  "Metadata": {
+    "LastTagTime": "0001-01-01T00:00:00Z"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "CreatedAt" : "2026-10-06T10:36:25Z",
+  "Driver" : "local",
+  "Labels" : {
+    "io.webjudge.attempt" : "d031c810-3e93-44cc-a639-ce5694e31588",
+    "io.webjudge.judge" : "task10-java-active-recovery",
+    "io.webjudge.managed" : "stage-volume"
+  },
+  "Mountpoint" : "/var/lib/wjc/docker/volumes/wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588/_data",
+  "Name" : "wjc-stage-volume-d031c810-3e93-44cc-a639-ce5694e31588",
+  "Options" : {
+    "device" : "tmpfs",
+    "o" : "size=33554432,nodev,nosuid,uid=0,gid=0,mode=0755",
+    "type" : "tmpfs"
+  },
+  "Scope" : "local"
+}

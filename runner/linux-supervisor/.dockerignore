@@ -1,0 +1,8 @@
+**
+!Dockerfile
+!packages/
+!packages/*.apk
+!packages/SHA256SUMS
+!sources/
+!sources/*.py
+!sources/SHA256SUMS

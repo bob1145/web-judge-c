@@ -51,7 +51,7 @@ class WindowsHyperVContainerRunnerTest {
     }
 
     @Test
-    void probeRequiresWindowsEngineImageHyperVNetworkNoneJobObjectAndCleanup() {
+    void legacyProbeRemainsUnsafeDespiteHyperVNetworkNoneJobObjectAndCleanup() {
         RecordingExecutor executor = new RecordingExecutor();
         executor.when(command -> command.contains("version"), result(0, "windows|25.0.0", ""));
         executor.when(command -> command.contains("image") && command.contains("inspect"), result(0, "windows|amd64", ""));
@@ -67,7 +67,9 @@ class WindowsHyperVContainerRunnerTest {
 
         SandboxCapabilities capabilities = runner.probe();
 
-        assertThat(capabilities.productionSafe()).isTrue();
+        assertThat(capabilities.productionSafe()).isFalse();
+        assertThat(capabilities.controlPlaneIsolated()).isFalse();
+        assertThat(capabilities.skipReason()).contains("control-plane isolation");
         assertThat(capabilities.isolation()).isEqualTo("hyperv");
         assertThat(capabilities.networkDisabled()).isTrue();
         assertThat(capabilities.resourceLimits()).isTrue();
@@ -184,7 +186,7 @@ class WindowsHyperVContainerRunnerTest {
         SandboxTaskSpec spec = SandboxTaskSpec.builder()
                 .judgeId("judge-windows")
                 .userId("user-windows")
-                .profile("windows-prod")
+                .profile("trusted-local")
                 .storageBase(storageBase)
                 .workDir(workDir)
                 .sourcePath(SandboxTaskSpec.SourceRole.USER, outsideSource)
@@ -242,6 +244,27 @@ class WindowsHyperVContainerRunnerTest {
         assertThat(executor.commands).noneMatch(command -> command.contains("-d"));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"windows-prod", "linux-prod", "worker-prod", "production", "dev",
+            "TRUSTED-LOCAL", " trusted-local", "trusted-local "})
+    void nonTrustedProfilesAreRejectedBeforePreparationOrRuntimeCommands(String profile) throws Exception {
+        RecordingExecutor executor = new RecordingExecutor();
+        WindowsHyperVContainerRunner runner = new WindowsHyperVContainerRunner(options(), executor, objectMapper);
+        SandboxTaskSpec spec = validSpec(profile);
+        Path workDir = Path.of(spec.workDir());
+        String audit = "audit-1\naudit-2\naudit-3\naudit-4\n";
+        Files.writeString(workDir.resolve("events.jsonl"), audit);
+
+        assertThatThrownBy(() -> runner.start(spec))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("control-plane isolation");
+
+        assertThat(workDir.resolve("control")).doesNotExist();
+        assertThat(workDir.resolve("workspace")).doesNotExist();
+        assertThat(Files.readString(workDir.resolve("events.jsonl"))).isEqualTo(audit);
+        assertThat(executor.commands).isEmpty();
+    }
+
     private WindowsHyperVContainerRunner.Options options() {
         return WindowsHyperVContainerRunner.Options.builder()
                 .runtimeCommand("docker")
@@ -260,6 +283,10 @@ class WindowsHyperVContainerRunnerTest {
     }
 
     private SandboxTaskSpec validSpec() throws IOException {
+        return validSpec("trusted-local");
+    }
+
+    private SandboxTaskSpec validSpec(String profile) throws IOException {
         Path storageBase = tempDir.resolve("storage").toAbsolutePath().normalize();
         Path workDir = storageBase.resolve("judge-windows");
         Files.createDirectories(workDir);
@@ -272,7 +299,7 @@ class WindowsHyperVContainerRunnerTest {
         return SandboxTaskSpec.builder()
                 .judgeId("judge-windows")
                 .userId("user-windows")
-                .profile("windows-prod")
+                .profile(profile)
                 .storageBase(storageBase)
                 .workDir(workDir)
                 .sourcePath(SandboxTaskSpec.SourceRole.GENERATOR, generator)

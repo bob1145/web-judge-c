@@ -14,11 +14,15 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryIteratorException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -74,34 +78,41 @@ public class FileTaskStore implements TaskStore {
 
     public boolean deleteTaskDirectory(String judgeId) throws IOException {
         validateJudgeId(judgeId);
-        synchronized (lock(judgeId)) {
-            Path directory = taskDirectory(judgeId);
-            if (!Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
-                return false;
-            }
+        if (!Files.exists(storageBase, LinkOption.NOFOLLOW_LINKS)) {
+            return false;
+        }
+        try (TaskLifecycleGuard.Lease admission = TaskLifecycleGuard.acquire(storageBase, false)) {
+            synchronized (lock(judgeId)) {
+                Path directory = taskDirectory(judgeId);
+                if (!Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
+                    return false;
+                }
 
-            List<Path> paths = safeDeletePaths(directory);
+                admission.requireTaskDirectory(directory);
+                List<Path> paths = safeDeletePaths(directory);
+                ensureNoManagedAttemptEvidence(directory);
 
-            IOException failure = null;
-            Path realStorageBase = storageBase.toRealPath();
-            Path realDirectory = directory.toRealPath();
-            for (Path path : paths) {
-                try {
-                    validateSafeDeleteEntry(path, realStorageBase, realDirectory);
-                    Files.deleteIfExists(path);
-                } catch (IOException ex) {
-                    if (failure == null) {
-                        failure = ex;
-                    } else {
-                        failure.addSuppressed(ex);
+                IOException failure = null;
+                Path realStorageBase = storageBase.toRealPath();
+                Path realDirectory = directory.toRealPath();
+                for (Path path : paths) {
+                    try {
+                        validateSafeDeleteEntry(path, realStorageBase, realDirectory);
+                        Files.deleteIfExists(path);
+                    } catch (IOException ex) {
+                        if (failure == null) {
+                            failure = ex;
+                        } else {
+                            failure.addSuppressed(ex);
+                        }
                     }
                 }
+                if (failure != null) {
+                    throw failure;
+                }
+                locks.remove(judgeId);
+                return true;
             }
-            if (failure != null) {
-                throw failure;
-            }
-            locks.remove(judgeId);
-            return true;
         }
     }
 
@@ -110,19 +121,25 @@ public class FileTaskStore implements TaskStore {
         validateJudgeId(task.getJudgeId());
         Path workDir = Path.of(task.getWorkDir()).toAbsolutePath().normalize();
         ensureInsideStorageBase(workDir);
-        synchronized (lock(task.getJudgeId())) {
-            Files.createDirectories(workDir);
-            validateTaskDirectory(workDir);
-            JudgeTask normalized = copyForWrite(task);
-            if (normalized.getCreatedAt() == null) {
-                normalized.setCreatedAt(Instant.now());
+        if (!workDir.equals(taskDirectory(task.getJudgeId()))) {
+            throw new IllegalArgumentException("Task workDir must match its canonical task directory");
+        }
+        try (TaskLifecycleGuard.Lease admission = TaskLifecycleGuard.acquire(storageBase, true)) {
+            synchronized (lock(task.getJudgeId())) {
+                Files.createDirectories(workDir);
+                admission.requireTaskDirectory(workDir);
+                validateTaskDirectory(workDir);
+                JudgeTask normalized = copyForWrite(task);
+                if (normalized.getCreatedAt() == null) {
+                    normalized.setCreatedAt(Instant.now());
+                }
+                if (normalized.getStatus() == null) {
+                    normalized.setStatus(JudgeStatus.CREATED);
+                }
+                writeJsonAtomically(metadataFile(workDir), normalized);
+                appendEvent(workDir, event(normalized.getJudgeId(), normalized.getStatus(), normalized.getMessage()));
+                return normalized;
             }
-            if (normalized.getStatus() == null) {
-                normalized.setStatus(JudgeStatus.CREATED);
-            }
-            writeJsonAtomically(metadataFile(workDir), normalized);
-            appendEvent(workDir, event(normalized.getJudgeId(), normalized.getStatus(), normalized.getMessage()));
-            return normalized;
         }
     }
 
@@ -147,28 +164,29 @@ public class FileTaskStore implements TaskStore {
     @Override
     public JudgeTask updateStatus(String judgeId, JudgeStatus status, String message) throws IOException {
         validateJudgeId(judgeId);
-        synchronized (lock(judgeId)) {
-            JudgeTask task = find(judgeId)
-                    .orElseThrow(() -> new IllegalArgumentException("Judge task not found: " + judgeId));
-            JudgeStatus current = task.getStatus();
-            validateTransition(current, status);
+        try (TaskLifecycleGuard.Lease admission = TaskLifecycleGuard.acquire(storageBase, false)) {
+            synchronized (lock(judgeId)) {
+                JudgeTask task = find(judgeId)
+                        .orElseThrow(() -> new IllegalArgumentException("Judge task not found: " + judgeId));
+                JudgeStatus current = task.getStatus();
+                validateTransition(current, status);
 
-            task.setStatus(status);
-            task.setMessage(message);
-            Instant now = Instant.now();
-            if (task.getStartedAt() == null && startsExecution(status)) {
-                task.setStartedAt(now);
-            }
-            if (status.isTerminal()) {
-                task.setFinishedAt(now);
-            }
+                task.setStatus(status);
+                task.setMessage(message);
+                Instant now = Instant.now();
+                if (task.getStartedAt() == null && startsExecution(status)) {
+                    task.setStartedAt(now);
+                }
+                if (status.isTerminal()) {
+                    task.setFinishedAt(now);
+                }
 
-            Path workDir = Path.of(task.getWorkDir()).toAbsolutePath().normalize();
-            ensureInsideStorageBase(workDir);
-            validateTaskDirectory(workDir);
-            writeJsonAtomically(metadataFile(workDir), task);
-            appendEvent(workDir, event(judgeId, status, message));
-            return task;
+                Path workDir = requireStoredTaskDirectory(judgeId, task);
+                admission.requireTaskDirectory(workDir);
+                writeJsonAtomically(metadataFile(workDir), task);
+                appendEvent(workDir, event(judgeId, status, message));
+                return task;
+            }
         }
     }
 
@@ -181,29 +199,31 @@ public class FileTaskStore implements TaskStore {
         if (handle.judgeId() != null && !judgeId.equals(handle.judgeId())) {
             throw new IllegalArgumentException("Sandbox run handle judgeId does not match task");
         }
-        synchronized (lock(judgeId)) {
-            JudgeTask task = find(judgeId)
-                    .orElseThrow(() -> new IllegalArgumentException("Judge task not found: " + judgeId));
-            task.setSandboxRunHandle(handle);
+        try (TaskLifecycleGuard.Lease admission = TaskLifecycleGuard.acquire(storageBase, false)) {
+            synchronized (lock(judgeId)) {
+                JudgeTask task = find(judgeId)
+                        .orElseThrow(() -> new IllegalArgumentException("Judge task not found: " + judgeId));
+                task.setSandboxRunHandle(handle);
 
-            Path workDir = Path.of(task.getWorkDir()).toAbsolutePath().normalize();
-            ensureInsideStorageBase(workDir);
-            validateTaskDirectory(workDir);
-            writeJsonAtomically(metadataFile(workDir), task);
-            return task;
+                Path workDir = requireStoredTaskDirectory(judgeId, task);
+                admission.requireTaskDirectory(workDir);
+                writeJsonAtomically(metadataFile(workDir), task);
+                return task;
+            }
         }
     }
 
     @Override
     public void saveSummary(String judgeId, JudgeProgress summary) throws IOException {
         validateJudgeId(judgeId);
-        synchronized (lock(judgeId)) {
-            JudgeTask task = find(judgeId)
-                    .orElseThrow(() -> new IllegalArgumentException("Judge task not found: " + judgeId));
-            Path workDir = Path.of(task.getWorkDir()).toAbsolutePath().normalize();
-            ensureInsideStorageBase(workDir);
-            validateTaskDirectory(workDir);
-            writeJsonAtomically(summaryFile(workDir), summary);
+        try (TaskLifecycleGuard.Lease admission = TaskLifecycleGuard.acquire(storageBase, false)) {
+            synchronized (lock(judgeId)) {
+                JudgeTask task = find(judgeId)
+                        .orElseThrow(() -> new IllegalArgumentException("Judge task not found: " + judgeId));
+                Path workDir = requireStoredTaskDirectory(judgeId, task);
+                admission.requireTaskDirectory(workDir);
+                writeJsonAtomically(summaryFile(workDir), summary);
+            }
         }
     }
 
@@ -238,9 +258,12 @@ public class FileTaskStore implements TaskStore {
 
     @Override
     public List<JudgeTask> markStaleRunningTasksOnStartup() throws IOException {
-        Files.createDirectories(storageBase);
+        List<JudgeTask> existingTasks;
+        try (TaskLifecycleGuard.Lease admission = TaskLifecycleGuard.acquire(storageBase, true)) {
+            existingTasks = loadAllTasks();
+        }
         List<JudgeTask> staleTasks = new ArrayList<>();
-        for (JudgeTask task : loadAllTasks()) {
+        for (JudgeTask task : existingTasks) {
             if (task.getStatus() == JudgeStatus.RUNNING || task.getStatus() == JudgeStatus.QUEUED) {
                 staleTasks.add(updateStatus(task.getJudgeId(), JudgeStatus.STALE, "Task marked stale after service restart"));
             }
@@ -257,7 +280,7 @@ public class FileTaskStore implements TaskStore {
     }
 
     private void writeJsonAtomically(Path target, Object value) throws IOException {
-        Files.createDirectories(target.getParent());
+        validateTaskDirectory(target.getParent());
         Path tempFile = target.getParent().resolve(target.getFileName() + "." + UUID.randomUUID() + ".tmp");
         boolean moved = false;
         try {
@@ -269,6 +292,20 @@ public class FileTaskStore implements TaskStore {
                 Files.deleteIfExists(tempFile);
             }
         }
+    }
+
+    private Path requireStoredTaskDirectory(String judgeId, JudgeTask task) throws IOException {
+        Path expected = taskDirectory(judgeId);
+        try {
+            if (!judgeId.equals(task.getJudgeId()) || task.getWorkDir() == null
+                    || !expected.equals(Path.of(task.getWorkDir()).toAbsolutePath().normalize())) {
+                throw new IOException("Stored task identity or workDir does not match its directory");
+            }
+        } catch (java.nio.file.InvalidPathException invalid) {
+            throw new IOException("Stored task workDir is invalid", invalid);
+        }
+        validateTaskDirectory(expected);
+        return expected;
     }
 
     private List<JudgeTask> loadAllTasks() throws IOException {
@@ -303,6 +340,49 @@ public class FileTaskStore implements TaskStore {
             return tasks;
         } catch (UnsafeTaskDirectoryException ex) {
             throw ex.asIOException();
+        }
+    }
+
+    private void ensureNoManagedAttemptEvidence(Path directory) throws IOException {
+        try {
+            Path control = directory.resolve("control");
+            if (!managedDirectoryExists(control)) {
+                return;
+            }
+            if (managedEntryAttributes(control.resolve("linux-supervisor.lock")) != null) {
+                throw new IOException("Managed attempt startup lock requires trusted recovery");
+            }
+            Path attempts = control.resolve("attempts");
+            if (!managedDirectoryExists(attempts)) {
+                return;
+            }
+            try (DirectoryStream<Path> entries = Files.newDirectoryStream(attempts)) {
+                if (entries.iterator().hasNext()) {
+                    throw new IOException("Managed attempt recovery evidence is present");
+                }
+            }
+        } catch (IOException | SecurityException | DirectoryIteratorException ex) {
+            throw new IOException("Refusing to delete task directory with managed attempt evidence or unsafe managed attempt path", ex);
+        }
+    }
+
+    private boolean managedDirectoryExists(Path directory) throws IOException {
+        BasicFileAttributes attributes = managedEntryAttributes(directory);
+        if (attributes == null) {
+            return false;
+        }
+        if (!attributes.isDirectory() || attributes.isSymbolicLink() || attributes.isOther()
+                || !directory.toRealPath(LinkOption.NOFOLLOW_LINKS).equals(directory.toRealPath())) {
+            throw new IOException("Unsafe managed attempt directory");
+        }
+        return true;
+    }
+
+    private BasicFileAttributes managedEntryAttributes(Path path) throws IOException {
+        try {
+            return Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        } catch (NoSuchFileException ex) {
+            return null;
         }
     }
 

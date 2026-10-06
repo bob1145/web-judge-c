@@ -1,0 +1,39 @@
+{
+  "Id": "sha256:360a2877270d6ce26675f4867588dcbffba5a743947557c169713967b2a2f33f",
+  "RepoTags": [],
+  "RepoDigests": [],
+  "Created": "2026-10-03T07:07:10.449864215Z",
+  "Config": {
+    "User": "65532:65532",
+    "Env": [
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "LC_ALL=C",
+      "TMPDIR=/scratch"
+    ],
+    "Cmd": [
+      "/bin/false"
+    ],
+    "WorkingDir": "/scratch"
+  },
+  "Architecture": "amd64",
+  "Os": "linux",
+  "Size": 330912136,
+  "GraphDriver": {
+    "Data": {
+      "SourceDir": "/var/lib/wjc/docker/vfs/dir/a47ae451abbaa7ff6784fb999a00bb141e1149ebbf2b514d3f534e355d439fed"
+    },
+    "Name": "vfs"
+  },
+  "RootFS": {
+    "Type": "layers",
+    "Layers": [
+      "sha256:256f393e029fa2063d8c93720da36a74a032bed3355a2bc3e313ad12f8bde9d1",
+      "sha256:68cb3cb751066c2331925713a8b7b67384979c8824c8b1bf8c2c2c27f3b09b69",
+      "sha256:5069dd8f2e53d3e35f5c2becb4163da48138cb6c22400fea571ab0c8687ea7dd",
+      "sha256:4ab9da2905a9160cede56d53ea5f797e793f2269f97c83c06c47318fa9a619ff"
+    ]
+  },
+  "Metadata": {
+    "LastTagTime": "0001-01-01T00:00:00Z"
+  }
+}

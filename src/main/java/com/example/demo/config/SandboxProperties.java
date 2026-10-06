@@ -51,6 +51,7 @@ public class SandboxProperties {
 
     @Data
     public static class LinuxContainer {
+        private LinuxSupervisor supervisor;
         private String runtimeCommand = "docker";
         private String image = "cpp-judge-runner:latest";
         private String containerUser = "65532:65532";
@@ -61,6 +62,43 @@ public class SandboxProperties {
         private int pidsLimit = 64;
         private double cpus = 1.0;
         private Duration commandTimeout = Duration.ofSeconds(30);
+    }
+
+    @Data
+    public static class LinuxSupervisor {
+        private String hostRuntimeCommand;
+        private String hostRuntimeEndpoint;
+        private String supervisorRuntimeCommand;
+        private String supervisorRuntimeEndpoint;
+        private String supervisorImageId;
+        private String executorImageId;
+        private String workMount;
+        private Integer configWriterUid;
+        private Integer configWriterGid;
+        private Integer supervisorUid;
+        private Integer supervisorGid;
+        private Integer holderUid;
+        private Integer holderGid;
+        private Integer workloadUid;
+        private Integer workloadGid;
+        private ResourceLimits supervisorLimits;
+        private ResourceLimits holderLimits;
+        private Duration holderLifetime;
+        private Integer stagePidsLimit;
+        private Double stageCpus;
+        private Long inputLimitBytes;
+        private Long artifactLimitBytes;
+        private Long volumeLimitBytes;
+        private Long controlOutputLimitBytes;
+        private Duration commandTimeout;
+        private Duration stageCommandTimeout;
+
+        @Data
+        public static class ResourceLimits {
+            private Long memoryBytes;
+            private Integer pidsLimit;
+            private Double cpus;
+        }
     }
 
     @Data

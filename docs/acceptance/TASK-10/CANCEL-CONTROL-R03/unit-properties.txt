@@ -1,0 +1,15 @@
+TimeoutStopUSec=30s
+RuntimeMaxUSec=10min
+CPUQuotaPerSecUSec=2s
+MemoryMax=4294967296
+MemorySwapMax=0
+TasksMax=512
+ReadWritePaths=/mnt/c/Users/29901/Documents/dp/web-judge-c/docs/acceptance/TASK-10
+ReadOnlyPaths=/mnt/c/Users/29901/Documents/dp/web-judge-c
+PrivateNetwork=yes
+ProtectHome=read-only
+ProtectSystem=strict
+NoNewPrivileges=yes
+TemporaryFileSystem=/tmp:rw,size=2G
+Id=wjc-task10-cancel-control-r03.service
+InvocationID=5a3640ecd9934f1e9f77c517505a5caf

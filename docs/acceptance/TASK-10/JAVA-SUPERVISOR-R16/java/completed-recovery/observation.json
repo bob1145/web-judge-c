@@ -1,0 +1,15 @@
+{
+  "freshJvm" : true,
+  "processId" : 2731,
+  "judgeId" : "task10-java-supervisor",
+  "attemptId" : "956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+  "handleProvided" : false,
+  "runnerStartedInThisProcess" : false,
+  "realRuntimeCommands" : true,
+  "confirmedStages" : 6,
+  "retainedVolumeName" : "wjc-stage-volume-956ffccf-2b5c-45cc-8325-9b9a9e8e1573",
+  "productRecoveryComplete" : false,
+  "volumeContinuityProven" : false,
+  "deletionCredentialIssued" : false,
+  "productionAcceptance" : false
+}

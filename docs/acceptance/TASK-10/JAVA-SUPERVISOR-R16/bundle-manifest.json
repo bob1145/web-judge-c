@@ -1,0 +1,1723 @@
+{
+  "version": 1,
+  "mainClass": "com.example.demo.acceptance.JavaSupervisorProbe",
+  "probeSourceSha256": "4cfbe6105f7a118ca396faddcdb15850e39bf209dc65ad44c6e801fec98a5762",
+  "sourceSnapshotSha256": "260313da8a41da37eef291cc5037c5f1488b3cf451daaf92ec5379de96c9500d",
+  "classpathScope": "resolved Surefire dependency superset, including test jars; not claimed minimal",
+  "classpathNormalization": {
+    "policy": "omit only the sole terminal empty token; reject all other empty tokens",
+    "soleTrailingEmptyOmitted": true,
+    "omittedIndexZeroBased": 98,
+    "implicitWorkingDirectoryIncluded": false,
+    "executionClasspath": "/lab/java-bundle/classes:/lab/java-bundle/lib/*"
+  },
+  "dependencies": [
+    {
+      "coordinatePath": "org/springframework/boot/spring-boot-starter-web/3.5.3/spring-boot-starter-web-3.5.3.jar",
+      "file": "lib/spring-boot-starter-web-3.5.3.jar",
+      "sha256": "9aa37906704d60c887636750b81f93accae2beed002b819d12b846b7de78d390"
+    },
+    {
+      "coordinatePath": "org/springframework/boot/spring-boot-starter/3.5.3/spring-boot-starter-3.5.3.jar",
+      "file": "lib/spring-boot-starter-3.5.3.jar",
+      "sha256": "d151871da9dd3446eada633ff3450457bd4195443ff8cdc47975c675e0e61f52"
+    },
+    {
+      "coordinatePath": "org/springframework/boot/spring-boot/3.5.3/spring-boot-3.5.3.jar",
+      "file": "lib/spring-boot-3.5.3.jar",
+      "sha256": "246c008f5a131bd12194883031d8039e1f98016400d94f80382828e1360f8965"
+    },
+    {
+      "coordinatePath": "org/springframework/boot/spring-boot-autoconfigure/3.5.3/spring-boot-autoconfigure-3.5.3.jar",
+      "file": "lib/spring-boot-autoconfigure-3.5.3.jar",
+      "sha256": "bcbc5b37d915304134af4d65603c92bb0cd1df522edbd2d7abeecb95f2c57531"
+    },
+    {
+      "coordinatePath": "org/springframework/boot/spring-boot-starter-logging/3.5.3/spring-boot-starter-logging-3.5.3.jar",
+      "file": "lib/spring-boot-starter-logging-3.5.3.jar",
+      "sha256": "85a1c3c6cf10604cf5699d3bfa4a88089983a8b07725c3734f4fbd1a4e70bf43"
+    },
+    {
+      "coordinatePath": "ch/qos/logback/logback-classic/1.5.18/logback-classic-1.5.18.jar",
+      "file": "lib/logback-classic-1.5.18.jar",
+      "sha256": "3e1533d0321f8815eef46750aee0111b41554f9a4644c3c4d2d404744b09f60f"
+    },
+    {
+      "coordinatePath": "ch/qos/logback/logback-core/1.5.18/logback-core-1.5.18.jar",
+      "file": "lib/logback-core-1.5.18.jar",
+      "sha256": "85139e7b57b464f8e5e36326dd81317648bed199ccc4f98cd42585f8d7571027"
+    },
+    {
+      "coordinatePath": "org/apache/logging/log4j/log4j-to-slf4j/2.24.3/log4j-to-slf4j-2.24.3.jar",
+      "file": "lib/log4j-to-slf4j-2.24.3.jar",
+      "sha256": "c7f2b0c612a4eb05b1587d1c880eb4cf5f4f53850676a8ede8da2b8fabb4f73f"
+    },
+    {
+      "coordinatePath": "org/apache/logging/log4j/log4j-api/2.24.3/log4j-api-2.24.3.jar",
+      "file": "lib/log4j-api-2.24.3.jar",
+      "sha256": "5b4a0a0cd0e751ded431c162442bdbdd53328d1f8bb2bae5fc1bbeee0f66d80f"
+    },
+    {
+      "coordinatePath": "org/slf4j/jul-to-slf4j/2.0.17/jul-to-slf4j-2.0.17.jar",
+      "file": "lib/jul-to-slf4j-2.0.17.jar",
+      "sha256": "a7afcd23b9cfd1475e55c94f943b808c5922035e7e2c2a5c65a487a4106bc538"
+    },
+    {
+      "coordinatePath": "jakarta/annotation/jakarta.annotation-api/2.1.1/jakarta.annotation-api-2.1.1.jar",
+      "file": "lib/jakarta.annotation-api-2.1.1.jar",
+      "sha256": "5f65fdaf424eee2b55e1d882ba9bb376be93fb09b37b808be6e22e8851c909fe"
+    },
+    {
+      "coordinatePath": "org/yaml/snakeyaml/2.4/snakeyaml-2.4.jar",
+      "file": "lib/snakeyaml-2.4.jar",
+      "sha256": "ef779af5d29a9dde8cc70ce0341f5c6f7735e23edff9685ceaa9d35359b7bb7f"
+    },
+    {
+      "coordinatePath": "org/springframework/boot/spring-boot-starter-json/3.5.3/spring-boot-starter-json-3.5.3.jar",
+      "file": "lib/spring-boot-starter-json-3.5.3.jar",
+      "sha256": "a2b8494185c6ecbc8af3003a539d877bf06230d0a9ad12a74747e9da56ef2808"
+    },
+    {
+      "coordinatePath": "com/fasterxml/jackson/datatype/jackson-datatype-jdk8/2.19.1/jackson-datatype-jdk8-2.19.1.jar",
+      "file": "lib/jackson-datatype-jdk8-2.19.1.jar",
+      "sha256": "5966c02022a0812b8761d999e5510c0a269d87178cb5ef67e138d54ead6966c6"
+    },
+    {
+      "coordinatePath": "com/fasterxml/jackson/datatype/jackson-datatype-jsr310/2.19.1/jackson-datatype-jsr310-2.19.1.jar",
+      "file": "lib/jackson-datatype-jsr310-2.19.1.jar",
+      "sha256": "366eb89065d568a7c0ede73c26a343f293f076d2f8efd0dc69cbe574ca01220e"
+    },
+    {
+      "coordinatePath": "com/fasterxml/jackson/module/jackson-module-parameter-names/2.19.1/jackson-module-parameter-names-2.19.1.jar",
+      "file": "lib/jackson-module-parameter-names-2.19.1.jar",
+      "sha256": "55eadd4a008add686e24c5963fac37a5b496eea320f74f092a059aeb6feecd6e"
+    },
+    {
+      "coordinatePath": "org/springframework/boot/spring-boot-starter-tomcat/3.5.3/spring-boot-starter-tomcat-3.5.3.jar",
+      "file": "lib/spring-boot-starter-tomcat-3.5.3.jar",
+      "sha256": "888e0b1b94a27b5d0158241b1940add08f02f4fa388daba4d7e13a68bf514a7e"
+    },
+    {
+      "coordinatePath": "org/apache/tomcat/embed/tomcat-embed-core/10.1.42/tomcat-embed-core-10.1.42.jar",
+      "file": "lib/tomcat-embed-core-10.1.42.jar",
+      "sha256": "c0ca6acafe5ad63cd5de16ec8894318a7b53ea11e3db1bc217fd5f2a9746a790"
+    },
+    {
+      "coordinatePath": "org/apache/tomcat/embed/tomcat-embed-el/10.1.42/tomcat-embed-el-10.1.42.jar",
+      "file": "lib/tomcat-embed-el-10.1.42.jar",
+      "sha256": "45b3ae7ce47e7f15add01a25cb7ccaf37a07d4cdc4942f9d662c34e763d05df8"
+    },
+    {
+      "coordinatePath": "org/apache/tomcat/embed/tomcat-embed-websocket/10.1.42/tomcat-embed-websocket-10.1.42.jar",
+      "file": "lib/tomcat-embed-websocket-10.1.42.jar",
+      "sha256": "de13dd7f8d1719a8f0c17e24e838d7d1705c9e32fc81665e5c5daf79eb012701"
+    },
+    {
+      "coordinatePath": "org/springframework/spring-web/6.2.8/spring-web-6.2.8.jar",
+      "file": "lib/spring-web-6.2.8.jar",
+      "sha256": "152405afabc056dc8007dca8ef105503c7cbbb132f7d1ab75fef3e27eaabd461"
+    },
+    {
+      "coordinatePath": "org/springframework/spring-beans/6.2.8/spring-beans-6.2.8.jar",
+      "file": "lib/spring-beans-6.2.8.jar",
+      "sha256": "a6ae270c6eb06e9502aa7e47ee3fc66deb1853285b4a4e020f3d22767f2fabd3"
+    },
+    {
+      "coordinatePath": "org/springframework/spring-webmvc/6.2.8/spring-webmvc-6.2.8.jar",
+      "file": "lib/spring-webmvc-6.2.8.jar",
+      "sha256": "897e6d34737d1a475cdcb9e414abf42de51d5d547232345cfb7f34d344992f5d"
+    },
+    {
+      "coordinatePath": "org/springframework/spring-context/6.2.8/spring-context-6.2.8.jar",
+      "file": "lib/spring-context-6.2.8.jar",
+      "sha256": "1cf85780301b86f8d876a2dfbfbdd9ee187179cdb361337a2ba4ee56025f6432"
+    },
+    {
+      "coordinatePath": "org/springframework/spring-expression/6.2.8/spring-expression-6.2.8.jar",
+      "file": "lib/spring-expression-6.2.8.jar",
+      "sha256": "d46b922eb2200710ec5100f00d35fd8786d5e7bc459d09c8bbda32432726a5ba"
+    },
+    {
+      "coordinatePath": "org/springframework/boot/spring-boot-starter-thymeleaf/3.5.3/spring-boot-starter-thymeleaf-3.5.3.jar",
+      "file": "lib/spring-boot-starter-thymeleaf-3.5.3.jar",
+      "sha256": "4c183828177f7a35f6badb6f0472324cc21d8341c385f3cca2b1211f8067bd70"
+    },
+    {
+      "coordinatePath": "org/thymeleaf/thymeleaf-spring6/3.1.3.RELEASE/thymeleaf-spring6-3.1.3.RELEASE.jar",
+      "file": "lib/thymeleaf-spring6-3.1.3.RELEASE.jar",
+      "sha256": "79c7f0897008831e9cf87315c8ca452e5ea95d32cbf04648dc11f9e6bad0a50e"
+    },
+    {
+      "coordinatePath": "org/thymeleaf/thymeleaf/3.1.3.RELEASE/thymeleaf-3.1.3.RELEASE.jar",
+      "file": "lib/thymeleaf-3.1.3.RELEASE.jar",
+      "sha256": "165ef16cd71020c4d572e77d73cf7baffd431f3f3e8c1d84b410de23dc79f92c"
+    },
+    {
+      "coordinatePath": "org/attoparser/attoparser/2.0.7.RELEASE/attoparser-2.0.7.RELEASE.jar",
+      "file": "lib/attoparser-2.0.7.RELEASE.jar",
+      "sha256": "75dd1c045492bff8e1963aabb28bfe903c2064e11e27fe2f0f0aff1ad3d84476"
+    },
+    {
+      "coordinatePath": "org/unbescape/unbescape/1.1.6.RELEASE/unbescape-1.1.6.RELEASE.jar",
+      "file": "lib/unbescape-1.1.6.RELEASE.jar",
+      "sha256": "597cf87d5b1a4f385b9d1cec974b7b483abb3ee85fc5b3f8b62af8e4bec95c2c"
+    },
+    {
+      "coordinatePath": "org/springframework/boot/spring-boot-starter-websocket/3.5.3/spring-boot-starter-websocket-3.5.3.jar",
+      "file": "lib/spring-boot-starter-websocket-3.5.3.jar",
+      "sha256": "5334b474eb346d66b36a3604660fdbe8074425a1dec37bab9255fcff919c0d6b"
+    },
+    {
+      "coordinatePath": "org/springframework/spring-messaging/6.2.8/spring-messaging-6.2.8.jar",
+      "file": "lib/spring-messaging-6.2.8.jar",
+      "sha256": "c202b58b3913a5135709f769c33af4e16349a6713893fea9db99f7c44e16567b"
+    },
+    {
+      "coordinatePath": "org/springframework/spring-websocket/6.2.8/spring-websocket-6.2.8.jar",
+      "file": "lib/spring-websocket-6.2.8.jar",
+      "sha256": "928560d8062da4eadc3830a265e290c2349e5f0b8d66577b0c6281e4ae2e450b"
+    },
+    {
+      "coordinatePath": "commons-io/commons-io/2.11.0/commons-io-2.11.0.jar",
+      "file": "lib/commons-io-2.11.0.jar",
+      "sha256": "961b2f6d87dbacc5d54abf45ab7a6e2495f89b75598962d8c723cea9bc210908"
+    },
+    {
+      "coordinatePath": "org/springframework/boot/spring-boot-starter-security/3.5.3/spring-boot-starter-security-3.5.3.jar",
+      "file": "lib/spring-boot-starter-security-3.5.3.jar",
+      "sha256": "84d007f20cbb80bbccfbece1ef6262bd349b69f189012283df9129f84f53a973"
+    },
+    {
+      "coordinatePath": "org/springframework/spring-aop/6.2.8/spring-aop-6.2.8.jar",
+      "file": "lib/spring-aop-6.2.8.jar",
+      "sha256": "e74bfc1e95b60c73785258559020929885424ede9667a5163a9651d51b894e38"
+    },
+    {
+      "coordinatePath": "org/springframework/security/spring-security-config/6.5.1/spring-security-config-6.5.1.jar",
+      "file": "lib/spring-security-config-6.5.1.jar",
+      "sha256": "b7490dc259efc5686e1e7dcdacb424642f8f44773930ff911199c120a97f1de1"
+    },
+    {
+      "coordinatePath": "org/springframework/security/spring-security-core/6.5.1/spring-security-core-6.5.1.jar",
+      "file": "lib/spring-security-core-6.5.1.jar",
+      "sha256": "2da6ce414d447a8c410304b5afaa2f997f81c7cbf098e8e074e44edd8be24392"
+    },
+    {
+      "coordinatePath": "org/springframework/security/spring-security-crypto/6.5.1/spring-security-crypto-6.5.1.jar",
+      "file": "lib/spring-security-crypto-6.5.1.jar",
+      "sha256": "482aacf358f67b72312abc2465c594aafeb72e379e4ffa8901650a4d2d723456"
+    },
+    {
+      "coordinatePath": "org/springframework/security/spring-security-web/6.5.1/spring-security-web-6.5.1.jar",
+      "file": "lib/spring-security-web-6.5.1.jar",
+      "sha256": "e72fb05eec0e029601499e7eb03fc8a9534865fc23681b1d49726eca0de092d0"
+    },
+    {
+      "coordinatePath": "net/java/dev/jna/jna/5.13.0/jna-5.13.0.jar",
+      "file": "lib/jna-5.13.0.jar",
+      "sha256": "66d4f819a062a51a1d5627bffc23fac55d1677f0e0a1feba144aabdd670a64bb"
+    },
+    {
+      "coordinatePath": "net/java/dev/jna/jna-platform/5.13.0/jna-platform-5.13.0.jar",
+      "file": "lib/jna-platform-5.13.0.jar",
+      "sha256": "474d7b88f6e97009b6ec1d98c3024dd95c23187c65dabfbc35331bcac3d173dd"
+    },
+    {
+      "coordinatePath": "com/github/docker-java/docker-java-core/3.3.4/docker-java-core-3.3.4.jar",
+      "file": "lib/docker-java-core-3.3.4.jar",
+      "sha256": "5e2e2b3f3e4d2f1aa954f9a29762c4301bb75b8e6acdf2437771b91aa63622c2"
+    },
+    {
+      "coordinatePath": "com/github/docker-java/docker-java-api/3.3.4/docker-java-api-3.3.4.jar",
+      "file": "lib/docker-java-api-3.3.4.jar",
+      "sha256": "650710c70160c1c651e4586a07e55c5f564436cf1f28d83737265ceb5d67696f"
+    },
+    {
+      "coordinatePath": "com/fasterxml/jackson/core/jackson-annotations/2.19.1/jackson-annotations-2.19.1.jar",
+      "file": "lib/jackson-annotations-2.19.1.jar",
+      "sha256": "5a3cd7211ab26b36213f43a2a94bc052a3385af780c5c135329741b2d79a9730"
+    },
+    {
+      "coordinatePath": "com/github/docker-java/docker-java-transport/3.3.4/docker-java-transport-3.3.4.jar",
+      "file": "lib/docker-java-transport-3.3.4.jar",
+      "sha256": "d4a0f11c6f95dfa5407c3418ef5fb59a6e985542abda3f6175f763e46daa12bd"
+    },
+    {
+      "coordinatePath": "org/slf4j/slf4j-api/2.0.17/slf4j-api-2.0.17.jar",
+      "file": "lib/slf4j-api-2.0.17.jar",
+      "sha256": "7b751d952061954d5abfed7181c1f645d336091b679891591d63329c622eb832"
+    },
+    {
+      "coordinatePath": "org/apache/commons/commons-compress/1.21/commons-compress-1.21.jar",
+      "file": "lib/commons-compress-1.21.jar",
+      "sha256": "6aecfd5459728a595601cfa07258d131972ffc39b492eb48bdd596577a2f244a"
+    },
+    {
+      "coordinatePath": "org/apache/commons/commons-lang3/3.17.0/commons-lang3-3.17.0.jar",
+      "file": "lib/commons-lang3-3.17.0.jar",
+      "sha256": "6ee731df5c8e5a2976a1ca023b6bb320ea8d3539fbe64c8a1d5cb765127c33b4"
+    },
+    {
+      "coordinatePath": "com/fasterxml/jackson/core/jackson-databind/2.19.1/jackson-databind-2.19.1.jar",
+      "file": "lib/jackson-databind-2.19.1.jar",
+      "sha256": "0bc539401d52c6b14e668947c851dcc49f78a4ada3d1fc8e8f71440613fc26ce"
+    },
+    {
+      "coordinatePath": "com/fasterxml/jackson/core/jackson-core/2.19.1/jackson-core-2.19.1.jar",
+      "file": "lib/jackson-core-2.19.1.jar",
+      "sha256": "c46369e1a21810100adbc92503b62f15a9ef1640427932f4fe1588ef7ce7e480"
+    },
+    {
+      "coordinatePath": "com/google/guava/guava/19.0/guava-19.0.jar",
+      "file": "lib/guava-19.0.jar",
+      "sha256": "58d4cc2e05ebb012bbac568b032f75623be1cb6fb096f3c60c72a86f7f057de4"
+    },
+    {
+      "coordinatePath": "org/bouncycastle/bcpkix-jdk18on/1.76/bcpkix-jdk18on-1.76.jar",
+      "file": "lib/bcpkix-jdk18on-1.76.jar",
+      "sha256": "935a388854c329f9a6f32708f30c90045d2f91294fa687281273145d4cf9834a"
+    },
+    {
+      "coordinatePath": "org/bouncycastle/bcprov-jdk18on/1.76/bcprov-jdk18on-1.76.jar",
+      "file": "lib/bcprov-jdk18on-1.76.jar",
+      "sha256": "fda85d777aaae168015860b23a77cad9b8d3a1d5c904fda875313427bd560179"
+    },
+    {
+      "coordinatePath": "org/bouncycastle/bcutil-jdk18on/1.76/bcutil-jdk18on-1.76.jar",
+      "file": "lib/bcutil-jdk18on-1.76.jar",
+      "sha256": "1a65ad02958223a3f31373bd72eea942cafd1b1877a3ed0b492c2487e77c3c27"
+    },
+    {
+      "coordinatePath": "com/github/docker-java/docker-java-transport-httpclient5/3.3.4/docker-java-transport-httpclient5-3.3.4.jar",
+      "file": "lib/docker-java-transport-httpclient5-3.3.4.jar",
+      "sha256": "7c9bd6f599464fc90846aba8b4e6a5ceaf394da98507be57a52caaf47a566a89"
+    },
+    {
+      "coordinatePath": "org/apache/httpcomponents/client5/httpclient5/5.5/httpclient5-5.5.jar",
+      "file": "lib/httpclient5-5.5.jar",
+      "sha256": "496b4b0e8d5f3a8139a5d2638486d304758bac3a9c39d76989f663cfd9354fc9"
+    },
+    {
+      "coordinatePath": "org/apache/httpcomponents/core5/httpcore5/5.3.4/httpcore5-5.3.4.jar",
+      "file": "lib/httpcore5-5.3.4.jar",
+      "sha256": "f2b2fd7a0164e8c3120cd8437bc9fea439239e165c17262b3e907daa7e979f80"
+    },
+    {
+      "coordinatePath": "io/micrometer/micrometer-core/1.15.1/micrometer-core-1.15.1.jar",
+      "file": "lib/micrometer-core-1.15.1.jar",
+      "sha256": "5d9fbc17664de839c062e2d3b909a9358a96bfc8ce46efd86113eae1d98a5483"
+    },
+    {
+      "coordinatePath": "io/micrometer/micrometer-commons/1.15.1/micrometer-commons-1.15.1.jar",
+      "file": "lib/micrometer-commons-1.15.1.jar",
+      "sha256": "6799381c0809a74b80fd4bfaa10b4278f6adb0331a641013ff89dff4cc1f3484"
+    },
+    {
+      "coordinatePath": "io/micrometer/micrometer-observation/1.15.1/micrometer-observation-1.15.1.jar",
+      "file": "lib/micrometer-observation-1.15.1.jar",
+      "sha256": "5008b13db990cdaa3fa1b6f518f6f9535a7ea84421424a2a25aa88870ffbb31d"
+    },
+    {
+      "coordinatePath": "org/hdrhistogram/HdrHistogram/2.2.2/HdrHistogram-2.2.2.jar",
+      "file": "lib/HdrHistogram-2.2.2.jar",
+      "sha256": "22d1d4316c4ec13a68b559e98c8256d69071593731da96136640f864fa14fad8"
+    },
+    {
+      "coordinatePath": "org/latencyutils/LatencyUtils/2.0.3/LatencyUtils-2.0.3.jar",
+      "file": "lib/LatencyUtils-2.0.3.jar",
+      "sha256": "a32a9ffa06b2f4e01c5360f8f9df7bc5d9454a5d373cd8f361347fa5a57165ec"
+    },
+    {
+      "coordinatePath": "org/springframework/boot/spring-boot-configuration-processor/3.5.3/spring-boot-configuration-processor-3.5.3.jar",
+      "file": "lib/spring-boot-configuration-processor-3.5.3.jar",
+      "sha256": "f9d6acc7c9217d7db9dd349de7d0acb5a87abefd990ad2a185690161135d4f32"
+    },
+    {
+      "coordinatePath": "org/projectlombok/lombok/1.18.38/lombok-1.18.38.jar",
+      "file": "lib/lombok-1.18.38.jar",
+      "sha256": "1e1e427c36ff63c44fd30ef292d9e773ea3154460ab6265d3fed7e6f5bc50fb9"
+    },
+    {
+      "coordinatePath": "org/springframework/boot/spring-boot-starter-test/3.5.3/spring-boot-starter-test-3.5.3.jar",
+      "file": "lib/spring-boot-starter-test-3.5.3.jar",
+      "sha256": "05dc8430b29d1f1b7b6c7caf881be79b46ee85310f439c551c2cbf9c4ddc8255"
+    },
+    {
+      "coordinatePath": "org/springframework/boot/spring-boot-test/3.5.3/spring-boot-test-3.5.3.jar",
+      "file": "lib/spring-boot-test-3.5.3.jar",
+      "sha256": "48304e5394b1aea857338b1f89e0d17dbcf33c020e7e1ccac83ddf01d0755d6b"
+    },
+    {
+      "coordinatePath": "org/springframework/boot/spring-boot-test-autoconfigure/3.5.3/spring-boot-test-autoconfigure-3.5.3.jar",
+      "file": "lib/spring-boot-test-autoconfigure-3.5.3.jar",
+      "sha256": "2099d84fbe49a314e240c10fe213f64d35db9af2ee41524c98cba16a07c37dca"
+    },
+    {
+      "coordinatePath": "com/jayway/jsonpath/json-path/2.9.0/json-path-2.9.0.jar",
+      "file": "lib/json-path-2.9.0.jar",
+      "sha256": "11a9ee6f88bb31f1450108d1cf6441377dec84aca075eb6bb2343be157575bea"
+    },
+    {
+      "coordinatePath": "jakarta/xml/bind/jakarta.xml.bind-api/4.0.2/jakarta.xml.bind-api-4.0.2.jar",
+      "file": "lib/jakarta.xml.bind-api-4.0.2.jar",
+      "sha256": "0d6bcfe47763e85047acf7c398336dc84ff85ebcad0a7cb6f3b9d3e981245406"
+    },
+    {
+      "coordinatePath": "jakarta/activation/jakarta.activation-api/2.1.3/jakarta.activation-api-2.1.3.jar",
+      "file": "lib/jakarta.activation-api-2.1.3.jar",
+      "sha256": "01b176d718a169263e78290691fc479977186bcc6b333487325084d6586f4627"
+    },
+    {
+      "coordinatePath": "net/minidev/json-smart/2.5.2/json-smart-2.5.2.jar",
+      "file": "lib/json-smart-2.5.2.jar",
+      "sha256": "4fbdedb0105cedc7f766b95c297d2e88fb6a560da48f3bbaa0cc538ea8b7bf71"
+    },
+    {
+      "coordinatePath": "net/minidev/accessors-smart/2.5.2/accessors-smart-2.5.2.jar",
+      "file": "lib/accessors-smart-2.5.2.jar",
+      "sha256": "9b8a7bc43861d6156c021166d941fb7dddbe4463e2fa5ee88077e4b01452a836"
+    },
+    {
+      "coordinatePath": "org/ow2/asm/asm/9.7.1/asm-9.7.1.jar",
+      "file": "lib/asm-9.7.1.jar",
+      "sha256": "8cadd43ac5eb6d09de05faecca38b917a040bb9139c7edeb4cc81c740b713281"
+    },
+    {
+      "coordinatePath": "org/assertj/assertj-core/3.27.3/assertj-core-3.27.3.jar",
+      "file": "lib/assertj-core-3.27.3.jar",
+      "sha256": "5b8a26205f6d5ea60ad9ce65ce4a40a2afe4c48abeec61bd0740a088c24e89f5"
+    },
+    {
+      "coordinatePath": "net/bytebuddy/byte-buddy/1.17.6/byte-buddy-1.17.6.jar",
+      "file": "lib/byte-buddy-1.17.6.jar",
+      "sha256": "d26382a839cb26d5c62a0b0f04715bcef55a531f96ac6ce40de452a1c0539e70"
+    },
+    {
+      "coordinatePath": "org/awaitility/awaitility/4.2.2/awaitility-4.2.2.jar",
+      "file": "lib/awaitility-4.2.2.jar",
+      "sha256": "e831fee30ed401e2208f1bd5a0ef9add538d9cb1103c0e43216691b647bde9c6"
+    },
+    {
+      "coordinatePath": "org/hamcrest/hamcrest/3.0/hamcrest-3.0.jar",
+      "file": "lib/hamcrest-3.0.jar",
+      "sha256": "5d66b6a4a680755cb6ed7cb104fa7835ef644667586ff0737adeb977c39ecdbc"
+    },
+    {
+      "coordinatePath": "org/junit/jupiter/junit-jupiter/5.12.2/junit-jupiter-5.12.2.jar",
+      "file": "lib/junit-jupiter-5.12.2.jar",
+      "sha256": "3854b3ad434906b827fec474aa0d8da8b56e9e56d5fc7f2e20fc3f12ec4be894"
+    },
+    {
+      "coordinatePath": "org/junit/jupiter/junit-jupiter-api/5.12.2/junit-jupiter-api-5.12.2.jar",
+      "file": "lib/junit-jupiter-api-5.12.2.jar",
+      "sha256": "0b9ca728e4bcd9adc57f29deb9556ff9ed5e08b4e8843b875aba4e4e3e04f092"
+    },
+    {
+      "coordinatePath": "org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar",
+      "file": "lib/opentest4j-1.3.0.jar",
+      "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b"
+    },
+    {
+      "coordinatePath": "org/junit/platform/junit-platform-commons/1.12.2/junit-platform-commons-1.12.2.jar",
+      "file": "lib/junit-platform-commons-1.12.2.jar",
+      "sha256": "e683a01e85dfabea520c056ac6015a6162756e602ec653c0da85e233f0afbc18"
+    },
+    {
+      "coordinatePath": "org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar",
+      "file": "lib/apiguardian-api-1.1.2.jar",
+      "sha256": "b509448ac506d607319f182537f0b35d71007582ec741832a1f111e5b5b70b38"
+    },
+    {
+      "coordinatePath": "org/junit/jupiter/junit-jupiter-params/5.12.2/junit-jupiter-params-5.12.2.jar",
+      "file": "lib/junit-jupiter-params-5.12.2.jar",
+      "sha256": "b219ffa949b90a71aa3b6c2b606456b82bca0b2089b7459c8ff461156ff59b0f"
+    },
+    {
+      "coordinatePath": "org/junit/jupiter/junit-jupiter-engine/5.12.2/junit-jupiter-engine-5.12.2.jar",
+      "file": "lib/junit-jupiter-engine-5.12.2.jar",
+      "sha256": "f576c06b8accde9985063b8bc80526cb980eec24dee0b7221fc8ddd7ace65800"
+    },
+    {
+      "coordinatePath": "org/junit/platform/junit-platform-engine/1.12.2/junit-platform-engine-1.12.2.jar",
+      "file": "lib/junit-platform-engine-1.12.2.jar",
+      "sha256": "cef0efcb5bd2e05e2b808d38bab5c655089c0c3001527376e74cb606a7911ec8"
+    },
+    {
+      "coordinatePath": "org/mockito/mockito-core/5.17.0/mockito-core-5.17.0.jar",
+      "file": "lib/mockito-core-5.17.0.jar",
+      "sha256": "dff59ad8c61b026ef86cc113f94f2301eb06caaf81dec30c78a96a1a65595c5e"
+    },
+    {
+      "coordinatePath": "net/bytebuddy/byte-buddy-agent/1.17.6/byte-buddy-agent-1.17.6.jar",
+      "file": "lib/byte-buddy-agent-1.17.6.jar",
+      "sha256": "8a80959465bb09848cd41a89301490c55b9d940dc6ec30d8abac0f63b39fd5d0"
+    },
+    {
+      "coordinatePath": "org/objenesis/objenesis/3.3/objenesis-3.3.jar",
+      "file": "lib/objenesis-3.3.jar",
+      "sha256": "02dfd0b0439a5591e35b708ed2f5474eb0948f53abf74637e959b8e4ef69bfeb"
+    },
+    {
+      "coordinatePath": "org/mockito/mockito-junit-jupiter/5.17.0/mockito-junit-jupiter-5.17.0.jar",
+      "file": "lib/mockito-junit-jupiter-5.17.0.jar",
+      "sha256": "5c5442f8aaaa8f03df03e4862a0d69205d1b41f5edbf7d5aa7a2486a61de49b7"
+    },
+    {
+      "coordinatePath": "org/skyscreamer/jsonassert/1.5.3/jsonassert-1.5.3.jar",
+      "file": "lib/jsonassert-1.5.3.jar",
+      "sha256": "719095c07d4203961320da593441d8b3b643c18eb1d81aa98ea933bb7eb351ba"
+    },
+    {
+      "coordinatePath": "com/vaadin/external/google/android-json/0.0.20131108.vaadin1/android-json-0.0.20131108.vaadin1.jar",
+      "file": "lib/android-json-0.0.20131108.vaadin1.jar",
+      "sha256": "dfb7bae2f404cfe0b72b4d23944698cb716b7665171812a0a4d0f5926c0fac79"
+    },
+    {
+      "coordinatePath": "org/springframework/spring-core/6.2.8/spring-core-6.2.8.jar",
+      "file": "lib/spring-core-6.2.8.jar",
+      "sha256": "27f640340164d74a0e90ee176b75d5a18a93f82fa96f444a757acf0bf3ae7257"
+    },
+    {
+      "coordinatePath": "org/springframework/spring-jcl/6.2.8/spring-jcl-6.2.8.jar",
+      "file": "lib/spring-jcl-6.2.8.jar",
+      "sha256": "bd8b6add12db54602bc5926b8449a48fd922a36778323218aea88cfaea591e72"
+    },
+    {
+      "coordinatePath": "org/springframework/spring-test/6.2.8/spring-test-6.2.8.jar",
+      "file": "lib/spring-test-6.2.8.jar",
+      "sha256": "e8d95e8274c6db3c6ad696668474b80b45b6b1172fffc894d0680e08d5d96e74"
+    },
+    {
+      "coordinatePath": "org/xmlunit/xmlunit-core/2.10.2/xmlunit-core-2.10.2.jar",
+      "file": "lib/xmlunit-core-2.10.2.jar",
+      "sha256": "51e419fe7aba7d50aec727c5bf902f8cdf2aacf424879832e58112f73d3fbc21"
+    }
+  ],
+  "files": {
+    "classes/com/example/demo/Demo18Application.class": {
+      "sha256": "a1eb76dbeb0a8ef1ef003e2499ef896ce5b31bfa04cfa2cd5e53c0b334e453ed",
+      "bytes": 1000
+    },
+    "classes/com/example/demo/acceptance/JavaSupervisorProbe.class": {
+      "sha256": "b92c9073026ba56f6b7be11dbb4285f23b9473a6d97c35df309b0240c0a1e207",
+      "bytes": 71480
+    },
+    "classes/com/example/demo/config/AsyncConfig.class": {
+      "sha256": "cae53528abeb6228d1b566afa6968dd6610e6fe2590a7e0cda9cbc69369f6dcf",
+      "bytes": 2351
+    },
+    "classes/com/example/demo/config/AuthConfiguration$AccountProperties.class": {
+      "sha256": "f7b892661551510f02200c658b98fc7d6073671bd84575b81e26d5cbad3262a8",
+      "bytes": 3663
+    },
+    "classes/com/example/demo/config/AuthConfiguration.class": {
+      "sha256": "64f6c05654cf57fa9e35242fcff148d81c72423c7a2b2f6134e89df215c61aa7",
+      "bytes": 6877
+    },
+    "classes/com/example/demo/config/CompilerConfiguration.class": {
+      "sha256": "aab4feedbb908a620844280967979103be3f5b2983ded64c8acda08c6560c8b1",
+      "bytes": 3511
+    },
+    "classes/com/example/demo/config/ExecutionProperties.class": {
+      "sha256": "acce13aca412ecf2908f2d05281a5384e3f3ebcc147cb3ebe74f9981c606932b",
+      "bytes": 13756
+    },
+    "classes/com/example/demo/config/MemoryConfiguration.class": {
+      "sha256": "ec9858cd5006ea0b6ef7e38d0c6862674669a49e639a1c84ab0c3d9a894f1ea7",
+      "bytes": 2654
+    },
+    "classes/com/example/demo/config/ProductionSecurityStartupValidator.class": {
+      "sha256": "e9ee6da028264378462c58229116bb34fdb08e135ecba6bb2844b7d94f529a81",
+      "bytes": 13234
+    },
+    "classes/com/example/demo/config/SandboxConfiguration.class": {
+      "sha256": "73f40568ab01b60a60183591005451eb74cd67631b77406fe9b406e02f013f43",
+      "bytes": 3221
+    },
+    "classes/com/example/demo/config/SandboxProperties$Isolation.class": {
+      "sha256": "7d1df74eefd620baac9e56f3a6c699357303f9226fb3cd3118d3f3e8fc9353b2",
+      "bytes": 1486
+    },
+    "classes/com/example/demo/config/SandboxProperties$LinuxContainer.class": {
+      "sha256": "9bd170d38e5ac7289c8feac20c48dc39ac97c70a07a368ca26140851fca5b9bb",
+      "bytes": 7593
+    },
+    "classes/com/example/demo/config/SandboxProperties$LinuxSupervisor$ResourceLimits.class": {
+      "sha256": "b7dc724f0d26e02939ee0434705dda3e71127d62db361d4d9bf5ce4c164beb64",
+      "bytes": 3306
+    },
+    "classes/com/example/demo/config/SandboxProperties$LinuxSupervisor.class": {
+      "sha256": "a428dd2105c106bfefea4888423941cc41a8f2ecabf561e8fd99ebf0c04c41d9",
+      "bytes": 17354
+    },
+    "classes/com/example/demo/config/SandboxProperties$Provider.class": {
+      "sha256": "57f05f53fd1dc0de12dda28b760c2fb1662995b45cf959ef335d59805584ae3d",
+      "bytes": 1501
+    },
+    "classes/com/example/demo/config/SandboxProperties$WindowsContainer.class": {
+      "sha256": "3787698d46fd5d0e1e5486f09dc68145ca6716377549f13a71a9d7c0af0062be",
+      "bytes": 7491
+    },
+    "classes/com/example/demo/config/SandboxProperties$Worker.class": {
+      "sha256": "693cae9688b60e9d17d6ac2f2e2b11bcc3b9e7d562c726e4fa27f2b0c377d6f4",
+      "bytes": 3998
+    },
+    "classes/com/example/demo/config/SandboxProperties.class": {
+      "sha256": "e66a75e607afe18aedb1932e6e3e4e889bda1a6527bdf539aa5648636ed0a1c5",
+      "bytes": 7112
+    },
+    "classes/com/example/demo/config/SecurityConfig.class": {
+      "sha256": "fd273a2ae43f6b0f2675edd22daaae85428642918d709ee690a07346fa2a2b9a",
+      "bytes": 3354
+    },
+    "classes/com/example/demo/config/SecurityModeStartupValidator$PublicJudgeDisabledException.class": {
+      "sha256": "dff6063184d2aad686ecf646ede25e66a4251d77b89a904647845eb893e4d52b",
+      "bytes": 663
+    },
+    "classes/com/example/demo/config/SecurityModeStartupValidator.class": {
+      "sha256": "a79aa1a4d8a9906405ca0a2d8de2745c131a66b70c3fd5185776999ce203fcaa",
+      "bytes": 5326
+    },
+    "classes/com/example/demo/config/WebMvcConfig.class": {
+      "sha256": "e79c3d2b89483c1ca1d0d626ef8a8d04e396d8332c13a23bf6985109a3f07c62",
+      "bytes": 1782
+    },
+    "classes/com/example/demo/config/WebSocketConfig.class": {
+      "sha256": "50a40faf36ccb0fd4b7d272e919d479be1c300f5b13d0972366a1f2702627f6f",
+      "bytes": 4983
+    },
+    "classes/com/example/demo/config/WorkerProperties.class": {
+      "sha256": "8948110acfa20d82b006523f33714a505611909bd954a9daf9c0ea9aa1c02bad",
+      "bytes": 8844
+    },
+    "classes/com/example/demo/controller/AdminController.class": {
+      "sha256": "356f6edcbe13812197c20a66d6d0440e097646c28a2415bcb1da306d5da49f1d",
+      "bytes": 13727
+    },
+    "classes/com/example/demo/controller/AuthenticationController.class": {
+      "sha256": "7037987a4b326ac1534a080609707723f5c1fd296fcd8514b8e3430fdb2b980f",
+      "bytes": 10402
+    },
+    "classes/com/example/demo/controller/JudgeController.class": {
+      "sha256": "87eb364051c4d5816603418457aae49f6c78cddd07893f50489fe6ad98af08ef",
+      "bytes": 16343
+    },
+    "classes/com/example/demo/dto/AdminQueueSnapshot$ProviderHealth.class": {
+      "sha256": "05f23daf566c84d3234a77b9911b5bddee4b683c737d58a4544e18ca2b666713",
+      "bytes": 2962
+    },
+    "classes/com/example/demo/dto/AdminQueueSnapshot$TaskResourceSummary.class": {
+      "sha256": "e3f6abfd0d231b8b07967b5901a3dbb45e77fa0cf2c127a64ef9a8fa6dbae94c",
+      "bytes": 3511
+    },
+    "classes/com/example/demo/dto/AdminQueueSnapshot.class": {
+      "sha256": "b687282f00e4934123804e570b0cdaeef216714f8eb36107f20e4b7154a6791e",
+      "bytes": 4744
+    },
+    "classes/com/example/demo/dto/AuthRequest.class": {
+      "sha256": "452e9e243a954f43f65bd35e7f3b8ace019b0e5e1784cdc32a007afafb5c23a4",
+      "bytes": 3417
+    },
+    "classes/com/example/demo/dto/AuthResponse.class": {
+      "sha256": "3f38a1ef7f97695e27574c65d5ebd6aa8a9a3203a6bc287a114e8799e07f60dc",
+      "bytes": 3761
+    },
+    "classes/com/example/demo/dto/CancelJudgeResponse.class": {
+      "sha256": "327cf4f99b18eee39b01609a98f3c0135743dcac4dffc4aafefce492e6f4562b",
+      "bytes": 2309
+    },
+    "classes/com/example/demo/dto/ErrorResponse.class": {
+      "sha256": "2afb74dda5e25f5e554d0a35350f24178d83e5cbae8a2ef1bd3cee7d4206b4a2",
+      "bytes": 4740
+    },
+    "classes/com/example/demo/dto/JudgeCreateResponse.class": {
+      "sha256": "8b2f5d5cc864294428612be19c802d064da9059c33ece784fa2f55117eafd3f3",
+      "bytes": 2808
+    },
+    "classes/com/example/demo/dto/JudgeErrorResponse.class": {
+      "sha256": "08221b655c90ba554659d1ed06fd8ef8c03a04b6da94c8df89c11594376e8916",
+      "bytes": 2011
+    },
+    "classes/com/example/demo/dto/JudgeProgress.class": {
+      "sha256": "f09127b016ebc85292fb1d66889d8bbe986af785986c757100c1c082d6da3079",
+      "bytes": 5225
+    },
+    "classes/com/example/demo/dto/JudgeProgressEvent.class": {
+      "sha256": "329cee0563ec0501b7127bb4a36db7f37727002a1e7fd3572370070cffae3e27",
+      "bytes": 3378
+    },
+    "classes/com/example/demo/dto/JudgeRequest.class": {
+      "sha256": "693e07ed313e0468eb076580df7579e315e8bc4e14b69c181cca0bdb233ab241",
+      "bytes": 5545
+    },
+    "classes/com/example/demo/dto/JudgeSummary.class": {
+      "sha256": "13e3ee62a9ac30d317b0c0e2f852e23cdb4dd9206783824af9c335032b420637",
+      "bytes": 7098
+    },
+    "classes/com/example/demo/dto/LogoutRequest.class": {
+      "sha256": "81b81e5b51534f95a05dd1f93f8849d6324988b6333f49e2f8ed2c8837aee41a",
+      "bytes": 2040
+    },
+    "classes/com/example/demo/dto/RunnerProtocolCapabilities.class": {
+      "sha256": "fb125d50f3ee9942393ab62272128f32a414421cb36761ed3f44fadabe8c429f",
+      "bytes": 6357
+    },
+    "classes/com/example/demo/dto/SandboxCapabilities$Builder.class": {
+      "sha256": "dec1b85cd934859fbef7b6c47315638715945ca61134e56a3e006f49a4ba4fd8",
+      "bytes": 2424
+    },
+    "classes/com/example/demo/dto/SandboxCapabilities.class": {
+      "sha256": "6e44c9582bc30bbeaff206846f7601edaff3bcbb72d477787f537550fcb45a99",
+      "bytes": 3611
+    },
+    "classes/com/example/demo/dto/SandboxComparison$Mode.class": {
+      "sha256": "99677b03ec359883a0b486aa31a2020259942facd115ab113ebd8fbf797e6e29",
+      "bytes": 1394
+    },
+    "classes/com/example/demo/dto/SandboxComparison.class": {
+      "sha256": "a91517cf979c4151856d830cdf3820d1bafa3231b27b08c578b95d0867c5ec9c",
+      "bytes": 2819
+    },
+    "classes/com/example/demo/dto/SandboxExecutionManifest$RetentionMillis.class": {
+      "sha256": "79e3aec842f54ab493c2d47af5ca2a88affdcc3b9e038e571aa5665f77ce553f",
+      "bytes": 2152
+    },
+    "classes/com/example/demo/dto/SandboxExecutionManifest.class": {
+      "sha256": "eb1009f909d52a09adacb38adb6ad8c8b4cd87679c1b990ab3db84b61a8eba77",
+      "bytes": 9462
+    },
+    "classes/com/example/demo/dto/SandboxRunHandle$Builder.class": {
+      "sha256": "0c3aad4297e6e34cf65435f9b44ad84da7638bd76f612b04fd284512fde56094",
+      "bytes": 1865
+    },
+    "classes/com/example/demo/dto/SandboxRunHandle.class": {
+      "sha256": "26005c4789ca4fad88ddecbf488851134ce8634a353a2cc72f9db125af9e7484",
+      "bytes": 2901
+    },
+    "classes/com/example/demo/dto/SandboxTaskEvent$Type.class": {
+      "sha256": "75e93399a18438f9541567d58a985c917c3b6f89da32accc3fccd244ed405774",
+      "bytes": 1876
+    },
+    "classes/com/example/demo/dto/SandboxTaskEvent.class": {
+      "sha256": "86d2f3b4bc5b224e09fa90a87cee174bc096df667356343a4209e4a22a7a9899",
+      "bytes": 3570
+    },
+    "classes/com/example/demo/dto/SandboxTaskSpec$Builder.class": {
+      "sha256": "c7b6286847b1215a3b8afa6e6ce69bc8ced429109b2305894ab8860b0e725b07",
+      "bytes": 5929
+    },
+    "classes/com/example/demo/dto/SandboxTaskSpec$Retention.class": {
+      "sha256": "6b16fc4a6a6576a7536b1a008bcf5c14793841de026a025f44dc41cc28c5af38",
+      "bytes": 2324
+    },
+    "classes/com/example/demo/dto/SandboxTaskSpec$SourceRole.class": {
+      "sha256": "65208c80f1e5d1257086f407bf2fca6426b56970d3470919b746d9b52b2cac93",
+      "bytes": 1459
+    },
+    "classes/com/example/demo/dto/SandboxTaskSpec.class": {
+      "sha256": "08a2714cb888811c448bf29f2c5a3cb2eb2a5326f4f69ea3bae3213991cd3973",
+      "bytes": 7318
+    },
+    "classes/com/example/demo/dto/SessionInfo$SessionInfoBuilder.class": {
+      "sha256": "de448eca136e38aeffbfa140f3eea5ac86034dc4f74f4abb365f95664287e510",
+      "bytes": 2736
+    },
+    "classes/com/example/demo/dto/SessionInfo.class": {
+      "sha256": "a6f8011129027c84b9fe55bfb3fad10d3183effbe969c4b6fddea16dc64b1d60",
+      "bytes": 4768
+    },
+    "classes/com/example/demo/dto/TestCaseDetail.class": {
+      "sha256": "d7a58c7b50f00999473903c293c4594dcff82093d95894a0ef141402b3311d6a",
+      "bytes": 4336
+    },
+    "classes/com/example/demo/dto/TestCaseResult.class": {
+      "sha256": "8e78b2cc993ad631a4722a9923c67c3e7c9a56490b4a452e93a00778897eebb5",
+      "bytes": 2985
+    },
+    "classes/com/example/demo/exception/AuthenticationException.class": {
+      "sha256": "d03c5d999a890711566894ce89281bb2ff17463bb72ad72409ce5cc4b48828f8",
+      "bytes": 662
+    },
+    "classes/com/example/demo/exception/CompilationException.class": {
+      "sha256": "8a6d806a246a7c1d63afbd1b16de60cf2de13b413f52ab5d9cdb41afa903944d",
+      "bytes": 653
+    },
+    "classes/com/example/demo/exception/ExecutionException.class": {
+      "sha256": "d39f0fbc38f3131f9f104f282148dad0de8a62fcf78410188adc41df445da7c0",
+      "bytes": 647
+    },
+    "classes/com/example/demo/exception/GlobalExceptionHandler.class": {
+      "sha256": "2efba1f1c734629fbd22cdd8da8dc1fd8e77fd89ea54dc732a84213fea3ca9ad",
+      "bytes": 10236
+    },
+    "classes/com/example/demo/exception/JudgeSystemException.class": {
+      "sha256": "cd71f6c025571943594bdd9a2bc20dee9595e0892dcf3a1b8db818add923d7fa",
+      "bytes": 632
+    },
+    "classes/com/example/demo/exception/MemoryLimitExceededException.class": {
+      "sha256": "c31f7cf8b05d631036ef8eb39ef9493bf653fe9513474ca8bdd31c2aac634dd6",
+      "bytes": 1278
+    },
+    "classes/com/example/demo/exception/SecurityViolationException.class": {
+      "sha256": "5210027edae171eb14e6fa5f203946064d970c868e0a389916531675d30893a3",
+      "bytes": 1264
+    },
+    "classes/com/example/demo/interceptor/AuthenticationInterceptor.class": {
+      "sha256": "b4f2cdeb8dfe4a835f884cc2f1769a622a378e990f2fe6afeb77772e2f127cff",
+      "bytes": 6680
+    },
+    "classes/com/example/demo/model/AuthStatus.class": {
+      "sha256": "04e7016ddf228218a14fbe91186a81d6d647988bb02a2f2119983a393f9af544",
+      "bytes": 1913
+    },
+    "classes/com/example/demo/model/JudgeOwnership$JudgeOwnershipBuilder.class": {
+      "sha256": "2721da9bc1c70dc30ea1e3e809205b9a11628c41fc521f1d61ed685bf6c207dc",
+      "bytes": 1750
+    },
+    "classes/com/example/demo/model/JudgeOwnership.class": {
+      "sha256": "f8e4bd62d5483292e17b06ef5919feb6047df2cb61d53c7827dbecf4169c940d",
+      "bytes": 3697
+    },
+    "classes/com/example/demo/model/JudgeStatus.class": {
+      "sha256": "774cad3e494f4ebc15c6202557a2dbbb03de923cc20e240a58bf8ba2220d7885",
+      "bytes": 3655
+    },
+    "classes/com/example/demo/model/JudgeTask$JudgeTaskBuilder.class": {
+      "sha256": "5c81e44af6edd13173eb4e74fcde78464877ffb4dde610de18f86836374ed898",
+      "bytes": 4510
+    },
+    "classes/com/example/demo/model/JudgeTask.class": {
+      "sha256": "6d2a0b58ebd6d0be10b001d68f654b2544bce5694d7cb1c9dcf1aef64c68f7cc",
+      "bytes": 8648
+    },
+    "classes/com/example/demo/model/UserAccount$UserAccountBuilder.class": {
+      "sha256": "750ff239f9083b5b6687b238a014341eda8a95401ca661a8393a0a943cbe66bd",
+      "bytes": 2288
+    },
+    "classes/com/example/demo/model/UserAccount.class": {
+      "sha256": "f7d9ffc11a5f6fcb23dc53505b276cc727298a2746f1fa23babce61bbc6998c5",
+      "bytes": 5001
+    },
+    "classes/com/example/demo/model/UserSession$UserSessionBuilder.class": {
+      "sha256": "d30c3725d9cde876b34d1986563a257aed74e68e1f66a5c8838afc293faee95a",
+      "bytes": 3091
+    },
+    "classes/com/example/demo/model/UserSession.class": {
+      "sha256": "e65ac231eae06037955cc7790d04a9fae4d83752fd363fc36df9994587e16a87",
+      "bytes": 6005
+    },
+    "classes/com/example/demo/security/SessionAuditId.class": {
+      "sha256": "c3046b8819f9961645593e55fdab20c1424cf47a986de2ddf35c146052e68c16",
+      "bytes": 1750
+    },
+    "classes/com/example/demo/security/SessionCredentialResolver.class": {
+      "sha256": "a1323b80fdca4a5f5ea6c57c70f2c073fde3a8c48b8646270993fe9a3c33f44d",
+      "bytes": 1941
+    },
+    "classes/com/example/demo/service/AccessCodeService.class": {
+      "sha256": "6c38f9e4915b152d53f76187a6f8401154dd9d256eb18c99dcf8c4aea3678c19",
+      "bytes": 8267
+    },
+    "classes/com/example/demo/service/AuditService$AuditEvent.class": {
+      "sha256": "5e67814bf1ac539adafae4f5970a3bb2e6e6bc8d4810052631e14f1e7c568546",
+      "bytes": 2751
+    },
+    "classes/com/example/demo/service/AuditService.class": {
+      "sha256": "d01edd3a7de1b203138a7eecba1236bff3a924b85ee3c9e558d55f346d950409",
+      "bytes": 8503
+    },
+    "classes/com/example/demo/service/CancellationToken$Reason.class": {
+      "sha256": "0abcdfea2ec42955047e4fa24747169087c167fb0015f64860da1cd143cc46ae",
+      "bytes": 1429
+    },
+    "classes/com/example/demo/service/CancellationToken.class": {
+      "sha256": "c2d7dd068422e52cb03aafa3c873d2934a90a4cd144efdd9b670f33c92c5b0d7",
+      "bytes": 1517
+    },
+    "classes/com/example/demo/service/CaseBatchRunner$CaseCompletion.class": {
+      "sha256": "a9479aa74bdeea0ec8e2828dceb1ce2d385363aa52415a68f59c8dfa4ec90b02",
+      "bytes": 1849
+    },
+    "classes/com/example/demo/service/CaseBatchRunner$CaseExecution.class": {
+      "sha256": "02f1629372b716f20011edbad62f04770cd417baf147c6eb2d2bfb3fca7a1ca4",
+      "bytes": 484
+    },
+    "classes/com/example/demo/service/CaseBatchRunner$RunOutcome.class": {
+      "sha256": "9e3af314bb17ce986da195f4f406ae91c9eab69c1c03b3b90564763fcf0dd189",
+      "bytes": 1350
+    },
+    "classes/com/example/demo/service/CaseBatchRunner.class": {
+      "sha256": "0c233c6468cbb0cfd24e124550eb6c7e0102ac4dd0c1749cd5e5986108c6cb61",
+      "bytes": 9041
+    },
+    "classes/com/example/demo/service/DirectProcessRunner$StreamCapture.class": {
+      "sha256": "b9a2a24618ec6913321384465267fb756d20a7d0329682d651761dfff5d68148",
+      "bytes": 1805
+    },
+    "classes/com/example/demo/service/DirectProcessRunner.class": {
+      "sha256": "c368c0611b6c2e87f6960f701f5415633ba4ff44d22b16e1c3c2da0e441f43cc",
+      "bytes": 14304
+    },
+    "classes/com/example/demo/service/FileTaskStore$UnsafeTaskDirectoryException.class": {
+      "sha256": "e682e8b7e58fcabc942de095032efd50d60af9a095b16098150165fb3335e28a",
+      "bytes": 810
+    },
+    "classes/com/example/demo/service/FileTaskStore.class": {
+      "sha256": "bcd61c838756d3013fc688eb3ad715a19fcaed6c118a67bd199343f2805102fe",
+      "bytes": 27086
+    },
+    "classes/com/example/demo/service/JudgeFileService$FilePreview.class": {
+      "sha256": "91c04873c2a9956915a376bfb992d1a6c3f8cb1a9c27b9d1c9ac63dea1f5f935",
+      "bytes": 1764
+    },
+    "classes/com/example/demo/service/JudgeFileService.class": {
+      "sha256": "bce1c57a63a9ea1cd0cd105f04d029a1a9c665e1ae4d53b99d97a12e066b4c2a",
+      "bytes": 18523
+    },
+    "classes/com/example/demo/service/JudgeScheduler$CompletedScheduledFuture.class": {
+      "sha256": "6e0744fcdf430bed07a8f415fe4819536b01ea6e1123e5754c1f0ee89df885f2",
+      "bytes": 1648
+    },
+    "classes/com/example/demo/service/JudgeScheduler$QueueFullException.class": {
+      "sha256": "072bc7bc7367a20322b0270a6d5184831b90966bd190c6d99ce44af5426f89ea",
+      "bytes": 1313
+    },
+    "classes/com/example/demo/service/JudgeScheduler$QueueSnapshot.class": {
+      "sha256": "48edb56c81015c93fe017f866ff22e1d560f763f104502347ce49c1453a12287",
+      "bytes": 2315
+    },
+    "classes/com/example/demo/service/JudgeScheduler$ScheduledJudgeJob.class": {
+      "sha256": "4d33ccce33496b1f14e2d1c97029a7406f6734dcbd588c10ee3496149091a195",
+      "bytes": 581
+    },
+    "classes/com/example/demo/service/JudgeScheduler$ScheduledTask.class": {
+      "sha256": "b85559a5670850e18b0148ea24a512d7502c06a7d5c07868e884296176930470",
+      "bytes": 2389
+    },
+    "classes/com/example/demo/service/JudgeScheduler$TaskContext.class": {
+      "sha256": "720160f1145f6d3edd0995df0ab70393ea474fe177749696ab4733bec4103765",
+      "bytes": 1841
+    },
+    "classes/com/example/demo/service/JudgeScheduler.class": {
+      "sha256": "3713b69f6d4db18a252d16f4cf3db9e811675146ee9cb310e5417fd3349cc081",
+      "bytes": 18458
+    },
+    "classes/com/example/demo/service/JudgeService$1.class": {
+      "sha256": "c3ce0954a38a1c3702aa2442197e33140139fb6e1a2a6d301477e0327461acc0",
+      "bytes": 1008
+    },
+    "classes/com/example/demo/service/JudgeService$CompilationException.class": {
+      "sha256": "34ace57aa70ea9f557e95aea6f924d8dda00176e84a5405e96de132fd26ccf05",
+      "bytes": 573
+    },
+    "classes/com/example/demo/service/JudgeService$PendingJudgeTask.class": {
+      "sha256": "70f860c2b8da3162e7ca7a2fd566f8e210937b217a3a90878f747b143b5596a6",
+      "bytes": 1966
+    },
+    "classes/com/example/demo/service/JudgeService.class": {
+      "sha256": "54e2f185ead884ae25dcfbca2b2906154164391f91a50502243586c71790b65d",
+      "bytes": 45043
+    },
+    "classes/com/example/demo/service/MemoryMonitorService$MemoryUsage.class": {
+      "sha256": "eec0cea1e2daf3ad96354fbcc0a04f986f9b27b28f1da840fcb3866a87443f7b",
+      "bytes": 1912
+    },
+    "classes/com/example/demo/service/MemoryMonitorService.class": {
+      "sha256": "f492ed42b4fe5c24f02c3781ed216af3de5201356ee48f914bf48f72e564cd0c",
+      "bytes": 11211
+    },
+    "classes/com/example/demo/service/ProcessResult$Status.class": {
+      "sha256": "7fac3a0f0a9ae42999f88429276057cc7707e731d369ab1dcca053e0a13e8bca",
+      "bytes": 1673
+    },
+    "classes/com/example/demo/service/ProcessResult.class": {
+      "sha256": "1ba69767b72e084bd977bceb9037b0d77beee1d8910c57f3c9c479a9b51f1eca",
+      "bytes": 2733
+    },
+    "classes/com/example/demo/service/ProcessRunner$Request$Builder.class": {
+      "sha256": "4d7721a0616eddac1b80e8b70ded6b350dd6d7f968c29bb58023b57846ac60b2",
+      "bytes": 3255
+    },
+    "classes/com/example/demo/service/ProcessRunner$Request.class": {
+      "sha256": "16412ebf1cdb5dfa7c6c9487043d83ca9b71f8d10ff1ec0213c679193dd1baea",
+      "bytes": 3761
+    },
+    "classes/com/example/demo/service/ProcessRunner.class": {
+      "sha256": "ad9936f5776b515d6580d41b00267b8525f41412f4e52eaeacce185b25895372",
+      "bytes": 562
+    },
+    "classes/com/example/demo/service/ProgressPublisher$SentState.class": {
+      "sha256": "d7d3f9d459f407825ddc3cba460765014253c2da649bc5df4d373a9310f43b6f",
+      "bytes": 1805
+    },
+    "classes/com/example/demo/service/ProgressPublisher.class": {
+      "sha256": "18bd1c0d01cda65c7b4d137352632b1c3c7435ee80267fb8331fe3f12445c7d3",
+      "bytes": 11068
+    },
+    "classes/com/example/demo/service/QuotaService$QuotaExceededException.class": {
+      "sha256": "cafe0536b323d448448df2529acee9d26348b181ec61401a610435298baf5d30",
+      "bytes": 2175
+    },
+    "classes/com/example/demo/service/QuotaService.class": {
+      "sha256": "8e9e889dba80de7f455f9bbffc530047d8073a7d2245ad4d77d43f5869ebda21",
+      "bytes": 8977
+    },
+    "classes/com/example/demo/service/ResolvedTaskPolicy.class": {
+      "sha256": "d19328ba83a368d64c771afd97a80939e5b496a3cc836a0a2700d803de9c41f2",
+      "bytes": 3794
+    },
+    "classes/com/example/demo/service/ResultAggregator.class": {
+      "sha256": "4119ea11bdec89b52d3754aec52346cd25cd886ceba987510b55395d75ea9b28",
+      "bytes": 7971
+    },
+    "classes/com/example/demo/service/SandboxEventIngestor$1.class": {
+      "sha256": "82d635ebe2a3b4cc429bc9cf2f497ce82aab7156650df1b92a017aa2107ada47",
+      "bytes": 1379
+    },
+    "classes/com/example/demo/service/SandboxEventIngestor$Session.class": {
+      "sha256": "329845f1116b85df92f4e8350f7e8fa3e166f07360861dedc8c7597b2be7c6b5",
+      "bytes": 8039
+    },
+    "classes/com/example/demo/service/SandboxEventIngestor.class": {
+      "sha256": "82d5515843e420fabe54c6bfc7b2f04f286bfad8f48b981072ef26ff21589e23",
+      "bytes": 1447
+    },
+    "classes/com/example/demo/service/SandboxProcessRunner.class": {
+      "sha256": "d2fa30536305651008f77782b46d46f0da671eb16d540908ff9e8ebb1d9b3ee9",
+      "bytes": 4527
+    },
+    "classes/com/example/demo/service/SandboxService$SandboxResult.class": {
+      "sha256": "b1e04616d6897b6c63ebdf0b40af8b3392262cfe31e8c7b2890a717d4a4a4278",
+      "bytes": 2369
+    },
+    "classes/com/example/demo/service/SandboxService.class": {
+      "sha256": "50b32047d6e023f33bb5fb10a014d4d99f22465549790094cf368468cfb21604",
+      "bytes": 16237
+    },
+    "classes/com/example/demo/service/SessionManagementService$SessionStatistics$SessionStatisticsBuilder.class": {
+      "sha256": "b257646f11d0bf129be4ecd6ecef371bd88c40bb094e68488b7a5a1c7f83e9db",
+      "bytes": 2249
+    },
+    "classes/com/example/demo/service/SessionManagementService$SessionStatistics.class": {
+      "sha256": "d162f010eb66a2d0c6d141ca2ea2c9072c210c8a44a1dcaf4506616ab87ee291",
+      "bytes": 3026
+    },
+    "classes/com/example/demo/service/SessionManagementService.class": {
+      "sha256": "f706b1d7414e118972c65430b4458b2e15e911c226625745462705b4c28d0c45",
+      "bytes": 5592
+    },
+    "classes/com/example/demo/service/TaskCleanupService$1.class": {
+      "sha256": "eda11de1090ef3d8cad65961b8e0871ef952a0809fc516817fc15de56cf59c19",
+      "bytes": 872
+    },
+    "classes/com/example/demo/service/TaskCleanupService$CleanupReport.class": {
+      "sha256": "bf3b094abb31ce0329b0d616818300ab3982a147236669e3eb2d0af0071f4eb0",
+      "bytes": 2373
+    },
+    "classes/com/example/demo/service/TaskCleanupService.class": {
+      "sha256": "af7713e3eae21458e01a247492b8f38d876dd88a994b1f852b1ea4dff5423c26",
+      "bytes": 9848
+    },
+    "classes/com/example/demo/service/TaskLifecycleGuard$Identity.class": {
+      "sha256": "7eae3d043d5d83a75356ce1f2d75c954f898f00a3af948aa1076f60b097f1626",
+      "bytes": 1868
+    },
+    "classes/com/example/demo/service/TaskLifecycleGuard$Lease.class": {
+      "sha256": "f4a54970e88d18fb1cb024c66ade6edf1517999f6619119dc1df1ed59eebe8a3",
+      "bytes": 6002
+    },
+    "classes/com/example/demo/service/TaskLifecycleGuard.class": {
+      "sha256": "93b67cc44173b1e6188167b7aee1ec64cc4ace8f31e8e54148ea8a3eafbecb59",
+      "bytes": 11013
+    },
+    "classes/com/example/demo/service/TaskPolicyResolver$PolicyValidationException.class": {
+      "sha256": "d0aac3339fbd45289b8745f0cd39ffc9482eaa2ebecc0966f8d39d2f90787b42",
+      "bytes": 1190
+    },
+    "classes/com/example/demo/service/TaskPolicyResolver.class": {
+      "sha256": "846de8ef6771e0918201190876e6f3c2ab67417f90848b4d867f890e83773b7a",
+      "bytes": 7283
+    },
+    "classes/com/example/demo/service/TaskStore.class": {
+      "sha256": "cd38eff236ac1b16f1061877a4a2ab98f1e72d7c204b8608e37d1bdd3cf1f80b",
+      "bytes": 1323
+    },
+    "classes/com/example/demo/service/UserAccountService$LoginResult.class": {
+      "sha256": "8f5994c30d2e86edd2920acb4b65d8fc8e425ee846bc2ea3d6095af70478940b",
+      "bytes": 2831
+    },
+    "classes/com/example/demo/service/UserAccountService$Status.class": {
+      "sha256": "c3ed04685d1b5ce427140bf4ec65c35215d8bbe5806d23f3d3368b563421c742",
+      "bytes": 1447
+    },
+    "classes/com/example/demo/service/UserAccountService.class": {
+      "sha256": "04b286cafd3189438022136b1625174bd4a1f60cc5edbf7c5ce48ad9477e02bf",
+      "bytes": 8336
+    },
+    "classes/com/example/demo/service/sandbox/LinuxAttemptDiscovery$Budget.class": {
+      "sha256": "75eda0c359e438398273d919a504e3582f209ee62614a1893227612a22bfe35f",
+      "bytes": 2619
+    },
+    "classes/com/example/demo/service/sandbox/LinuxAttemptDiscovery$EntryVisitor.class": {
+      "sha256": "335836e0e673c48fa3df55cd75a9ec5602517211dffbf61b43c3325820f98c14",
+      "bytes": 495
+    },
+    "classes/com/example/demo/service/sandbox/LinuxAttemptDiscovery$Finding.class": {
+      "sha256": "2b551736ca8ac0ccc8f7a40333e6cf154266ae263f6d1d264765951afa93fc4d",
+      "bytes": 2419
+    },
+    "classes/com/example/demo/service/sandbox/LinuxAttemptDiscovery$Reason.class": {
+      "sha256": "17a4353dca8b12ce4bc785c4027a3217b5ea58172bdddc6a3546aa47885a47da",
+      "bytes": 2191
+    },
+    "classes/com/example/demo/service/sandbox/LinuxAttemptDiscovery$Report.class": {
+      "sha256": "69f610a03055d40fc7550bd52acbb564c74b24c1990220010919627705f58221",
+      "bytes": 3193
+    },
+    "classes/com/example/demo/service/sandbox/LinuxAttemptDiscovery$Scan.class": {
+      "sha256": "4bdb204654655803207ae1a08385bf5b362830481f46be3e2beed37477858837",
+      "bytes": 5854
+    },
+    "classes/com/example/demo/service/sandbox/LinuxAttemptDiscovery.class": {
+      "sha256": "1b85b3041f410f9c3ac9e7dbaf57ac146b0177509288680631f0ce5a0bc350e0",
+      "bytes": 13841
+    },
+    "classes/com/example/demo/service/sandbox/LinuxConfirmedContainerRecovery$StageEntry.class": {
+      "sha256": "9be20d8a6177a6a0453fcb34e3d2424eb345f2387c02dce1d5c64f4ea6538dd4",
+      "bytes": 2346
+    },
+    "classes/com/example/demo/service/sandbox/LinuxConfirmedContainerRecovery.class": {
+      "sha256": "720c0aeea36f9329ee8da583ed5ff6a34307b59316f522587e6aa38072d51f68",
+      "bytes": 20477
+    },
+    "classes/com/example/demo/service/sandbox/LinuxContainerRunner$CommandExecutor.class": {
+      "sha256": "f4e4524c7374ac2e94dec80639cf53a244c5bc50b38b21d2ec5e685706093ccf",
+      "bytes": 808
+    },
+    "classes/com/example/demo/service/sandbox/LinuxContainerRunner$CommandResult.class": {
+      "sha256": "25471977aab1366f0072b3bc58743cb1d8f719dbfea438d4ef77147a1b193d1e",
+      "bytes": 2727
+    },
+    "classes/com/example/demo/service/sandbox/LinuxContainerRunner$ImageInfo.class": {
+      "sha256": "dc4a10e2d489b72ddbc89de3fc17684daa03d49a551155c3506d6ec98b448053",
+      "bytes": 2448
+    },
+    "classes/com/example/demo/service/sandbox/LinuxContainerRunner$Options$Builder.class": {
+      "sha256": "cfb7d735b5a6129dbaa702aa5bce21c078697cbae46491a9456deeca95a1f693",
+      "bytes": 3269
+    },
+    "classes/com/example/demo/service/sandbox/LinuxContainerRunner$Options.class": {
+      "sha256": "e9c548fb5cf6b529d0949fa820410272e572a0bb68fe0732b389985772369b32",
+      "bytes": 5662
+    },
+    "classes/com/example/demo/service/sandbox/LinuxContainerRunner$ProbeInfo.class": {
+      "sha256": "f0fc37a5143b68b7487e247e5d274cbd769e725a951472d350458c6cbbb316fb",
+      "bytes": 5136
+    },
+    "classes/com/example/demo/service/sandbox/LinuxContainerRunner$ProcessCommandExecutor.class": {
+      "sha256": "2fca14419017827612eda3bd05e3cf1bd59151e515455a762587605ef6756cba",
+      "bytes": 4361
+    },
+    "classes/com/example/demo/service/sandbox/LinuxContainerRunner$RunState.class": {
+      "sha256": "9984d0d4a71defdace9635934b7d624b2189a1a43838ebbbbd4468005c6bca9b",
+      "bytes": 2370
+    },
+    "classes/com/example/demo/service/sandbox/LinuxContainerRunner$RuntimeInfo.class": {
+      "sha256": "fda58e68fef8da0e39682a7ec1d29ebdcad57ba0d345dc4ceb08510010e26a1a",
+      "bytes": 2452
+    },
+    "classes/com/example/demo/service/sandbox/LinuxContainerRunner.class": {
+      "sha256": "2cf3baa929e9c48f8059252809f342d84892d61bed74ffea96c63fc6a91f0086",
+      "bytes": 27470
+    },
+    "classes/com/example/demo/service/sandbox/LinuxRuntimeJournal$BoundedOutput.class": {
+      "sha256": "4a14bc43bd71b04bcd0528fdceda29bd82c0e0133e87ebc5eb417e32663ac7f1",
+      "bytes": 1200
+    },
+    "classes/com/example/demo/service/sandbox/LinuxRuntimeJournal$LinuxIdentity.class": {
+      "sha256": "0b78b0b7189717cd42ee583c52c025cbbed5679dce3bceef7b71ab11baa7e5ed",
+      "bytes": 662
+    },
+    "classes/com/example/demo/service/sandbox/LinuxRuntimeJournal$NodeDepth.class": {
+      "sha256": "b54a3e702da7dd29c87bf491b244a2da237c9202b753b58cd20a9961dffab0a0",
+      "bytes": 1893
+    },
+    "classes/com/example/demo/service/sandbox/LinuxRuntimeJournal.class": {
+      "sha256": "cf59870c70f15e7741adeb99e9c5619b31f7f63a85281fd752dc5e6490a538af",
+      "bytes": 20683
+    },
+    "classes/com/example/demo/service/sandbox/LinuxRuntimeState$SnapshotPhase.class": {
+      "sha256": "13007f1ecec39044b1aa44a8fdce25dc8c6d668d33e7f97f6300947ab79111ad",
+      "bytes": 3405
+    },
+    "classes/com/example/demo/service/sandbox/LinuxRuntimeState.class": {
+      "sha256": "bff2fe12e84baf1ed1751bec296c405b081e90a354f8c56211b0094641ec997c",
+      "bytes": 11834
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageContainerIdentity.class": {
+      "sha256": "ee8ea6137e987cdfdb8cf0cd0712b34e0225f23192b45e7e040855f3f8ce9741",
+      "bytes": 10375
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageEntryIo$Calls.class": {
+      "sha256": "d2db3a602e6b16dc09a6d688d07c756fbf902891c807f8d48c71e82293d6a964",
+      "bytes": 881
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageEntryIo$StageDescriptor.class": {
+      "sha256": "071502fbefc7b12e196a8b29ade51edca4275517d528998c1cf17f99748ab868",
+      "bytes": 1415
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageEntryIo$StageSnapshot.class": {
+      "sha256": "e5ee8efecc66f4e57b4159bce7f1fe21057c0bbc7591ea3178669bb37fc05d01",
+      "bytes": 2108
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageEntryIo.class": {
+      "sha256": "193bacfbf23467ce49c765cf64a16428db0c45bf233d4ffe914e01673172e8df",
+      "bytes": 19389
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageJournalGuard$Identity.class": {
+      "sha256": "bc05efdd752e3f78962e8d992b854e8931b0dc5b77fa47855c24a92389fb77ca",
+      "bytes": 2176
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageJournalGuard$Lease.class": {
+      "sha256": "91212661f52f8884d3b636e1c61c5f6ce711f2faf5b345a5ce10b0749f8c902e",
+      "bytes": 5473
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageJournalGuard$LinuxCalls.class": {
+      "sha256": "b7d1b4feab5969a2e3084ad4a597f0a90a79c83ae4b1af608d49c6e1712b2f8b",
+      "bytes": 646
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageJournalGuard.class": {
+      "sha256": "90769abe8b640df16a54d3873f66d384ccf082856e679c4935357581536d89ff",
+      "bytes": 9967
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageRecord$Parsed.class": {
+      "sha256": "701de7fd32425fdb378e119213dcfed52b43d6d19881e72a1118aec7965a6a59",
+      "bytes": 2634
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageRecord.class": {
+      "sha256": "fbfbe8667415f7258dda9a4af8998ab600810ec468a595850e25dd46a70eb8f4",
+      "bytes": 13283
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageRecoveryPreparation$Preparation.class": {
+      "sha256": "8bec2dbb2cee9f134a590cfccd298698c0a85a20aa201f134a0de5ea04280dbc",
+      "bytes": 3137
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageRecoveryPreparation$StageFinding.class": {
+      "sha256": "a43e56555bc0053fab54a514a0a78b652253775ff1a3fb24ab7ef3462f98f04c",
+      "bytes": 2368
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageRecoveryPreparation$TaskLockHolder.class": {
+      "sha256": "597b9e97817afefb94462da64494f00115d66f307a1c80ef4e19160f87463cee",
+      "bytes": 2252
+    },
+    "classes/com/example/demo/service/sandbox/LinuxStageRecoveryPreparation.class": {
+      "sha256": "62da44b2961c2388488017af389c9ef12aafeb6e0f12eaad6ce459696d955d05",
+      "bytes": 11913
+    },
+    "classes/com/example/demo/service/sandbox/LinuxSupervisorCommandExecutor$Deadline.class": {
+      "sha256": "a054a0392030a5edb14cb8c3945b50b5e531a41be31674a525db90ccea957dd6",
+      "bytes": 1985
+    },
+    "classes/com/example/demo/service/sandbox/LinuxSupervisorCommandExecutor$OutputCapture.class": {
+      "sha256": "d3b9d0419bfc5fb6a6ad182c8610e7e32171bf0a82a369da03d06f6cd90fd4f7",
+      "bytes": 2190
+    },
+    "classes/com/example/demo/service/sandbox/LinuxSupervisorCommandExecutor.class": {
+      "sha256": "09d4a810fe28cbf44b56c97b150daafc7d5e733ddb9c15982af1fde3c1929f96",
+      "bytes": 10880
+    },
+    "classes/com/example/demo/service/sandbox/LinuxSupervisorLauncher$ContainerReclamation.class": {
+      "sha256": "bf24fb4fa21b481408eb33a2af89bd5b76381085ed30fd28d8f5605f62de3045",
+      "bytes": 1943
+    },
+    "classes/com/example/demo/service/sandbox/LinuxSupervisorLauncher$Launch.class": {
+      "sha256": "f30d775bd3cd9933376a91e867970eb08a51a303a43f3d545ead2e68a267bbdc",
+      "bytes": 2139
+    },
+    "classes/com/example/demo/service/sandbox/LinuxSupervisorLauncher$Mount.class": {
+      "sha256": "bfad169742ca281319f04a1fd78a1369ca577d7466b77ee8a80446766dcf2929",
+      "bytes": 2105
+    },
+    "classes/com/example/demo/service/sandbox/LinuxSupervisorLauncher$TaskLock.class": {
+      "sha256": "d3668e5f01ecfd071f0116f48abf6eb21cb9a166d335b0839e57a13d2b18c027",
+      "bytes": 2326
+    },
+    "classes/com/example/demo/service/sandbox/LinuxSupervisorLauncher.class": {
+      "sha256": "45441b3f79ee708fedcb70477e551dc57c20d50c2aaa4751c5a50f778f2bc92d",
+      "bytes": 50351
+    },
+    "classes/com/example/demo/service/sandbox/LinuxSupervisorOptions$ResourceLimits.class": {
+      "sha256": "6c67cb61ed77b217dc01abfd8bf2b1ed9224916c903b10cc3be7b89619415532",
+      "bytes": 2141
+    },
+    "classes/com/example/demo/service/sandbox/LinuxSupervisorOptions.class": {
+      "sha256": "5f5c132243866910945afb6c0168a23753aa8cf387d88f20135565a6c1ecc2b1",
+      "bytes": 14302
+    },
+    "classes/com/example/demo/service/sandbox/LocalFakeSandboxRunner.class": {
+      "sha256": "18658a68d4813112003843ae6c48bf996608a9450c315b8bdb4a6b08c7d6a090",
+      "bytes": 3812
+    },
+    "classes/com/example/demo/service/sandbox/RemoteWorkerRunner$1.class": {
+      "sha256": "e92fa18622812cb13b9f8ee1e0318ec561ae2d6a7fd4d3b09ac8a19122ac2c5a",
+      "bytes": 907
+    },
+    "classes/com/example/demo/service/sandbox/RemoteWorkerRunner$Options$Builder.class": {
+      "sha256": "74d203a5fc2a34a93cb650ea9a8d086e9066919d1ff8a60e55b91af4d8dd4ef5",
+      "bytes": 1941
+    },
+    "classes/com/example/demo/service/sandbox/RemoteWorkerRunner$Options.class": {
+      "sha256": "d9d29d6754488ed34192b0a3070380269a6b76fe6df46403d6e0feaef55626d1",
+      "bytes": 3653
+    },
+    "classes/com/example/demo/service/sandbox/RemoteWorkerRunner$StartRequest.class": {
+      "sha256": "ab07412c3f9dd21a09982b3890b2d85550d193454a61e952bb2f48c290f3ceb2",
+      "bytes": 2315
+    },
+    "classes/com/example/demo/service/sandbox/RemoteWorkerRunner.class": {
+      "sha256": "cdfa79fa0a50f299a94762f1924f94728b832f5bba36e0b6206f35b336f2d1e6",
+      "bytes": 17185
+    },
+    "classes/com/example/demo/service/sandbox/SandboxManifestFactory$Prepared.class": {
+      "sha256": "c8c4c30f9a7297363b8d8538749f5aa4b94abba9b5cec2cd67d72e621bb31dfc",
+      "bytes": 5712
+    },
+    "classes/com/example/demo/service/sandbox/SandboxManifestFactory.class": {
+      "sha256": "c6d12d634513cb037432d8cb07f62a24f32684ffbb2b0a2f8a38bc18216a2aed",
+      "bytes": 6677
+    },
+    "classes/com/example/demo/service/sandbox/SandboxRunner.class": {
+      "sha256": "822e50109558935735edafb65c31cf2087d705d05732d572e1dc0ecab0f81ca1",
+      "bytes": 896
+    },
+    "classes/com/example/demo/service/sandbox/WindowsHyperVContainerRunner$CommandExecutor.class": {
+      "sha256": "4bdb007ef3a015b97c4950b74fcb3cf2c2e0c47ed94a619512523ee0522d277a",
+      "bytes": 856
+    },
+    "classes/com/example/demo/service/sandbox/WindowsHyperVContainerRunner$CommandResult.class": {
+      "sha256": "96ba220f53ec7040216287013decc6620878d01a6932d9d74570ac64f635659c",
+      "bytes": 2783
+    },
+    "classes/com/example/demo/service/sandbox/WindowsHyperVContainerRunner$ImageInfo.class": {
+      "sha256": "40094e687e2886bc868c27cd2b2b4076265404738915d9a6ef814c2a101faa5f",
+      "bytes": 2512
+    },
+    "classes/com/example/demo/service/sandbox/WindowsHyperVContainerRunner$InspectInfo.class": {
+      "sha256": "c90b360dfb3cd5e521975a2456c4a95947a610e68d7955fd7238d496a64ade54",
+      "bytes": 3243
+    },
+    "classes/com/example/demo/service/sandbox/WindowsHyperVContainerRunner$Options$Builder.class": {
+      "sha256": "5b1f3a319a5c0c5ae9811c0e457e5719fe0c74014d507ceec7c8e3f9725dbbc3",
+      "bytes": 3242
+    },
+    "classes/com/example/demo/service/sandbox/WindowsHyperVContainerRunner$Options.class": {
+      "sha256": "72981fb0179be4c8b1292a170cd778d76b9471dd86a284dedc544e46a39ffbb8",
+      "bytes": 5230
+    },
+    "classes/com/example/demo/service/sandbox/WindowsHyperVContainerRunner$ProbeInfo.class": {
+      "sha256": "071727bed3180d889f4bd28759164231294dc4c66842d3927aea032443ebae20",
+      "bytes": 4514
+    },
+    "classes/com/example/demo/service/sandbox/WindowsHyperVContainerRunner$ProcessCommandExecutor.class": {
+      "sha256": "3a6c04bb87833349e54656e2fb62b9921a45a797e497f01a548b22b29930aea6",
+      "bytes": 4425
+    },
+    "classes/com/example/demo/service/sandbox/WindowsHyperVContainerRunner$RunState.class": {
+      "sha256": "9742be92a6156afa226cf93a284adcea9b2082dca11ed0dcdf16393b5ba8a421",
+      "bytes": 2426
+    },
+    "classes/com/example/demo/service/sandbox/WindowsHyperVContainerRunner$RuntimeInfo.class": {
+      "sha256": "92969dfa709c81474b2b12dbdf1d0cd455220239b0d530e1f613797b61768c70",
+      "bytes": 2516
+    },
+    "classes/com/example/demo/service/sandbox/WindowsHyperVContainerRunner.class": {
+      "sha256": "51f91eeb50d9bca7d13cb7d40125e1f9ee8783bc85ed3b25ec6489973f21ddfd",
+      "bytes": 24821
+    },
+    "lib/HdrHistogram-2.2.2.jar": {
+      "sha256": "22d1d4316c4ec13a68b559e98c8256d69071593731da96136640f864fa14fad8",
+      "bytes": 177206
+    },
+    "lib/LatencyUtils-2.0.3.jar": {
+      "sha256": "a32a9ffa06b2f4e01c5360f8f9df7bc5d9454a5d373cd8f361347fa5a57165ec",
+      "bytes": 29779
+    },
+    "lib/accessors-smart-2.5.2.jar": {
+      "sha256": "9b8a7bc43861d6156c021166d941fb7dddbe4463e2fa5ee88077e4b01452a836",
+      "bytes": 30358
+    },
+    "lib/android-json-0.0.20131108.vaadin1.jar": {
+      "sha256": "dfb7bae2f404cfe0b72b4d23944698cb716b7665171812a0a4d0f5926c0fac79",
+      "bytes": 18279
+    },
+    "lib/apiguardian-api-1.1.2.jar": {
+      "sha256": "b509448ac506d607319f182537f0b35d71007582ec741832a1f111e5b5b70b38",
+      "bytes": 6806
+    },
+    "lib/asm-9.7.1.jar": {
+      "sha256": "8cadd43ac5eb6d09de05faecca38b917a040bb9139c7edeb4cc81c740b713281",
+      "bytes": 126093
+    },
+    "lib/assertj-core-3.27.3.jar": {
+      "sha256": "5b8a26205f6d5ea60ad9ce65ce4a40a2afe4c48abeec61bd0740a088c24e89f5",
+      "bytes": 1396119
+    },
+    "lib/attoparser-2.0.7.RELEASE.jar": {
+      "sha256": "75dd1c045492bff8e1963aabb28bfe903c2064e11e27fe2f0f0aff1ad3d84476",
+      "bytes": 246451
+    },
+    "lib/awaitility-4.2.2.jar": {
+      "sha256": "e831fee30ed401e2208f1bd5a0ef9add538d9cb1103c0e43216691b647bde9c6",
+      "bytes": 97249
+    },
+    "lib/bcpkix-jdk18on-1.76.jar": {
+      "sha256": "935a388854c329f9a6f32708f30c90045d2f91294fa687281273145d4cf9834a",
+      "bytes": 1109571
+    },
+    "lib/bcprov-jdk18on-1.76.jar": {
+      "sha256": "fda85d777aaae168015860b23a77cad9b8d3a1d5c904fda875313427bd560179",
+      "bytes": 8361943
+    },
+    "lib/bcutil-jdk18on-1.76.jar": {
+      "sha256": "1a65ad02958223a3f31373bd72eea942cafd1b1877a3ed0b492c2487e77c3c27",
+      "bytes": 676737
+    },
+    "lib/byte-buddy-1.17.6.jar": {
+      "sha256": "d26382a839cb26d5c62a0b0f04715bcef55a531f96ac6ce40de452a1c0539e70",
+      "bytes": 9014029
+    },
+    "lib/byte-buddy-agent-1.17.6.jar": {
+      "sha256": "8a80959465bb09848cd41a89301490c55b9d940dc6ec30d8abac0f63b39fd5d0",
+      "bytes": 366249
+    },
+    "lib/commons-compress-1.21.jar": {
+      "sha256": "6aecfd5459728a595601cfa07258d131972ffc39b492eb48bdd596577a2f244a",
+      "bytes": 1018316
+    },
+    "lib/commons-io-2.11.0.jar": {
+      "sha256": "961b2f6d87dbacc5d54abf45ab7a6e2495f89b75598962d8c723cea9bc210908",
+      "bytes": 327135
+    },
+    "lib/commons-lang3-3.17.0.jar": {
+      "sha256": "6ee731df5c8e5a2976a1ca023b6bb320ea8d3539fbe64c8a1d5cb765127c33b4",
+      "bytes": 673587
+    },
+    "lib/docker-java-api-3.3.4.jar": {
+      "sha256": "650710c70160c1c651e4586a07e55c5f564436cf1f28d83737265ceb5d67696f",
+      "bytes": 470999
+    },
+    "lib/docker-java-core-3.3.4.jar": {
+      "sha256": "5e2e2b3f3e4d2f1aa954f9a29762c4301bb75b8e6acdf2437771b91aa63622c2",
+      "bytes": 372211
+    },
+    "lib/docker-java-transport-3.3.4.jar": {
+      "sha256": "d4a0f11c6f95dfa5407c3418ef5fb59a6e985542abda3f6175f763e46daa12bd",
+      "bytes": 37599
+    },
+    "lib/docker-java-transport-httpclient5-3.3.4.jar": {
+      "sha256": "7c9bd6f599464fc90846aba8b4e6a5ceaf394da98507be57a52caaf47a566a89",
+      "bytes": 17500
+    },
+    "lib/guava-19.0.jar": {
+      "sha256": "58d4cc2e05ebb012bbac568b032f75623be1cb6fb096f3c60c72a86f7f057de4",
+      "bytes": 2308517
+    },
+    "lib/hamcrest-3.0.jar": {
+      "sha256": "5d66b6a4a680755cb6ed7cb104fa7835ef644667586ff0737adeb977c39ecdbc",
+      "bytes": 126373
+    },
+    "lib/httpclient5-5.5.jar": {
+      "sha256": "496b4b0e8d5f3a8139a5d2638486d304758bac3a9c39d76989f663cfd9354fc9",
+      "bytes": 954979
+    },
+    "lib/httpcore5-5.3.4.jar": {
+      "sha256": "f2b2fd7a0164e8c3120cd8437bc9fea439239e165c17262b3e907daa7e979f80",
+      "bytes": 908601
+    },
+    "lib/jackson-annotations-2.19.1.jar": {
+      "sha256": "5a3cd7211ab26b36213f43a2a94bc052a3385af780c5c135329741b2d79a9730",
+      "bytes": 78487
+    },
+    "lib/jackson-core-2.19.1.jar": {
+      "sha256": "c46369e1a21810100adbc92503b62f15a9ef1640427932f4fe1588ef7ce7e480",
+      "bytes": 591410
+    },
+    "lib/jackson-databind-2.19.1.jar": {
+      "sha256": "0bc539401d52c6b14e668947c851dcc49f78a4ada3d1fc8e8f71440613fc26ce",
+      "bytes": 1678710
+    },
+    "lib/jackson-datatype-jdk8-2.19.1.jar": {
+      "sha256": "5966c02022a0812b8761d999e5510c0a269d87178cb5ef67e138d54ead6966c6",
+      "bytes": 36217
+    },
+    "lib/jackson-datatype-jsr310-2.19.1.jar": {
+      "sha256": "366eb89065d568a7c0ede73c26a343f293f076d2f8efd0dc69cbe574ca01220e",
+      "bytes": 136960
+    },
+    "lib/jackson-module-parameter-names-2.19.1.jar": {
+      "sha256": "55eadd4a008add686e24c5963fac37a5b496eea320f74f092a059aeb6feecd6e",
+      "bytes": 10393
+    },
+    "lib/jakarta.activation-api-2.1.3.jar": {
+      "sha256": "01b176d718a169263e78290691fc479977186bcc6b333487325084d6586f4627",
+      "bytes": 66514
+    },
+    "lib/jakarta.annotation-api-2.1.1.jar": {
+      "sha256": "5f65fdaf424eee2b55e1d882ba9bb376be93fb09b37b808be6e22e8851c909fe",
+      "bytes": 26141
+    },
+    "lib/jakarta.xml.bind-api-4.0.2.jar": {
+      "sha256": "0d6bcfe47763e85047acf7c398336dc84ff85ebcad0a7cb6f3b9d3e981245406",
+      "bytes": 131033
+    },
+    "lib/jna-5.13.0.jar": {
+      "sha256": "66d4f819a062a51a1d5627bffc23fac55d1677f0e0a1feba144aabdd670a64bb",
+      "bytes": 1879325
+    },
+    "lib/jna-platform-5.13.0.jar": {
+      "sha256": "474d7b88f6e97009b6ec1d98c3024dd95c23187c65dabfbc35331bcac3d173dd",
+      "bytes": 1363209
+    },
+    "lib/json-path-2.9.0.jar": {
+      "sha256": "11a9ee6f88bb31f1450108d1cf6441377dec84aca075eb6bb2343be157575bea",
+      "bytes": 276633
+    },
+    "lib/json-smart-2.5.2.jar": {
+      "sha256": "4fbdedb0105cedc7f766b95c297d2e88fb6a560da48f3bbaa0cc538ea8b7bf71",
+      "bytes": 122358
+    },
+    "lib/jsonassert-1.5.3.jar": {
+      "sha256": "719095c07d4203961320da593441d8b3b643c18eb1d81aa98ea933bb7eb351ba",
+      "bytes": 31077
+    },
+    "lib/jul-to-slf4j-2.0.17.jar": {
+      "sha256": "a7afcd23b9cfd1475e55c94f943b808c5922035e7e2c2a5c65a487a4106bc538",
+      "bytes": 6349
+    },
+    "lib/junit-jupiter-5.12.2.jar": {
+      "sha256": "3854b3ad434906b827fec474aa0d8da8b56e9e56d5fc7f2e20fc3f12ec4be894",
+      "bytes": 6366
+    },
+    "lib/junit-jupiter-api-5.12.2.jar": {
+      "sha256": "0b9ca728e4bcd9adc57f29deb9556ff9ed5e08b4e8843b875aba4e4e3e04f092",
+      "bytes": 233372
+    },
+    "lib/junit-jupiter-engine-5.12.2.jar": {
+      "sha256": "f576c06b8accde9985063b8bc80526cb980eec24dee0b7221fc8ddd7ace65800",
+      "bytes": 292002
+    },
+    "lib/junit-jupiter-params-5.12.2.jar": {
+      "sha256": "b219ffa949b90a71aa3b6c2b606456b82bca0b2089b7459c8ff461156ff59b0f",
+      "bytes": 601719
+    },
+    "lib/junit-platform-commons-1.12.2.jar": {
+      "sha256": "e683a01e85dfabea520c056ac6015a6162756e602ec653c0da85e233f0afbc18",
+      "bytes": 151859
+    },
+    "lib/junit-platform-engine-1.12.2.jar": {
+      "sha256": "cef0efcb5bd2e05e2b808d38bab5c655089c0c3001527376e74cb606a7911ec8",
+      "bytes": 255799
+    },
+    "lib/log4j-api-2.24.3.jar": {
+      "sha256": "5b4a0a0cd0e751ded431c162442bdbdd53328d1f8bb2bae5fc1bbeee0f66d80f",
+      "bytes": 348513
+    },
+    "lib/log4j-to-slf4j-2.24.3.jar": {
+      "sha256": "c7f2b0c612a4eb05b1587d1c880eb4cf5f4f53850676a8ede8da2b8fabb4f73f",
+      "bytes": 23834
+    },
+    "lib/logback-classic-1.5.18.jar": {
+      "sha256": "3e1533d0321f8815eef46750aee0111b41554f9a4644c3c4d2d404744b09f60f",
+      "bytes": 306760
+    },
+    "lib/logback-core-1.5.18.jar": {
+      "sha256": "85139e7b57b464f8e5e36326dd81317648bed199ccc4f98cd42585f8d7571027",
+      "bytes": 627250
+    },
+    "lib/lombok-1.18.38.jar": {
+      "sha256": "1e1e427c36ff63c44fd30ef292d9e773ea3154460ab6265d3fed7e6f5bc50fb9",
+      "bytes": 2056090
+    },
+    "lib/micrometer-commons-1.15.1.jar": {
+      "sha256": "6799381c0809a74b80fd4bfaa10b4278f6adb0331a641013ff89dff4cc1f3484",
+      "bytes": 49216
+    },
+    "lib/micrometer-core-1.15.1.jar": {
+      "sha256": "5d9fbc17664de839c062e2d3b909a9358a96bfc8ce46efd86113eae1d98a5483",
+      "bytes": 863758
+    },
+    "lib/micrometer-observation-1.15.1.jar": {
+      "sha256": "5008b13db990cdaa3fa1b6f518f6f9535a7ea84421424a2a25aa88870ffbb31d",
+      "bytes": 75068
+    },
+    "lib/mockito-core-5.17.0.jar": {
+      "sha256": "dff59ad8c61b026ef86cc113f94f2301eb06caaf81dec30c78a96a1a65595c5e",
+      "bytes": 709090
+    },
+    "lib/mockito-junit-jupiter-5.17.0.jar": {
+      "sha256": "5c5442f8aaaa8f03df03e4862a0d69205d1b41f5edbf7d5aa7a2486a61de49b7",
+      "bytes": 9395
+    },
+    "lib/objenesis-3.3.jar": {
+      "sha256": "02dfd0b0439a5591e35b708ed2f5474eb0948f53abf74637e959b8e4ef69bfeb",
+      "bytes": 49423
+    },
+    "lib/opentest4j-1.3.0.jar": {
+      "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+      "bytes": 14304
+    },
+    "lib/slf4j-api-2.0.17.jar": {
+      "sha256": "7b751d952061954d5abfed7181c1f645d336091b679891591d63329c622eb832",
+      "bytes": 69908
+    },
+    "lib/snakeyaml-2.4.jar": {
+      "sha256": "ef779af5d29a9dde8cc70ce0341f5c6f7735e23edff9685ceaa9d35359b7bb7f",
+      "bytes": 339825
+    },
+    "lib/spring-aop-6.2.8.jar": {
+      "sha256": "e74bfc1e95b60c73785258559020929885424ede9667a5163a9651d51b894e38",
+      "bytes": 419868
+    },
+    "lib/spring-beans-6.2.8.jar": {
+      "sha256": "a6ae270c6eb06e9502aa7e47ee3fc66deb1853285b4a4e020f3d22767f2fabd3",
+      "bytes": 886727
+    },
+    "lib/spring-boot-3.5.3.jar": {
+      "sha256": "246c008f5a131bd12194883031d8039e1f98016400d94f80382828e1360f8965",
+      "bytes": 1895860
+    },
+    "lib/spring-boot-autoconfigure-3.5.3.jar": {
+      "sha256": "bcbc5b37d915304134af4d65603c92bb0cd1df522edbd2d7abeecb95f2c57531",
+      "bytes": 2073778
+    },
+    "lib/spring-boot-configuration-processor-3.5.3.jar": {
+      "sha256": "f9d6acc7c9217d7db9dd349de7d0acb5a87abefd990ad2a185690161135d4f32",
+      "bytes": 135459
+    },
+    "lib/spring-boot-starter-3.5.3.jar": {
+      "sha256": "d151871da9dd3446eada633ff3450457bd4195443ff8cdc47975c675e0e61f52",
+      "bytes": 4769
+    },
+    "lib/spring-boot-starter-json-3.5.3.jar": {
+      "sha256": "a2b8494185c6ecbc8af3003a539d877bf06230d0a9ad12a74747e9da56ef2808",
+      "bytes": 4748
+    },
+    "lib/spring-boot-starter-logging-3.5.3.jar": {
+      "sha256": "85a1c3c6cf10604cf5699d3bfa4a88089983a8b07725c3734f4fbd1a4e70bf43",
+      "bytes": 4761
+    },
+    "lib/spring-boot-starter-security-3.5.3.jar": {
+      "sha256": "84d007f20cbb80bbccfbece1ef6262bd349b69f189012283df9129f84f53a973",
+      "bytes": 4742
+    },
+    "lib/spring-boot-starter-test-3.5.3.jar": {
+      "sha256": "05dc8430b29d1f1b7b6c7caf881be79b46ee85310f439c551c2cbf9c4ddc8255",
+      "bytes": 4792
+    },
+    "lib/spring-boot-starter-thymeleaf-3.5.3.jar": {
+      "sha256": "4c183828177f7a35f6badb6f0472324cc21d8341c385f3cca2b1211f8067bd70",
+      "bytes": 4771
+    },
+    "lib/spring-boot-starter-tomcat-3.5.3.jar": {
+      "sha256": "888e0b1b94a27b5d0158241b1940add08f02f4fa388daba4d7e13a68bf514a7e",
+      "bytes": 4794
+    },
+    "lib/spring-boot-starter-web-3.5.3.jar": {
+      "sha256": "9aa37906704d60c887636750b81f93accae2beed002b819d12b846b7de78d390",
+      "bytes": 4805
+    },
+    "lib/spring-boot-starter-websocket-3.5.3.jar": {
+      "sha256": "5334b474eb346d66b36a3604660fdbe8074425a1dec37bab9255fcff919c0d6b",
+      "bytes": 4784
+    },
+    "lib/spring-boot-test-3.5.3.jar": {
+      "sha256": "48304e5394b1aea857338b1f89e0d17dbcf33c020e7e1ccac83ddf01d0755d6b",
+      "bytes": 256564
+    },
+    "lib/spring-boot-test-autoconfigure-3.5.3.jar": {
+      "sha256": "2099d84fbe49a314e240c10fe213f64d35db9af2ee41524c98cba16a07c37dca",
+      "bytes": 227421
+    },
+    "lib/spring-context-6.2.8.jar": {
+      "sha256": "1cf85780301b86f8d876a2dfbfbdd9ee187179cdb361337a2ba4ee56025f6432",
+      "bytes": 1357894
+    },
+    "lib/spring-core-6.2.8.jar": {
+      "sha256": "27f640340164d74a0e90ee176b75d5a18a93f82fa96f444a757acf0bf3ae7257",
+      "bytes": 1963010
+    },
+    "lib/spring-expression-6.2.8.jar": {
+      "sha256": "d46b922eb2200710ec5100f00d35fd8786d5e7bc459d09c8bbda32432726a5ba",
+      "bytes": 317829
+    },
+    "lib/spring-jcl-6.2.8.jar": {
+      "sha256": "bd8b6add12db54602bc5926b8449a48fd922a36778323218aea88cfaea591e72",
+      "bytes": 24540
+    },
+    "lib/spring-messaging-6.2.8.jar": {
+      "sha256": "c202b58b3913a5135709f769c33af4e16349a6713893fea9db99f7c44e16567b",
+      "bytes": 618617
+    },
+    "lib/spring-security-config-6.5.1.jar": {
+      "sha256": "b7490dc259efc5686e1e7dcdacb424642f8f44773930ff911199c120a97f1de1",
+      "bytes": 2101947
+    },
+    "lib/spring-security-core-6.5.1.jar": {
+      "sha256": "2da6ce414d447a8c410304b5afaa2f997f81c7cbf098e8e074e44edd8be24392",
+      "bytes": 618777
+    },
+    "lib/spring-security-crypto-6.5.1.jar": {
+      "sha256": "482aacf358f67b72312abc2465c594aafeb72e379e4ffa8901650a4d2d723456",
+      "bytes": 100789
+    },
+    "lib/spring-security-web-6.5.1.jar": {
+      "sha256": "e72fb05eec0e029601499e7eb03fc8a9534865fc23681b1d49726eca0de092d0",
+      "bytes": 1048028
+    },
+    "lib/spring-test-6.2.8.jar": {
+      "sha256": "e8d95e8274c6db3c6ad696668474b80b45b6b1172fffc894d0680e08d5d96e74",
+      "bytes": 1024684
+    },
+    "lib/spring-web-6.2.8.jar": {
+      "sha256": "152405afabc056dc8007dca8ef105503c7cbbb132f7d1ab75fef3e27eaabd461",
+      "bytes": 2089868
+    },
+    "lib/spring-webmvc-6.2.8.jar": {
+      "sha256": "897e6d34737d1a475cdcb9e414abf42de51d5d547232345cfb7f34d344992f5d",
+      "bytes": 1089792
+    },
+    "lib/spring-websocket-6.2.8.jar": {
+      "sha256": "928560d8062da4eadc3830a265e290c2349e5f0b8d66577b0c6281e4ae2e450b",
+      "bytes": 444255
+    },
+    "lib/thymeleaf-3.1.3.RELEASE.jar": {
+      "sha256": "165ef16cd71020c4d572e77d73cf7baffd431f3f3e8c1d84b410de23dc79f92c",
+      "bytes": 938846
+    },
+    "lib/thymeleaf-spring6-3.1.3.RELEASE.jar": {
+      "sha256": "79c7f0897008831e9cf87315c8ca452e5ea95d32cbf04648dc11f9e6bad0a50e",
+      "bytes": 189088
+    },
+    "lib/tomcat-embed-core-10.1.42.jar": {
+      "sha256": "c0ca6acafe5ad63cd5de16ec8894318a7b53ea11e3db1bc217fd5f2a9746a790",
+      "bytes": 3631718
+    },
+    "lib/tomcat-embed-el-10.1.42.jar": {
+      "sha256": "45b3ae7ce47e7f15add01a25cb7ccaf37a07d4cdc4942f9d662c34e763d05df8",
+      "bytes": 265888
+    },
+    "lib/tomcat-embed-websocket-10.1.42.jar": {
+      "sha256": "de13dd7f8d1719a8f0c17e24e838d7d1705c9e32fc81665e5c5daf79eb012701",
+      "bytes": 281674
+    },
+    "lib/unbescape-1.1.6.RELEASE.jar": {
+      "sha256": "597cf87d5b1a4f385b9d1cec974b7b483abb3ee85fc5b3f8b62af8e4bec95c2c",
+      "bytes": 173935
+    },
+    "lib/xmlunit-core-2.10.2.jar": {
+      "sha256": "51e419fe7aba7d50aec727c5bf902f8cdf2aacf424879832e58112f73d3fbc21",
+      "bytes": 176555
+    }
+  },
+  "totalBytes": 67979204
+}

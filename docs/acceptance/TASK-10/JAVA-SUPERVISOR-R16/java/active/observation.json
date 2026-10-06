@@ -1,0 +1,21 @@
+{
+  "processId" : 3927,
+  "judgeId" : "task10-java-active-recovery",
+  "attemptId" : "d031c810-3e93-44cc-a639-ce5694e31588",
+  "liveStageId" : "231d361de3351ef48d946b4aeedd6319a3e8695c20445339659e312e9bb5fab5",
+  "sameJvmStartAndCancel" : true,
+  "runnerCancelInvoked" : true,
+  "liveStageVerifiedBeforeCancel" : true,
+  "stageFlockHeldBeforeCancel" : true,
+  "trustedCancelMarkerObserved" : true,
+  "stageOutcomeCancelled" : true,
+  "stageContainerAbsent" : true,
+  "realRuntimeCommands" : true,
+  "pendingRecoveryReported" : true,
+  "actualStageDirectoryRemoved" : true,
+  "productRecoveryComplete" : false,
+  "productionAcceptance" : false,
+  "activeCancellationComplete" : false,
+  "deletionCredentialIssued" : false,
+  "pendingMessage" : "Linux supervisor stopped; stage and volume recovery remains pending"
+}

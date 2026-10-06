@@ -1,0 +1,25 @@
+{
+  "protocolVersion": 2,
+  "judgeId": "task10-real-roles",
+  "attemptId": "0f5c16dd-4069-42c8-843c-2e15ae195d18",
+  "comparison": {
+    "mode": "LEGACY_TEXT",
+    "precision": "0"
+  },
+  "sourcePaths": {
+    "GENERATOR": "generator.cpp",
+    "USER": "user.cpp",
+    "ORACLE": "oracle.cpp"
+  },
+  "testCases": 1,
+  "caseTimeLimitMillis": 10000,
+  "maxTaskRuntimeMillis": 120000,
+  "memoryLimitBytes": 134217728,
+  "maxOutputBytesPerCase": 4096,
+  "stopOnFirstNonAc": false,
+  "retention": {
+    "completedMillis": 60000,
+    "failedMillis": 60000,
+    "cancelledMillis": 60000
+  }
+}
