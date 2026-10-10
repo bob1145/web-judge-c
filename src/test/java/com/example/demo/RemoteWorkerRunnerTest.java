@@ -1,6 +1,7 @@
 package com.example.demo;
 
 import com.example.demo.config.WorkerProperties;
+import com.example.demo.config.SandboxProperties;
 import com.example.demo.dto.SandboxCapabilities;
 import com.example.demo.support.RunnerProtocolFixtures;
 import com.example.demo.dto.SandboxComparison;
@@ -22,6 +23,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.CsvSource;
 import com.example.demo.dto.RunnerProtocolCapabilities;
 import java.util.Set;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,6 +39,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -152,6 +156,104 @@ class RemoteWorkerRunnerTest {
                 .isEqualTo("Bearer worker-secret");
     }
 
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {"401|denied", "503|down", "200|{", "200|null", "200|[null]", "200|[{}]",
+            "200|[{\"type\":null}]", "200|[] []", "200|[{\"type\":\"RUN_STARTED\",\"type\":\"RUN_FINISHED\"}]"})
+    void pollingFailureDoesNotFabricateRunnerEvents(int status, String body) throws Exception {
+        workerServer = FakeWorkerServer.start(objectMapper);
+        workerServer.respondText("GET", "/api/v1/runs/worker-run-failed/events?cursor=cursor-0", status, body);
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()),
+                objectMapper, tlsMaterial.clientContext());
+        SandboxRunHandle handle = SandboxRunHandle.builder()
+                .judgeId("judge-remote").runId("worker-run-failed").provider("remote-worker")
+                .eventCursor("cursor-0").protocolVersion(2).attemptId("attempt-failed").build();
+
+        assertThatThrownBy(() -> runner.pollEvents(handle))
+                .isInstanceOf(IllegalStateException.class).hasMessageStartingWith("worker event poll failed");
+        assertThat(workerServer.requests("GET", "/api/v1/runs/worker-run-failed/events?cursor=cursor-0"))
+                .hasSize(1);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,2,512", "-1,2,512", "1024,0,512", "1024,-1,512", "1024,2,0", "1024,2,-1",
+            "512,2,512", "512,2,513"})
+    void workerEventBudgetRejectsInvalidConfigurationWithoutStartingTransport(int batchBytes, int batchCount, int lineBytes) {
+        assertThatThrownBy(() -> RemoteWorkerRunner.Options.builder().endpoint("https://127.0.0.1:1")
+                .authToken("test-only-token").eventBatchLimitBytes(batchBytes).eventBatchLimitCount(batchCount)
+                .eventLineLimitBytes(lineBytes).build()).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("event limits must be positive and batch bytes must exceed line bytes");
+    }
+
+    @Test
+    void workerEventBudgetDefaultsReuseTheApprovedSharedConfiguration() {
+        var options = RemoteWorkerRunner.Options.builder().endpoint("https://127.0.0.1:1")
+                .authToken("test-only-token").build();
+        assertThat(options.eventBatchLimitBytes()).isEqualTo(SandboxProperties.DEFAULT_EVENT_BATCH_LIMIT_BYTES);
+        assertThat(options.eventBatchLimitCount()).isEqualTo(SandboxProperties.DEFAULT_EVENT_BATCH_LIMIT_COUNT);
+        assertThat(options.eventLineLimitBytes()).isEqualTo(SandboxProperties.DEFAULT_EVENT_LINE_LIMIT_BYTES);
+    }
+
+    @Test
+    void interruptedPollPreservesCancellationSignalInsteadOfReturningAnEvent() throws Exception {
+        workerServer = FakeWorkerServer.start(objectMapper);
+        workerServer.respondJson("GET", "/api/v1/runs/worker-run-interrupted/events?cursor=0", 200, List.of());
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()),
+                objectMapper, tlsMaterial.clientContext());
+        SandboxRunHandle handle = SandboxRunHandle.builder()
+                .judgeId("judge-remote").runId("worker-run-interrupted").provider("remote-worker")
+                .eventCursor("0").protocolVersion(2).attemptId("attempt-interrupted").build();
+        Thread.currentThread().interrupt();
+        try {
+            assertThatThrownBy(() -> runner.pollEvents(handle))
+                    .isInstanceOf(IllegalStateException.class).hasCauseInstanceOf(InterruptedException.class);
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"linux-container"})
+    void cancelRejectsForeignOrMissingProviderBeforeExternalActions(String provider) throws Exception {
+        workerServer = FakeWorkerServer.start(objectMapper);
+        workerServer.respondText("POST", "/api/v1/runs/foreign-run/cancel", 202, "");
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()),
+                objectMapper, tlsMaterial.clientContext());
+        SandboxRunHandle handle = SandboxRunHandle.builder()
+                .judgeId("foreign-judge").runId("foreign-run").provider(provider).build();
+
+        assertThatThrownBy(() -> runner.cancel(handle))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("handle provider");
+        assertThat(workerServer.requests("POST", "/api/v1/runs/foreign-run/cancel")).isEmpty();
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"linux-container", "windows-hyperv"})
+    void pollRejectsForeignOrMissingProviderBeforeExternalActions(String provider) throws Exception {
+        workerServer = FakeWorkerServer.start(objectMapper);
+        workerServer.respondJson("GET", "/api/v1/runs/foreign-run/events?cursor=0", 200, List.of());
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()),
+                objectMapper, tlsMaterial.clientContext());
+        SandboxRunHandle handle = SandboxRunHandle.builder()
+                .judgeId("foreign-judge").runId("foreign-run").provider(provider).eventCursor("0").build();
+
+        assertThatThrownBy(() -> runner.pollEvents(handle))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("handle provider");
+        assertThat(workerServer.requests("GET", "/api/v1/runs/foreign-run/events?cursor=0")).isEmpty();
+    }
+
+    @Test
+    void pollRejectsMissingHandleBeforeExternalActions() throws Exception {
+        workerServer = FakeWorkerServer.start(objectMapper);
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()),
+                objectMapper, tlsMaterial.clientContext());
+
+        assertThatThrownBy(() -> runner.pollEvents(null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("handle provider");
+    }
+
     @Test
     void cancelSendsAuthenticatedRequestAndTreatsRepeatedCancelAsIdempotent() throws Exception {
         workerServer = FakeWorkerServer.start(objectMapper);
@@ -176,6 +278,29 @@ class RemoteWorkerRunnerTest {
                 .allSatisfy(request -> assertThat(request.authorization()).isEqualTo("Bearer worker-secret"));
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {200, 202, 204, 404, 409})
+    void cleanupCannotTreatCancelAcknowledgementAsConfirmedDomainStop(int cancelStatus) throws Exception {
+        workerServer = FakeWorkerServer.start(objectMapper);
+        workerServer.respondText("POST", "/api/v1/runs/worker-cleanup/cancel", cancelStatus, "");
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()),
+                objectMapper, tlsMaterial.clientContext());
+        SandboxRunHandle handle = SandboxRunHandle.builder()
+                .judgeId("judge-remote-cleanup")
+                .runId("worker-cleanup")
+                .provider("remote-worker")
+                .protocolVersion(2)
+                .attemptId("worker-cleanup-attempt")
+                .build();
+
+        assertThatThrownBy(() -> runner.cleanupResidual(handle))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("stop is not confirmed");
+        assertThat(workerServer.requests("POST", "/api/v1/runs/worker-cleanup/cancel"))
+                .singleElement().satisfies(request ->
+                        assertThat(request.authorization()).isEqualTo("Bearer worker-secret"));
+    }
+
     @Test
     void unavailableWorkerProducesSandboxUnavailableCapabilityAndEventInsteadOfThrowing() throws Exception {
         workerServer = FakeWorkerServer.start(objectMapper);
@@ -195,6 +320,60 @@ class RemoteWorkerRunnerTest {
             assertThat(event.type()).isEqualTo(SandboxTaskEvent.Type.SANDBOX_UNAVAILABLE);
             assertThat(event.message()).contains("worker unavailable");
         });
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,false", "false,true", "true,false", "true,true"})
+    void unavailableEventsRemainOwnedByExactAttemptAcrossPollingOrders(boolean differentJudge,
+                                                                     boolean reverseOrder) throws Exception {
+        workerServer = FakeWorkerServer.start(objectMapper);
+        workerServer.respondText("GET", "/api/v1/capabilities", 503, "down");
+        workerServer.respondText("GET", "/api/v1/runs/unavailable/events?cursor=0", 503, "down");
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()),
+                objectMapper, tlsMaterial.clientContext());
+        SandboxRunHandle first = runner.start(validSpec());
+        SandboxRunHandle second = runner.start(validSpec(differentJudge ? "judge-remote-other" : "judge-remote"));
+        assertThat(first.attemptId()).isNotEqualTo(second.attemptId());
+        List<SandboxRunHandle> handles = reverseOrder ? List.of(second, first) : List.of(first, second);
+        for (SandboxRunHandle original : handles) {
+            SandboxRunHandle restored = objectMapper.readValue(objectMapper.writeValueAsBytes(original), SandboxRunHandle.class);
+            assertThat(restored).isEqualTo(original);
+            assertThat(runner.pollEvents(restored)).singleElement().satisfies(event -> {
+                assertThat(event.judgeId()).isEqualTo(restored.judgeId());
+                assertThat(event.attemptId()).isEqualTo(restored.attemptId());
+                assertThat(event.protocolVersion()).isEqualTo(restored.protocolVersion());
+                assertThat(event.sequence()).isEqualTo(1L);
+                assertThat(event.type()).isEqualTo(SandboxTaskEvent.Type.SANDBOX_UNAVAILABLE);
+            });
+            assertThat(runner.pollEvents(restored)).isEmpty();
+        }
+        assertThat(workerServer.requests("GET", "/api/v1/runs/unavailable/events?cursor=0")).isEmpty();
+    }
+
+    @Test
+    void cleanupOfUnavailableAttemptDiscardsOnlyItsPendingLocalEvent() throws Exception {
+        workerServer = FakeWorkerServer.start(objectMapper);
+        workerServer.respondText("GET", "/api/v1/capabilities", 503, "down");
+        RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()),
+                objectMapper, tlsMaterial.clientContext());
+        SandboxRunHandle first = runner.start(validSpec());
+        SandboxRunHandle second = runner.start(validSpec());
+        runner.cleanupResidual(first);
+        runner.cleanupResidual(first, Duration.ofMillis(100));
+        Object pending = org.springframework.test.util.ReflectionTestUtils.getField(runner, "localEvents");
+        assertThat(pending).isInstanceOf(java.util.Map.class);
+        assertThat(((java.util.Map<?, ?>) pending)).hasSize(1);
+        assertThat(((java.util.Map<?, ?>) pending).containsKey(second)).isTrue();
+        assertThat(runner.pollEvents(second)).singleElement().satisfies(event ->
+                assertThat(event.attemptId()).isEqualTo(second.attemptId()));
+        assertThat(((java.util.Map<?, ?>) pending)).isEmpty();
+        assertThat(runner.pollEvents(first)).isEmpty();
+        assertThat(runner.pollEvents(second)).isEmpty();
+        runner.cleanupResidual(second, Duration.ofMillis(100));
+        runner.cleanupResidual(second);
+        assertThat(workerServer.requests("POST", "/api/v1/runs")).isEmpty();
+        assertThat(workerServer.requests("POST", "/api/v1/runs/unavailable/cancel")).isEmpty();
+        assertThat(workerServer.requests("GET", "/api/v1/runs/unavailable/events?cursor=0")).isEmpty();
     }
 
     @Test
@@ -241,7 +420,7 @@ class RemoteWorkerRunnerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"protocolVersion", "attemptId", "judgeId", "provider", "runId", "fractional-version", "string-version"})
+    @ValueSource(strings = {"protocolVersion", "attemptId", "judgeId", "provider", "runId", "fractional-version", "string-version", "reserved-runId"})
     void mismatchedWorkerAcknowledgementIsNotAccepted(String field) throws Exception {
         workerServer = FakeWorkerServer.start(objectMapper);
         workerServer.respondJson("GET", "/api/v1/capabilities", 200, SandboxCapabilities.builder()
@@ -251,7 +430,9 @@ class RemoteWorkerRunnerTest {
             var response = objectMapper.createObjectNode().put("judgeId", manifest.path("judgeId").asText())
                     .put("attemptId", manifest.path("attemptId").asText()).put("protocolVersion", 2)
                     .put("runId", "fixture-run").put("provider", "remote-worker").put("eventCursor", "0");
-            if (field.equals("fractional-version")) {
+            if (field.equals("reserved-runId")) {
+                response.put("runId", "unavailable");
+            } else if (field.equals("fractional-version")) {
                 response.put("protocolVersion", 2.5);
             } else if (field.equals("string-version")) {
                 response.put("protocolVersion", "2");
@@ -263,10 +444,10 @@ class RemoteWorkerRunnerTest {
             send(exchange, 202, objectMapper.writeValueAsString(response));
         });
         RemoteWorkerRunner runner = new TestTlsRemoteWorkerRunner(workerProperties(workerServer.baseUri()), objectMapper, tlsMaterial.clientContext());
-        SandboxRunHandle handle = runner.start(validSpec());
-        assertThat(handle.runId()).isEqualTo("unavailable");
-        assertThat(runner.pollEvents(handle)).singleElement().satisfies(event ->
-                assertThat(event.message()).contains("incompatible run acknowledgement"));
+        assertThatThrownBy(() -> runner.start(validSpec())).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("startup outcome is unconfirmed")
+                .hasRootCauseMessage("worker returned an incompatible run acknowledgement");
+        assertThat((Map<?, ?>) org.springframework.test.util.ReflectionTestUtils.getField(runner, "localEvents")).isEmpty();
         assertThat(workerServer.requests("POST", "/api/v1/runs")).hasSize(1);
     }
 
@@ -280,8 +461,12 @@ class RemoteWorkerRunnerTest {
     }
 
     private SandboxTaskSpec validSpec() throws IOException {
+        return validSpec("judge-remote");
+    }
+
+    private SandboxTaskSpec validSpec(String judgeId) throws IOException {
         Path storageBase = tempDir.resolve("storage").toAbsolutePath().normalize();
-        Path workDir = storageBase.resolve("judge-remote");
+        Path workDir = storageBase.resolve(judgeId);
         Files.createDirectories(workDir);
         Path generator = workDir.resolve("generator.cpp");
         Path user = workDir.resolve("user.cpp");
@@ -290,7 +475,7 @@ class RemoteWorkerRunnerTest {
         Files.writeString(user, "int main(){return 0;}");
         Files.writeString(oracle, "int main(){return 0;}");
         return SandboxTaskSpec.builder()
-                .judgeId("judge-remote")
+                .judgeId(judgeId)
                 .userId("user-remote")
                 .profile("worker-prod")
                 .storageBase(storageBase)

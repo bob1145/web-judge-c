@@ -3,26 +3,56 @@ package com.example.demo.service;
 import com.example.demo.config.AuthConfiguration;
 import com.example.demo.model.AuthStatus;
 import com.example.demo.model.UserSession;
+import com.example.demo.model.UserAccount;
 import com.example.demo.security.SessionAuditId;
-import lombok.RequiredArgsConstructor;
+import com.example.demo.security.WebSocketSessionGuard;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 校验码服务
  * 负责校验码验证、会话管理等认证相关功能
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class AccessCodeService {
     
     private final AuthConfiguration authConfig;
+    private final UserAccountService userAccountService;
+    private final Clock clock;
+    private final Object attemptCapacityLock = new Object();
+    private final Object globalAttemptLock = new Object();
+    private AttemptRecord globalAttempts;
+    private int globalInFlight;
+    @Autowired
+    private ObjectProvider<WebSocketSessionGuard> webSocketSessionGuard;
+
+    public AccessCodeService(AuthConfiguration authConfig) {
+        this(authConfig, null);
+    }
+
+    @Autowired
+    public AccessCodeService(AuthConfiguration authConfig, UserAccountService userAccountService) {
+        this(authConfig, userAccountService, Clock.systemDefaultZone());
+    }
+
+    public AccessCodeService(AuthConfiguration authConfig, UserAccountService userAccountService, Clock clock) {
+        this.authConfig = authConfig;
+        this.userAccountService = userAccountService;
+        this.clock = clock;
+        this.globalAttempts = new AttemptRecord(0, clock.instant());
+    }
     
     /**
      * 存储活跃会话的内存映射
@@ -31,16 +61,10 @@ public class AccessCodeService {
     private final Map<String, UserSession> activeSessions = new ConcurrentHashMap<>();
     
     /**
-     * 存储IP地址的尝试次数
-     * Key: IP地址, Value: 尝试次数
+     * 存储IP地址的失败次数与最后尝试时间
+     * Key: IP地址, Value: 尝试记录
      */
-    private final Map<String, Integer> attemptCounts = new ConcurrentHashMap<>();
-    
-    /**
-     * 存储IP地址的最后尝试时间
-     * Key: IP地址, Value: 最后尝试时间
-     */
-    private final Map<String, LocalDateTime> lastAttemptTimes = new ConcurrentHashMap<>();
+    private final Map<String, AttemptRecord> attempts = new ConcurrentHashMap<>();
     
     /**
      * 验证校验码
@@ -51,31 +75,53 @@ public class AccessCodeService {
      */
     public AuthStatus validateAccessCode(String code, String ipAddress) {
         log.debug("验证校验码，IP: {}", ipAddress);
-        
-        // 检查输入是否为空
-        if (code == null || code.trim().isEmpty()) {
-            log.warn("校验码为空，IP: {}", ipAddress);
-            return AuthStatus.EMPTY_CODE;
+        String sourceKey = ipAddress == null ? "<unknown>" : ipAddress;
+        synchronized (attemptCapacityLock) {
+            if (!attempts.containsKey(sourceKey) && attempts.size() >= authConfig.getMaxAttemptStates()) {
+                return AuthStatus.TOO_MANY_ATTEMPTS;
+            }
+            attempts.putIfAbsent(sourceKey, new AttemptRecord(0, clock.instant()));
         }
-        
-        // 检查尝试次数限制
-        if (isExceedMaxAttempts(ipAddress)) {
-            log.warn("IP {} 超过最大尝试次数限制", ipAddress);
-            return AuthStatus.TOO_MANY_ATTEMPTS;
-        }
-        
-        // 验证校验码
-        boolean isValid = authConfig.isUsableAccessCode() && authConfig.getAccessCode().trim().equals(code.trim());
-        
-        if (isValid) {
-            log.info("校验码验证成功，IP: {}", ipAddress);
-            clearAttemptRecord(ipAddress);
-            return AuthStatus.SUCCESS;
-        } else {
-            log.warn("校验码验证失败，IP: {}", ipAddress);
-            recordFailedAttempt(ipAddress);
-            return AuthStatus.INVALID_CODE;
-        }
+        AtomicReference<AuthStatus> result = new AtomicReference<>();
+        attempts.computeIfPresent(sourceKey, (storedKey, storedRecord) -> {
+            AttemptRecord record = resetExpired(storedRecord, Duration.ofHours(authConfig.getAttemptResetHours()));
+            if (record.failures() >= authConfig.getMaxAttempts()) {
+                log.warn("IP {} 超过最大尝试次数限制", ipAddress);
+                result.set(AuthStatus.TOO_MANY_ATTEMPTS);
+                return record;
+            }
+            synchronized (globalAttemptLock) {
+                globalAttempts = resetExpired(globalAttempts, authConfig.getGlobalAccessCodeAttemptWindow());
+                if ((long) globalAttempts.failures() + globalInFlight >= authConfig.getMaxGlobalAccessCodeAttempts()) {
+                    result.set(AuthStatus.TOO_MANY_ATTEMPTS);
+                    return record;
+                }
+                globalInFlight++;
+            }
+            try {
+                if (code == null || code.trim().isEmpty()) {
+                    result.set(AuthStatus.EMPTY_CODE);
+                    return recordFailedAttempt(record);
+                }
+                boolean isValid = authConfig.isUsableAccessCode() && authConfig.getAccessCode().trim().equals(code.trim());
+                if (isValid) {
+                    log.info("校验码验证成功，IP: {}", ipAddress);
+                    result.set(AuthStatus.SUCCESS);
+                    return new AttemptRecord(0, clock.instant());
+                }
+                log.warn("校验码验证失败，IP: {}", ipAddress);
+                result.set(AuthStatus.INVALID_CODE);
+                return recordFailedAttempt(record);
+            } finally {
+                synchronized (globalAttemptLock) {
+                    globalInFlight--;
+                    if (result.get() == AuthStatus.INVALID_CODE || result.get() == AuthStatus.EMPTY_CODE) {
+                        globalAttempts = recordFailedAttempt(resetExpired(globalAttempts, authConfig.getGlobalAccessCodeAttemptWindow()));
+                    }
+                }
+            }
+        });
+        return result.get() == null ? AuthStatus.TOO_MANY_ATTEMPTS : result.get();
     }
     
     /**
@@ -91,8 +137,21 @@ public class AccessCodeService {
     }
 
     public UserSession createSession(boolean rememberMe, String ipAddress, String userAgent, String userId, boolean admin) {
+        return createSession(rememberMe, ipAddress, userAgent, userId, admin, null);
+    }
+
+    public UserSession createSession(boolean rememberMe, String ipAddress, String userAgent, UserAccount account) {
+        if (userAccountService == null || account == null || account.getUsername() == null
+                || account.getUsername().isBlank()) {
+            throw new IllegalStateException("Account session validation is unavailable");
+        }
+        return createSession(rememberMe, ipAddress, userAgent, account.getUserId(), account.isAdmin(), account.getUsername());
+    }
+
+    private UserSession createSession(boolean rememberMe, String ipAddress, String userAgent, String userId,
+                                      boolean admin, String accountUsername) {
         String sessionId = generateSessionId();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         LocalDateTime expiresAt = rememberMe ? 
             now.plus(authConfig.getSessionTimeout()) : 
             now.plus(authConfig.getNormalSessionTimeout());
@@ -101,6 +160,7 @@ public class AccessCodeService {
         UserSession session = UserSession.builder()
                 .sessionId(sessionId)
                 .userId(stableUserId)
+                .accountUsername(accountUsername)
                 .admin(admin)
                 .createdAt(now)
                 .expiresAt(expiresAt)
@@ -109,7 +169,15 @@ public class AccessCodeService {
                 .userAgent(userAgent)
                 .build();
         
-        activeSessions.put(sessionId, session);
+        synchronized (activeSessions) {
+            if (activeSessions.size() >= authConfig.getMaxActiveSessions()) {
+                activeSessions.entrySet().removeIf(entry -> !entry.getValue().getExpiresAt().isAfter(now));
+            }
+            if (activeSessions.size() >= authConfig.getMaxActiveSessions()) {
+                throw new SessionCapacityExceededException();
+            }
+            activeSessions.put(sessionId, session);
+        }
         
         log.info("创建会话成功，auditId: {}, rememberMe: {}, IP: {}",
                 SessionAuditId.from(sessionId), rememberMe, ipAddress);
@@ -137,11 +205,27 @@ public class AccessCodeService {
         if (session.isExpired()) {
             log.debug("会话已过期: {}", SessionAuditId.from(sessionId));
             // 清理过期会话
-            activeSessions.remove(sessionId);
+            invalidateSession(sessionId);
+            return false;
+        }
+
+        if (session.getAccountUsername() != null && !isCurrentAccountSession(session)) {
+            if (activeSessions.remove(sessionId, session)) {
+                closeSessionConnections(sessionId);
+            }
+            log.debug("会话的账户已失效: {}", SessionAuditId.from(sessionId));
             return false;
         }
         
         return true;
+    }
+
+    private boolean isCurrentAccountSession(UserSession session) {
+        return userAccountService != null && userAccountService.findByUsername(session.getAccountUsername())
+                .filter(UserAccount::isEnabled)
+                .filter(account -> session.getUserId().equals(account.getUserId()))
+                .filter(account -> !session.isAdmin() || account.isAdmin())
+                .isPresent();
     }
     
     /**
@@ -167,6 +251,7 @@ public class AccessCodeService {
             UserSession removedSession = activeSessions.remove(sessionId);
             if (removedSession != null) {
                 log.info("会话已失效: {}", SessionAuditId.from(sessionId));
+                closeSessionConnections(sessionId);
             }
         }
     }
@@ -176,14 +261,28 @@ public class AccessCodeService {
      * 这个方法可以定期调用来清理内存中的过期会话
      */
     public void cleanupExpiredSessions() {
-        LocalDateTime now = LocalDateTime.now();
-        activeSessions.entrySet().removeIf(entry -> {
-            boolean expired = entry.getValue().getExpiresAt().isBefore(now);
-            if (expired) {
-                log.debug("清理过期会话: {}", SessionAuditId.from(entry.getKey()));
+        LocalDateTime now = LocalDateTime.now(clock);
+        activeSessions.forEach((sessionId, session) -> {
+            if (!session.getExpiresAt().isAfter(now) && activeSessions.remove(sessionId, session)) {
+                log.debug("清理过期会话: {}", SessionAuditId.from(sessionId));
+                closeSessionConnections(sessionId);
             }
-            return expired;
         });
+        cleanupExpiredAttempts();
+        if (userAccountService != null) {
+            userAccountService.cleanupExpiredAttempts();
+        }
+        WebSocketSessionGuard guard = webSocketSessionGuard == null ? null : webSocketSessionGuard.getIfAvailable();
+        if (guard != null) {
+            guard.closeInactiveConnections();
+        }
+    }
+
+    private void closeSessionConnections(String sessionId) {
+        WebSocketSessionGuard guard = webSocketSessionGuard == null ? null : webSocketSessionGuard.getIfAvailable();
+        if (guard != null) {
+            guard.revokeSessionConnections(sessionId);
+        }
     }
     
     /**
@@ -195,39 +294,31 @@ public class AccessCodeService {
         return activeSessions.size();
     }
     
-    /**
-     * 检查IP是否超过最大尝试次数
-     */
-    private boolean isExceedMaxAttempts(String ipAddress) {
-        Integer attempts = attemptCounts.get(ipAddress);
-        if (attempts == null) {
-            return false;
+    public void cleanupExpiredAttempts() {
+        Instant cutoff = clock.instant().minus(authConfig.getAttemptStateTtl());
+        attempts.forEach((key, record) -> attempts.computeIfPresent(key,
+                (storedKey, current) -> current.lastAttemptTime().isAfter(cutoff) ? current : null));
+        synchronized (globalAttemptLock) {
+            globalAttempts = resetExpired(globalAttempts, authConfig.getAttemptStateTtl());
         }
-        
-        // 检查是否需要重置计数
-        LocalDateTime lastAttempt = lastAttemptTimes.get(ipAddress);
-        if (lastAttempt != null && lastAttempt.isBefore(LocalDateTime.now().minusHours(authConfig.getAttemptResetHours()))) {
-            clearAttemptRecord(ipAddress);
-            return false;
+    }
+
+    private AttemptRecord resetExpired(AttemptRecord record, Duration window) {
+        Instant now = clock.instant();
+        return record.lastAttemptTime().isAfter(now.minus(window)) ? record : new AttemptRecord(0, now);
+    }
+
+    private AttemptRecord recordFailedAttempt(AttemptRecord previous) {
+        return new AttemptRecord(previous.failures() + 1, clock.instant());
+    }
+
+    private record AttemptRecord(int failures, Instant lastAttemptTime) {
+    }
+
+    public static class SessionCapacityExceededException extends IllegalStateException {
+        public SessionCapacityExceededException() {
+            super("Authentication session capacity reached; please retry later");
         }
-        
-        return attempts >= authConfig.getMaxAttempts();
-    }
-    
-    /**
-     * 记录失败尝试
-     */
-    private void recordFailedAttempt(String ipAddress) {
-        attemptCounts.merge(ipAddress, 1, Integer::sum);
-        lastAttemptTimes.put(ipAddress, LocalDateTime.now());
-    }
-    
-    /**
-     * 清除尝试记录
-     */
-    private void clearAttemptRecord(String ipAddress) {
-        attemptCounts.remove(ipAddress);
-        lastAttemptTimes.remove(ipAddress);
     }
     
     /**

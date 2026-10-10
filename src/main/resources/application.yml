@@ -4,6 +4,7 @@ spring:
 
 server:
   address: 127.0.0.1
+  forward-headers-strategy: none
   port: 1234
 
 app:
@@ -38,6 +39,11 @@ judge:
     max-running-tasks-per-user: 1
     max-queued-tasks-per-user: 5
     cleanup-interval: 30m
+    progress-cache-max-entries: 1024
+    progress-cache-ttl: 30m
+    created-task-scan-interval: 1m
+    created-task-scan-max-tasks: 128
+    created-task-scan-budget: 1s
     completed-retention: 24h
     cancelled-retention: 24h
     failed-retention: 24h

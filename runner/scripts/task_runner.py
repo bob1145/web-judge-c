@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 import argparse
+import errno
+import io
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -12,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
-from runner_manifest import CAPABILITIES, ManifestError, load_manifest
+from runner_manifest import CAPABILITIES, DECIMAL_TOKEN, ManifestError, load_manifest, parse_decimal, validate_token
 
 
 EXIT_COMPLETED = 0
@@ -26,6 +29,7 @@ MAX_EVENT_MESSAGE_BYTES = 4096
 COMPILE_TIMEOUT_SECONDS = 60
 COMPILE_OUTPUT_LIMIT_BYTES = 64 * 1024
 POLL_SECONDS = 0.02
+CLEANUP_SECONDS = 2.0
 
 
 @dataclass
@@ -48,6 +52,7 @@ class TaskRunner:
         self.cancel_path = self.attempt_dir / "cancel.requested"
         self.bin_dir = self.execution_dir / "bin"
         self.started_at = time.monotonic()
+        self.event_sequence = 0
         self.summary = {
             "totalCases": int(self.spec["testCases"]),
             "completedCases": 0,
@@ -106,9 +111,10 @@ class TaskRunner:
                 continue
             source = self.work_dir / source_paths[role]
             output = self.bin_dir / executable_name(role.lower())
+            remaining_runtime = self.check_control_files()
             limits = {
                 "stdin": b"",
-                "timeout_seconds": COMPILE_TIMEOUT_SECONDS,
+                "timeout_seconds": min(COMPILE_TIMEOUT_SECONDS, remaining_runtime),
                 "memory_limit_bytes": max(int(self.spec["memoryLimitBytes"]) * 2, 256 * 1024 * 1024),
                 "output_limit_bytes": COMPILE_OUTPUT_LIMIT_BYTES,
                 "cancel_path": self.cancel_path,
@@ -120,9 +126,17 @@ class TaskRunner:
                 outcome = self.call_stage("compile", role, source, output, **limits)
             if outcome.status == "CANCELLED":
                 raise Cancelled()
+            if outcome.status == "TIME_LIMIT_EXCEEDED" and remaining_runtime <= COMPILE_TIMEOUT_SECONDS:
+                raise BudgetExceeded()
+            self.check_control_files()
             if outcome.status == "TIME_LIMIT_EXCEEDED":
                 self.emit("COMPILE_FINISHED", f"compile timed out for {role}", status="COMPILE_ERROR")
                 raise CompileError(f"{role} compile timed out")
+            if outcome.status == "OUTPUT_LIMIT_EXCEEDED":
+                message = f"OUTPUT_LIMIT_EXCEEDED while compiling {role}: " + decode_limited(
+                    outcome.stderr or outcome.stdout, MAX_EVENT_MESSAGE_BYTES)
+                self.emit("COMPILE_FINISHED", message, status="COMPILE_ERROR")
+                raise CompileError(message)
             if outcome.status != "SUCCESS" or outcome.exit_code != 0:
                 message = decode_limited(outcome.stderr or outcome.stdout, MAX_EVENT_MESSAGE_BYTES)
                 self.emit("COMPILE_FINISHED", f"compile failed for {role}: {message}", status="COMPILE_ERROR")
@@ -143,9 +157,13 @@ class TaskRunner:
         total = int(self.spec["testCases"])
         for case_number in range(1, total + 1):
             self.check_control_files()
-            input_bytes = self.run_generator(executables["GENERATOR"], case_number)
+            generated = self.run_generator(executables["GENERATOR"], case_number)
+            input_bytes = generated.stdout
             self.write_case_artifacts(case_number, input_bytes=input_bytes)
-            case_status, elapsed_ms, peak_memory_kb = self.run_user_and_judge(executables, case_number, input_bytes)
+            if generated.status == "OUTPUT_LIMIT_EXCEEDED":
+                case_status, elapsed_ms, peak_memory_kb = generated.status, generated.elapsed_ms, generated.peak_memory_kb
+            else:
+                case_status, elapsed_ms, peak_memory_kb = self.run_user_and_judge(executables, case_number, input_bytes)
             self.accept_case_result(case_number, case_status, elapsed_ms, peak_memory_kb)
             if self.should_stop_after_result(case_status):
                 self.summary["stoppedReason"] = "Stopped after first non-AC test case"
@@ -155,12 +173,12 @@ class TaskRunner:
         self.emit("COMPLETED", "completed")
         return EXIT_COMPLETED
 
-    def run_generator(self, executable: Path, case_number: int) -> bytes:
+    def run_generator(self, executable: Path, case_number: int) -> ProcessOutcome:
         outcome = self.run_role("GENERATOR", executable, f"{case_number}\n".encode("utf-8"))
         self.raise_control_outcome(outcome)
-        if outcome.status != "SUCCESS" or outcome.exit_code != 0:
+        if outcome.status != "OUTPUT_LIMIT_EXCEEDED" and (outcome.status != "SUCCESS" or outcome.exit_code != 0):
             raise RuntimeError("generator failed")
-        return outcome.stdout
+        return outcome
 
     def run_user_and_judge(self, executables: dict[str, Path], case_number: int, input_bytes: bytes) -> tuple[str, int, int]:
         self.emit("RUN_STARTED", f"case {case_number} started", case_number=case_number)
@@ -185,9 +203,14 @@ class TaskRunner:
     def run_oracle(self, executable: Path, input_bytes: bytes, user_output: bytes) -> tuple[str, bytes]:
         oracle = self.run_role("ORACLE", executable, input_bytes)
         self.raise_control_outcome(oracle)
+        if oracle.status == "OUTPUT_LIMIT_EXCEEDED":
+            return "OUTPUT_LIMIT_EXCEEDED", oracle.stdout
         if oracle.status != "SUCCESS" or oracle.exit_code != 0:
             return "System Error", oracle.stdout
-        status = "AC" if normalize_output(user_output) == normalize_output(oracle.stdout) else "WA"
+        try:
+            status = "AC" if outputs_match(user_output, oracle.stdout, self.spec["comparison"]) else "WA"
+        except (UnicodeError, ValueError, ArithmeticError):
+            status = "System Error"
         return status, oracle.stdout
 
     def run_special_judge(self, executable: Path, case_number: int, input_bytes: bytes, user_output: bytes) -> str:
@@ -196,7 +219,11 @@ class TaskRunner:
         spj = self.run_role("SPECIAL_JUDGE", executable, b"",
                             input_files={"case.in": input_path, "case.out": user_path}, timeout_multiplier=2)
         self.raise_control_outcome(spj)
-        return "AC" if spj.status == "SUCCESS" and spj.exit_code == 0 else "WA"
+        if spj.status == "OUTPUT_LIMIT_EXCEEDED":
+            return "OUTPUT_LIMIT_EXCEEDED"
+        if spj.status != "SUCCESS":
+            return "System Error"
+        return "AC" if spj.exit_code == 0 else "WA"
 
     def call_stage(self, method, *arguments, **limits):
         from linux_stage_executor import StageSecurityError
@@ -209,17 +236,26 @@ class TaskRunner:
 
     def run_role(self, role, executable, stdin, input_files=None, timeout_multiplier=1):
         files = input_files or {}
+        remaining_runtime = self.check_control_files()
+        case_timeout = self.case_time_limit_seconds() * timeout_multiplier
         limits = {
             "stdin": stdin,
-            "timeout_seconds": self.case_time_limit_seconds() * timeout_multiplier,
+            "timeout_seconds": min(case_timeout, remaining_runtime),
             "memory_limit_bytes": int(self.spec["memoryLimitBytes"]),
             "output_limit_bytes": int(self.spec["maxOutputBytesPerCase"]),
             "cancel_path": self.cancel_path,
         }
         if self.stage_executor is None:
-            return run_process(command=[str(executable)] + [str(path) for path in files.values()],
-                               cwd=self.execution_dir, **limits)
-        return self.call_stage("execute", role, executable, ["/input/" + name for name in files], files, **limits)
+            outcome = run_process(command=[str(executable)] + [str(path) for path in files.values()],
+                                  cwd=self.execution_dir, **limits)
+        else:
+            outcome = self.call_stage("execute", role, executable, ["/input/" + name for name in files], files, **limits)
+        if outcome.status == "CANCELLED":
+            return outcome
+        if outcome.status == "TIME_LIMIT_EXCEEDED" and remaining_runtime <= case_timeout:
+            raise BudgetExceeded()
+        self.check_control_files()
+        return outcome
 
     def accept_case_result(self, case_number: int, status: str, elapsed_ms: int, memory_kb: int) -> None:
         result = {
@@ -282,19 +318,24 @@ class TaskRunner:
         if outcome.status == "CANCELLED":
             raise Cancelled()
 
-    def check_control_files(self) -> None:
+    def check_control_files(self) -> float:
         if self.cancel_path.exists():
             raise Cancelled()
-        max_runtime = self.spec["maxTaskRuntimeMillis"] / 1000
-        if time.monotonic() - self.started_at > max_runtime:
+        remaining_runtime = self.spec["maxTaskRuntimeMillis"] / 1000 - (time.monotonic() - self.started_at)
+        if remaining_runtime <= 0:
             raise BudgetExceeded()
+        return remaining_runtime
 
     def case_time_limit_seconds(self) -> float:
         return self.spec["caseTimeLimitMillis"] / 1000
 
     def emit(self, event_type: str, message: str, **extra) -> None:
+        self.event_sequence += 1
         event = {
+            "protocolVersion": self.spec["protocolVersion"],
             "judgeId": self.judge_id,
+            "attemptId": self.spec["attemptId"],
+            "sequence": self.event_sequence,
             "type": event_type,
             "occurredAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "message": bounded(message),
@@ -322,9 +363,17 @@ def run_process(
     cancel_path: Path,
 ) -> ProcessOutcome:
     start = time.monotonic()
+    execution_deadline = start + timeout_seconds
+    cleanup_deadline = None
     peak_memory_kb = 0
     killed_for_memory = threading.Event()
     killed_for_cancel = threading.Event()
+    killed_for_output = threading.Event()
+    capture_lock = threading.Lock()
+    stdout_buffer = bytearray()
+    stderr_buffer = bytearray()
+    total_output_bytes = 0
+    io_errors = []
     creationflags = 0
     popen_kwargs = {}
     if os.name == "nt":
@@ -356,36 +405,110 @@ def run_process(
                 return
             time.sleep(POLL_SECONDS)
 
-    monitor_thread = threading.Thread(target=monitor, daemon=True)
-    monitor_thread.start()
-    try:
-        stdout, stderr = process.communicate(stdin, timeout=timeout_seconds)
-    except subprocess.TimeoutExpired:
+    def fail_io(error: Exception) -> None:
+        with capture_lock:
+            io_errors.append(error)
         kill_process_tree(process)
-        stdout, stderr = process.communicate()
-        elapsed = elapsed_ms(start)
-        return ProcessOutcome("TIME_LIMIT_EXCEEDED", process.returncode or -1, stdout, stderr, elapsed, peak_memory_kb)
+
+    def capture(pipe, is_stdout: bool) -> None:
+        nonlocal total_output_bytes
+        try:
+            with pipe:
+                while chunk := pipe.read1(io.DEFAULT_BUFFER_SIZE):
+                    with capture_lock:
+                        total_output_bytes = min(output_limit_bytes + 1, total_output_bytes + len(chunk))
+                        if is_stdout:
+                            kept_bytes = min(len(chunk), output_limit_bytes - len(stdout_buffer))
+                            del stderr_buffer[output_limit_bytes - len(stdout_buffer) - kept_bytes:]
+                            stdout_buffer.extend(chunk[:kept_bytes])
+                        else:
+                            remaining = output_limit_bytes - len(stdout_buffer) - len(stderr_buffer)
+                            stderr_buffer.extend(chunk[:remaining])
+                        must_stop = total_output_bytes > output_limit_bytes and not killed_for_output.is_set()
+                        if must_stop:
+                            killed_for_output.set()
+                    if must_stop:
+                        kill_process_tree(process)
+        except Exception as error:
+            fail_io(error)
+
+    def feed_input() -> None:
+        try:
+            with process.stdin:
+                process.stdin.write(stdin)
+        except BrokenPipeError:
+            pass
+        except OSError as error:
+            if os.name != "nt" or error.errno != errno.EINVAL:
+                fail_io(error)
+        except Exception as error:
+            fail_io(error)
+
+    monitor_thread = threading.Thread(target=monitor, daemon=True)
+    pumps = [threading.Thread(target=capture, args=(process.stdout, True), daemon=True),
+             threading.Thread(target=capture, args=(process.stderr, False), daemon=True),
+             threading.Thread(target=feed_input, daemon=True)]
+    monitor_thread.start()
+    timed_out = False
+    try:
+        for pump in pumps:
+            pump.start()
+        try:
+            process.wait(timeout=max(0, execution_deadline - time.monotonic()))
+            for pump in pumps:
+                pump.join(timeout=max(0, execution_deadline - time.monotonic()))
+            if any(pump.is_alive() for pump in pumps):
+                raise subprocess.TimeoutExpired(command, timeout_seconds)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            cleanup_deadline = time.monotonic() + CLEANUP_SECONDS
+            kill_process_tree(process, max(0, cleanup_deadline - time.monotonic()))
+            try:
+                process.wait(timeout=max(0, cleanup_deadline - time.monotonic()))
+            except subprocess.TimeoutExpired as error:
+                raise OSError("Process cleanup deadline exceeded; execution domain stop is not confirmed") from error
+    except BaseException:
+        if cleanup_deadline is None:
+            cleanup_deadline = time.monotonic() + CLEANUP_SECONDS
+        kill_process_tree(process, max(0, cleanup_deadline - time.monotonic()))
+        raise
     finally:
-        monitor_thread.join(timeout=1)
+        if cleanup_deadline is None:
+            cleanup_deadline = time.monotonic() + CLEANUP_SECONDS
+        for pump in pumps:
+            if pump.ident is not None:
+                pump.join(timeout=max(0, cleanup_deadline - time.monotonic()))
+        monitor_thread.join(timeout=max(0, cleanup_deadline - time.monotonic()))
+        if process.poll() is None or any(pump.is_alive() for pump in pumps) or monitor_thread.is_alive():
+            raise OSError("Process cleanup deadline exceeded; execution domain stop is not confirmed")
+        for pipe in (process.stdin, process.stdout, process.stderr):
+            pipe.close()
+    if io_errors:
+        raise io_errors[0]
+    stdout = bytes(stdout_buffer)
+    stderr = bytes(stderr_buffer)
     elapsed = elapsed_ms(start)
+    if timed_out:
+        return ProcessOutcome("TIME_LIMIT_EXCEEDED", process.returncode or -1, stdout, stderr, elapsed, peak_memory_kb)
     if killed_for_cancel.is_set():
         return ProcessOutcome("CANCELLED", process.returncode or -1, stdout, stderr, elapsed, peak_memory_kb)
     if killed_for_memory.is_set():
         return ProcessOutcome("MEMORY_LIMIT_EXCEEDED", process.returncode or -1, stdout, stderr, elapsed, peak_memory_kb)
-    if len(stdout) > output_limit_bytes or len(stderr) > output_limit_bytes:
-        return ProcessOutcome("OUTPUT_LIMIT_EXCEEDED", process.returncode or 0, stdout[:output_limit_bytes], stderr[:output_limit_bytes], elapsed, peak_memory_kb)
+    if killed_for_output.is_set():
+        return ProcessOutcome("OUTPUT_LIMIT_EXCEEDED", process.returncode or 0, stdout, stderr, elapsed, peak_memory_kb)
     return ProcessOutcome("SUCCESS", process.returncode or 0, stdout, stderr, elapsed, peak_memory_kb)
 
 
-def kill_process_tree(process: subprocess.Popen) -> None:
-    if process.poll() is not None:
-        return
+def kill_process_tree(process: subprocess.Popen, timeout_seconds: float = CLEANUP_SECONDS) -> None:
     if os.name == "nt":
+        if process.poll() is not None:
+            return
         subprocess.run(
             ["taskkill", "/F", "/T", "/PID", str(process.pid)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             check=False,
+            timeout=timeout_seconds,
         )
     else:
         try:
@@ -449,7 +572,47 @@ def windows_working_set_bytes(pid: int) -> int:
 
 
 def normalize_output(value: bytes) -> str:
-    return value.decode("utf-8", errors="replace").strip()
+    return value.decode("utf-8").strip(" \t\r\n\f\v")
+
+
+def outputs_match(user_output: bytes, oracle_output: bytes, comparison: dict) -> bool:
+    user_text = normalize_output(user_output)
+    oracle_text = normalize_output(oracle_output)
+    user_tokens = re.findall(r"[^ \t\n\r\f\v]+", user_text)
+    oracle_tokens = re.findall(r"[^ \t\n\r\f\v]+", oracle_text)
+    for token in user_tokens + oracle_tokens:
+        validate_token(token)
+    if comparison["mode"] == "LEGACY_TEXT":
+        return user_text == oracle_text
+    precision = parse_decimal(comparison["precision"])
+    if len(user_tokens) != len(oracle_tokens):
+        return False
+    for user_token, oracle_token in zip(user_tokens, oracle_tokens):
+        if re.fullmatch(r"[+-]?[0-9]+", user_token) and re.fullmatch(r"[+-]?[0-9]+", oracle_token):
+            if int(user_token) != int(oracle_token):
+                return False
+        elif DECIMAL_TOKEN.fullmatch(user_token) and DECIMAL_TOKEN.fullmatch(oracle_token):
+            user_value = parse_decimal(user_token)
+            oracle_value = parse_decimal(oracle_token)
+            common_exponent = min(user_value.as_tuple().exponent, oracle_value.as_tuple().exponent,
+                                  precision.as_tuple().exponent)
+            difference = abs(scaled_coefficient(user_value, common_exponent)
+                             - scaled_coefficient(oracle_value, common_exponent))
+            if difference > scaled_coefficient(precision, common_exponent):
+                return False
+        elif user_token != oracle_token:
+            return False
+    return True
+
+
+def scaled_coefficient(value, common_exponent: int) -> int:
+    parts = value.as_tuple()
+    coefficient = 0
+    for digit in parts.digits:
+        coefficient = coefficient * 10 + digit
+    if parts.sign:
+        coefficient = -coefficient
+    return coefficient * 10 ** (parts.exponent - common_exponent)
 
 
 def normalize_artifact_bytes(value: bytes) -> bytes:

@@ -16,6 +16,7 @@ public enum JudgeStatus {
     TLE(true),
     MLE(true),
     RE(true),
+    OUTPUT_LIMIT_EXCEEDED(true),
     COMPILATION_ERROR(true),
     SYSTEM_ERROR(true),
     SECURITY_VIOLATION(true),
@@ -29,7 +30,8 @@ public enum JudgeStatus {
             "CE", COMPILATION_ERROR,
             "COMPILE_ERROR", COMPILATION_ERROR,
             "COMPILATION_FAILED", COMPILATION_ERROR,
-            "SE", SYSTEM_ERROR
+            "SE", SYSTEM_ERROR,
+            "OLE", OUTPUT_LIMIT_EXCEEDED
     );
 
     JudgeStatus(boolean terminal) {

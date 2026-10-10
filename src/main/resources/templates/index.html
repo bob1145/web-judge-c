@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:content="${_csrf.token}">
     <title>C++ 在线对拍工具</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
@@ -2439,6 +2440,9 @@
                         <button type="submit" id="start-button" class="btn btn-primary w-100 mb-2">
                             <i class="fas fa-play"></i> 开始对拍
                         </button>
+                        <button type="button" id="cancel-start-button" class="btn btn-outline-danger w-100 mb-2" hidden>
+                            取消原任务
+                        </button>
                         <button type="button" class="btn btn-outline-secondary w-100 mb-2" onclick="loadExample()">
                             <i class="fas fa-lightbulb"></i> 加载示例代码
                         </button>
@@ -2572,6 +2576,27 @@
     </div>
 
 
+    <!-- Toast Container -->
+    <div class="toast-container">
+        <div id="success-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header bg-success text-white">
+                <i class="fas fa-check-circle me-2"></i>
+                <strong class="me-auto">成功</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="success-message"></div>
+        </div>
+
+        <div id="error-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header bg-danger text-white">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                <strong class="me-auto">错误</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="error-message"></div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
@@ -2581,13 +2606,16 @@
     <script src="/examples.js"></script>
 
     <script>
+        const csrfToken = document.querySelector('meta[name="_csrf"]').content;
         const form = document.getElementById('judge-form');
         const startButton = document.getElementById('start-button');
+        const cancelStartButton = document.getElementById('cancel-start-button');
         const progressBar = document.getElementById('progress-bar');
         const progressContainer = document.getElementById('progress-container');
         const resultSummary = document.getElementById('result-summary');
         const resultsGrid = document.getElementById('results-grid');
-        const detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
+        const detailsModal = typeof bootstrap !== 'undefined' && bootstrap.Modal
+            ? new bootstrap.Modal(document.getElementById('detailsModal')) : null;
         const modalBodyContent = document.getElementById('modal-body-content');
         const detailsModalLabel = document.getElementById('detailsModalLabel');
         const detailsModalMeta = document.getElementById('detailsModalMeta');
@@ -2602,13 +2630,20 @@
         const resultsTabBadge = document.getElementById('results-tab-badge');
 
         // Toast elements
-        const successToast = new bootstrap.Toast(document.getElementById('success-toast'));
-        const errorToast = new bootstrap.Toast(document.getElementById('error-toast'));
+        const toastAvailable = typeof bootstrap !== 'undefined' && typeof bootstrap.Toast === 'function';
+        const successToast = toastAvailable ? new bootstrap.Toast(document.getElementById('success-toast')) : null;
+        const errorToast = toastAvailable ? new bootstrap.Toast(document.getElementById('error-toast')) : null;
         const successMessage = document.getElementById('success-message');
         const errorMessage = document.getElementById('error-message');
 
         let stompClient = null;
         let currentJudgeId = null;
+        let acceptedProgressState = null;
+        let pendingStart = false;
+        let progressSocket = null;
+        let progressPollTimer = null;
+        let progressPollController = null;
+        let reconnectTimer = null;
         const MAX_RENDERED_RESULT_CARDS = 200;
         const MAX_RENDERED_DIFF_ROWS = 80;
         const MAX_DETAIL_CARD_CHARS = 2000;
@@ -2858,32 +2893,36 @@
             if (!currentJudgeId) {
                 return;
             }
-
-            const cachedRaw = localStorage.getItem(LAST_PROGRESS_KEY);
-            if (cachedRaw) {
-                try {
-                    const cachedProgress = JSON.parse(cachedRaw);
-                    progressContainer.style.display = 'block';
-                    handleProgress(cachedProgress, { silent: true, switchView: false });
-                } catch (error) {
-                    localStorage.removeItem(LAST_PROGRESS_KEY);
-                }
-            }
+            const judgeId = currentJudgeId;
 
             try {
-                const response = await fetch(`/judge/status/${currentJudgeId}`);
-                if (!response.ok) {
-                    forgetLatestJudgeResult();
+                const response = await fetch(`/judge/status/${currentJudgeId}`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (currentJudgeId !== judgeId) {
                     return;
                 }
+                if (!response.ok) {
+                    throw judgeHttpError(response);
+                }
                 const progressData = await response.json();
+                if (currentJudgeId !== judgeId) {
+                    return;
+                }
                 progressContainer.style.display = 'block';
                 handleProgress(progressData, { silent: true, switchView: false });
-                if (!isTerminalProgress(progressData)) {
+                if (normalizeStatus(progressData.status) === 'CREATED') {
+                    pendingStart = true;
+                    restorePendingStartUi('任务已创建但尚未启动，可重试启动原任务。');
+                } else if (!isTerminalProgress(progressData)) {
                     startPollingProgress(currentJudgeId, { switchView: false });
                 }
             } catch (error) {
+                if (currentJudgeId !== judgeId) {
+                    return;
+                }
                 console.error('恢复最近判题结果失败:', error);
+                await showJudgeSubmissionFailure(error);
             }
         }
 
@@ -2957,8 +2996,22 @@
 
         form.addEventListener('submit', async function (event) {
             event.preventDefault();
+            if (startButton.disabled) {
+                return;
+            }
+            if (pendingStart && currentJudgeId) {
+                startButton.disabled = true;
+                cancelStartButton.disabled = true;
+                try {
+                    if (await reconcileKnownJudge()) {
+                        await startKnownJudge();
+                    }
+                } catch (error) {
+                    await showJudgeSubmissionFailure(error);
+                }
+                return;
+            }
             saveWorkspaceState();
-            forgetLatestJudgeResult();
 
             // 验证输入
             if (!generatorEditor.getValue().trim()) {
@@ -2985,13 +3038,13 @@
             }
 
             showWorkspaceView('results');
-            setResultsBadge('运行中', 'running');
+            setResultsBadge('准备中', 'idle');
 
             updateAllDownloadButton(false);
             updateFailedDownloadButton(false);
 
             startButton.disabled = true;
-            startButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在运行...';
+            startButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在提交...';
             resultSummary.textContent = '';
             resultsGrid.innerHTML = `
             <div class="text-center text-muted py-4 pulse">
@@ -3006,6 +3059,9 @@
             updateProgressBar(0, '准备中...');
 
             try {
+                stopProgressTracking();
+                forgetLatestJudgeResult();
+                currentJudgeId = null;
                 const useSpj = document.getElementById('use-special-judge').checked;
                 const judgeRequest = {
                     userCode: userEditor.getValue(),
@@ -3013,7 +3069,7 @@
                     bruteForceCode: useSpj ? '' : bruteForceEditor.getValue(),
                     timeLimit: parseInt(document.getElementById('time-limit').value, 10),
                     memoryLimit: parseInt(document.getElementById('memory-limit').value, 10) * 1024 * 1024, // 转换为字节
-                    precision: parseFloat(document.getElementById('precision').value),
+                    precision: document.getElementById('precision').value,
                     testCases: parseInt(document.getElementById('test-cases').value, 10),
                     stopOnFirstNonAc: document.getElementById('stop-on-first-non-ac').checked,
                     useSpecialJudge: useSpj,
@@ -3024,45 +3080,242 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Accept': 'application/json'
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
                     },
                     body: JSON.stringify(judgeRequest)
                 });
 
                 if (!response.ok) {
-                    throw new Error('服务器响应错误');
+                    throw judgeHttpError(response, 'create');
                 }
 
                 const createResponse = await parseCreateResponse(response);
                 currentJudgeId = createResponse.judgeId;
+                pendingStart = true;
                 localStorage.setItem(LAST_JUDGE_ID_KEY, currentJudgeId);
                 renderCreatePolicy(createResponse);
-                // 先建立WebSocket连接，等待连接成功后再通知后端开始处理
-                try {
-                    await connectAndSubscribeAsync(currentJudgeId);
-                } catch (wsError) {
-                    console.error('WebSocket连接失败，使用轮询方式:', wsError);
-                    // 如果WebSocket连接失败，直接启动判题并使用轮询方式获取进度
-                    await fetch('/judge/start/' + currentJudgeId, { method: 'POST' });
-                    startPollingProgress(currentJudgeId);
-                }
+                await startKnownJudge();
             } catch (error) {
                 console.error('提交判题请求失败:', error);
-                showError('提交判题请求失败，请检查网络连接或稍后重试');
-                setResultsBadge('失败', 'failed');
-                startButton.disabled = false;
-                startButton.innerHTML = '<i class="fas fa-play"></i> 开始对拍';
-                progressContainer.style.display = 'none';
-                updateAllDownloadButton(false);
-                updateFailedDownloadButton(false);
-                resultsGrid.innerHTML = `
-                <div class="text-center text-muted py-4">
-                    <i class="fas fa-exclamation-triangle fa-2x mb-2 text-warning"></i>
-                    <p>提交失败，请重试</p>
-                </div>
-            `;
+                await showJudgeSubmissionFailure(error);
             }
         });
+
+        cancelStartButton.addEventListener('click', async () => {
+            if (!pendingStart || !currentJudgeId || startButton.disabled || cancelStartButton.disabled) {
+                return;
+            }
+            const judgeId = currentJudgeId;
+            startButton.disabled = true;
+            cancelStartButton.disabled = true;
+            stopProgressTracking();
+            try {
+                const response = await fetch('/judge/cancel/' + judgeId, {
+                    method: 'POST', headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' }
+                });
+                if (currentJudgeId !== judgeId) {
+                    return;
+                }
+                if (!response.ok) {
+                    throw judgeHttpError(response, 'cancel');
+                }
+                const cancelResult = await response.json();
+                if (currentJudgeId !== judgeId) {
+                    return;
+                }
+                if (!cancelResult || typeof cancelResult.accepted !== 'boolean' || typeof cancelResult.status !== 'string') {
+                    throw new Error('Judge cancellation response is invalid');
+                }
+                const remainsCreated = await reconcileKnownJudge();
+                if (currentJudgeId !== judgeId) {
+                    return;
+                }
+                if (remainsCreated) {
+                    restorePendingStartUi('任务仍未取消，请查询或重试；未重新创建任务。');
+                } else if (cancelResult.accepted) {
+                    showSuccess('取消请求已接受，最终状态以任务查询为准。');
+                }
+            } catch (error) {
+                if (currentJudgeId === judgeId) {
+                    await showJudgeSubmissionFailure(error);
+                }
+            }
+        });
+
+        function judgeHttpError(response, requestPhase = 'status') {
+            const failure = new Error('Judge HTTP request rejected');
+            failure.httpStatus = response.status;
+            failure.requestPhase = requestPhase;
+            return failure;
+        }
+
+        function judgeSubmissionMessage(error) {
+            if (error.httpStatus === 401) return '登录已失效，请重新登录后重试；输入和原任务ID已保留。';
+            if (error.httpStatus === 403) return '会话或CSRF校验失败，请刷新页面获取有效令牌后显式重试。';
+            if (error.httpStatus === 404) return '任务不可用或无权访问，已停止旧任务跟踪，可重新提交。';
+            if (error.httpStatus === 409) return '请求发生冲突，任务可能已终结；请查询已有结果，不会自动再次启动。';
+            if (error.httpStatus === 429) return error.requestPhase === 'start'
+                ? '队列已满，任务尚未启动；已保留原任务，可重试启动。'
+                : '请求受到限流或额度限制，请稍后查询状态或显式重试。';
+            if (error.httpStatus >= 500) return currentJudgeId
+                ? '服务器暂时异常，已保留原任务；重试前会先查询状态。'
+                : '服务器暂时异常，创建结果未知；未自动重新提交。';
+            if (error.httpStatus) return '请求被拒绝，请检查参数与权限后显式重试。';
+            if (currentJudgeId && error.requestPhase === 'status')
+                return '网络或响应异常，任务状态暂时未知；已保留原任务，重试前会先查询状态。';
+            return currentJudgeId
+                ? '网络或响应异常，启动结果未知；已保留原任务，重试前会先查询状态。'
+                : '网络或响应异常，创建结果未知且未取得任务ID；未自动重新提交。';
+        }
+
+        function restorePendingStartUi(message) {
+            startButton.disabled = false;
+            cancelStartButton.hidden = false;
+            cancelStartButton.disabled = false;
+            startButton.innerHTML = '<i class="fas fa-play"></i> 重试启动原任务';
+            setResultsBadge('待确认/启动', 'idle');
+            progressContainer.style.display = 'none';
+            resultSummary.textContent = message;
+            resultsGrid.textContent = message;
+        }
+
+        async function reconcileKnownJudge() {
+            const judgeId = currentJudgeId;
+            try {
+                const response = await fetch('/judge/status/' + judgeId, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (currentJudgeId !== judgeId) {
+                    return false;
+                }
+                if (!response.ok) {
+                    throw judgeHttpError(response);
+                }
+                const progress = await response.json();
+                if (currentJudgeId !== judgeId) {
+                    return false;
+                }
+                if (normalizeStatus(progress.status) === 'CREATED') {
+                    return true;
+                }
+                if (!isActiveProgress(progress) && !isTerminalProgress(progress)) {
+                    throw new Error('Judge status response is invalid');
+                }
+                pendingStart = false;
+                handleProgress(progress);
+                if (!isTerminalProgress(progress)) {
+                    startPollingProgress(currentJudgeId);
+                }
+                return false;
+            } catch (error) {
+                if (currentJudgeId !== judgeId) {
+                    return false;
+                }
+                error.requestPhase = 'status';
+                throw error;
+            }
+        }
+
+        async function startKnownJudge() {
+            const judgeId = currentJudgeId;
+            cancelStartButton.disabled = true;
+            reconnectAttempts = 0;
+            let pollAfterStart = false;
+            try {
+                await connectAndSubscribeAsync(judgeId);
+            } catch (wsError) {
+                console.error('WebSocket连接失败，使用轮询方式:', wsError);
+                pollAfterStart = true;
+            }
+            if (currentJudgeId !== judgeId) {
+                return;
+            }
+            try {
+                const startResponse = await fetch('/judge/start/' + judgeId, {
+                    method: 'POST', headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' }
+                });
+                if (currentJudgeId !== judgeId) {
+                    return;
+                }
+                if (!startResponse.ok) {
+                    throw judgeHttpError(startResponse, 'start');
+                }
+                if (pendingStart) {
+                    setResultsBadge('已接受/排队', 'running');
+                    startButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 等待判题进度...';
+                }
+                pendingStart = false;
+                cancelStartButton.hidden = true;
+                if (pollAfterStart) {
+                    startPollingProgress(judgeId);
+                }
+            } catch (error) {
+                if (currentJudgeId !== judgeId) {
+                    return;
+                }
+                throw error;
+            }
+        }
+
+        async function showJudgeSubmissionFailure(error) {
+            stopProgressTracking();
+            if (currentJudgeId && error.requestPhase !== 'status'
+                    && (error.httpStatus === 409 || !error.httpStatus || error.httpStatus >= 500)) {
+                try {
+                    if (!await reconcileKnownJudge()) {
+                        return;
+                    }
+                } catch (statusError) {
+                    error = statusError;
+                }
+            }
+            if (error.httpStatus === 404) {
+                pendingStart = false;
+                currentJudgeId = null;
+                forgetLatestJudgeResult();
+            }
+            const message = judgeSubmissionMessage(error);
+            showError(message);
+            updateAllDownloadButton(false);
+            updateFailedDownloadButton(false);
+            if (currentJudgeId) {
+                pendingStart = true;
+                restorePendingStartUi(message);
+            } else {
+                cancelStartButton.hidden = true;
+                setResultsBadge('未提交/结果未知', 'idle');
+                startButton.disabled = false;
+                startButton.innerHTML = '<i class="fas fa-play"></i> 显式重新提交';
+                progressContainer.style.display = 'none';
+                resultSummary.textContent = message;
+                resultsGrid.textContent = message;
+            }
+        }
+
+        function stopProgressTracking() {
+            throttledHandleProgress.cancel();
+            clearTimeout(progressPollTimer);
+            progressPollTimer = null;
+            if (progressPollController) {
+                progressPollController.abort();
+                progressPollController = null;
+            }
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+            const client = stompClient;
+            const socket = progressSocket;
+            stompClient = null;
+            progressSocket = null;
+            if (client) {
+                try { client.disconnect(); } catch (error) { console.error('关闭进度订阅失败:', error); }
+            }
+            if (socket) {
+                try { socket.close(); } catch (error) { console.error('关闭进度通道失败:', error); }
+            }
+        }
+
+        window.addEventListener('beforeunload', stopProgressTracking);
 
         // 进度条状态管理 - 需要在函数定义之前声明
         let currentProgress = 0;
@@ -3074,42 +3327,33 @@
         const maxReconnectAttempts = 5;
         
         function connectAndSubscribe(judgeId) {
-            const socket = new SockJS('/ws');
-            stompClient = Stomp.over(socket);
-            
-            stompClient.connect({}, function (frame) {
-                console.log('WebSocket连接成功');
-                reconnectAttempts = 0;
-                stompClient.subscribe('/topic/progress/' + judgeId, function (message) {
-                    try {
-                        const progressData = JSON.parse(message.body);
-                        throttledHandleProgress(progressData);
-                    } catch (error) {
-                        console.error('解析进度消息失败:', error);
-                    }
-                });
-            }, function (error) {
-                console.error('WebSocket连接失败:', error);
-                if (reconnectAttempts < maxReconnectAttempts) {
-                    reconnectAttempts++;
-                    console.log(`尝试重连 (${reconnectAttempts}/${maxReconnectAttempts})...`);
-                    setTimeout(() => connectAndSubscribe(judgeId), 3000 * reconnectAttempts);
-                } else {
-                    showError('连接失败次数过多，请刷新页面重试');
+            connectAndSubscribeAsync(judgeId).catch(error => {
+                if (currentJudgeId === judgeId) {
+                    startPollingProgress(judgeId);
                 }
             });
         }
 
-        // 异步版本的连接函数，返回Promise
         function connectAndSubscribeAsync(judgeId) {
+            stopProgressTracking();
             return new Promise((resolve, reject) => {
                 const socket = new SockJS('/ws');
-                stompClient = Stomp.over(socket);
-                
-                stompClient.connect({}, function (frame) {
-                    console.log('WebSocket连接成功');
+                const client = Stomp.over(socket);
+                client.debug = () => {};
+                progressSocket = socket;
+                stompClient = client;
+                let connected = false;
+                client.connect({ 'X-CSRF-TOKEN': csrfToken }, function (frame) {
+                    if (stompClient !== client || currentJudgeId !== judgeId) {
+                        reject(new Error('Obsolete judge progress connection'));
+                        return;
+                    }
+                    connected = true;
                     reconnectAttempts = 0;
-                    stompClient.subscribe('/topic/progress/' + judgeId, function (message) {
+                    client.subscribe('/topic/progress/' + judgeId, function (message) {
+                        if (stompClient !== client || currentJudgeId !== judgeId) {
+                            return;
+                        }
                         try {
                             const progressData = JSON.parse(message.body);
                             throttledHandleProgress(progressData);
@@ -3117,27 +3361,27 @@
                             console.error('解析进度消息失败:', error);
                         }
                     });
-                    
-                    // 连接成功后通知后端开始处理
-                    fetch('/judge/start/' + judgeId, {
-                        method: 'POST'
-                    }).then(() => {
-                        resolve();
-                    }).catch(error => {
-                        console.error('启动判题失败:', error);
-                        reject(error);
-                    });
-                    
+                    resolve();
                 }, function (error) {
-                    console.error('WebSocket连接失败:', error);
+                    if (stompClient !== client || currentJudgeId !== judgeId) {
+                        reject(error);
+                        return;
+                    }
+                    if (connected) {
+                        startPollingProgress(judgeId);
+                        return;
+                    }
                     if (reconnectAttempts < maxReconnectAttempts) {
                         reconnectAttempts++;
-                        console.log(`尝试重连 (${reconnectAttempts}/${maxReconnectAttempts})...`);
-                        setTimeout(() => {
-                            connectAndSubscribeAsync(judgeId).then(resolve).catch(reject);
+                        reconnectTimer = setTimeout(() => {
+                            reconnectTimer = null;
+                            if (stompClient === client && currentJudgeId === judgeId) {
+                                connectAndSubscribeAsync(judgeId).then(resolve).catch(reject);
+                            } else {
+                                reject(new Error('Obsolete judge progress connection'));
+                            }
                         }, 3000 * reconnectAttempts);
                     } else {
-                        showError('连接失败次数过多，请刷新页面重试');
                         reject(error);
                     }
                 });
@@ -3237,22 +3481,29 @@
             let lastCall = 0;
             let timeoutId = null;
 
-            return function (...args) {
+            function throttled(...args) {
                 const now = Date.now();
+                clearTimeout(timeoutId);
+                timeoutId = null;
 
-                // 如果距离上次调用时间足够长，立即执行
-                if (now - lastCall >= limit) {
+                if (isTerminalProgress(args[0]) || now - lastCall >= limit) {
                     lastCall = now;
                     func.apply(this, args);
                 } else {
-                    // 否则延迟执行，但要取消之前的延迟
-                    clearTimeout(timeoutId);
                     timeoutId = setTimeout(() => {
+                        timeoutId = null;
                         lastCall = Date.now();
                         func.apply(this, args);
                     }, limit - (now - lastCall));
                 }
+            }
+
+            throttled.cancel = function () {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+                lastCall = 0;
             };
+            return throttled;
         }
 
         async function parseCreateResponse(response) {
@@ -3327,7 +3578,7 @@
             if (!progress || !progress.status) {
                 return false;
             }
-            return !isTerminalProgress(progress);
+            return ['QUEUED', 'PENDING', 'COMPILING', 'RUNNING'].includes(normalizeStatus(progress.status));
         }
 
         function normalizeStatus(status) {
@@ -3441,10 +3692,9 @@
             currentProgress = 100;
             targetProgress = 100;
             updateProgressBarDirect(100);
-            if (stompClient) {
-                stompClient.disconnect();
-            }
+            stopProgressTracking();
             startButton.disabled = false;
+            cancelStartButton.hidden = true;
             startButton.innerHTML = '<i class="fas fa-play"></i> 开始对拍';
             setResultsBadge(badgeText, badgeState);
             progressBar.classList.remove('progress-bar-animated');
@@ -3483,9 +3733,27 @@
                 console.error('Invalid progress data:', progress);
                 return;
             }
+            const revision = progress.revision ?? null;
+            if (revision !== null && (!Number.isSafeInteger(revision) || revision < 1)) {
+                return;
+            }
+            const previous = acceptedProgressState?.judgeId === currentJudgeId ? acceptedProgressState : null;
+            if (previous && (previous.terminal || (previous.revision !== null
+                    && (revision === null || revision < previous.revision)))) {
+                return;
+            }
+            acceptedProgressState = { judgeId: currentJudgeId, revision, terminal: isTerminalProgress(progress) };
+            if (isActiveProgress(progress) || isTerminalProgress(progress)) {
+                pendingStart = false;
+                cancelStartButton.hidden = true;
+            }
             rememberJudgeProgress(progress);
             if (isActiveProgress(progress)) {
                 restoreRunningUiState({ switchView: options.switchView === true });
+                if (normalizeStatus(progress.status) === 'QUEUED') {
+                    setResultsBadge('排队中', 'running');
+                    startButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 排队中...';
+                }
             }
 
             const { status, message, progress: percent, results, summary } = progress;
@@ -3877,7 +4145,11 @@
             downloadInputBtn.href = `/download/${currentJudgeId}/${caseNumber}`;
 
             modalBodyContent.innerHTML = `<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>`;
-            detailsModal.show();
+            if (detailsModal) {
+                detailsModal.show();
+            } else {
+                showError('详情组件不可用，请刷新页面重试。');
+            }
 
             try {
                 const response = await fetch(`/details/${currentJudgeId}/${caseNumber}`);
@@ -3915,9 +4187,12 @@
 
         // Toast 通知函数
         function showSuccess(message) {
+            document.querySelector('#error-toast [data-bs-dismiss="toast"]')?.click();
             if (successMessage && successToast) {
                 successMessage.textContent = message;
                 successToast.show();
+            } else {
+                showFallbackToast('success', message);
             }
         }
 
@@ -3925,6 +4200,28 @@
             if (errorMessage && errorToast) {
                 errorMessage.textContent = message;
                 errorToast.show();
+            } else {
+                showFallbackToast('error', message);
+            }
+        }
+
+        function showFallbackToast(kind, message) {
+            const toast = document.getElementById(kind + '-toast');
+            const body = document.getElementById(kind + '-message');
+            if (!toast || !body) {
+                window.alert(message);
+                return;
+            }
+            body.textContent = message;
+            toast.classList.add('show');
+            toast.style.display = 'block';
+            toast.style.opacity = '1';
+            const closeButton = toast.querySelector('[data-bs-dismiss="toast"]');
+            if (closeButton) {
+                closeButton.onclick = () => {
+                    toast.classList.remove('show');
+                    toast.style.display = 'none';
+                };
             }
         }
 
@@ -3951,47 +4248,54 @@
 
         // 轮询备用方案，当WebSocket连接失败时使用
         function startPollingProgress(judgeId, options = {}) {
-            const pollInterval = setInterval(async () => {
+            stopProgressTracking();
+            const controller = new AbortController();
+            progressPollController = controller;
+            let failures = 0;
+            const poll = async () => {
+                if (progressPollController !== controller || currentJudgeId !== judgeId) {
+                    return;
+                }
+                progressPollTimer = null;
                 try {
-                    const response = await fetch(`/judge/status/${judgeId}`);
-                    if (response.ok) {
-                        const progressData = await response.json();
-                        handleProgress(progressData, options);
-                        
-                        // 如果判题完成，停止轮询
-                        if (isTerminalProgress(progressData)) {
-                            clearInterval(pollInterval);
-                        }
+                    const response = await fetch('/judge/status/' + judgeId, {
+                        headers: { 'Accept': 'application/json' }, signal: controller.signal
+                    });
+                    if (!response.ok) {
+                        throw judgeHttpError(response);
+                    }
+                    const progressData = await response.json();
+                    if (progressPollController !== controller || currentJudgeId !== judgeId) {
+                        return;
+                    }
+                    failures = 0;
+                    handleProgress(progressData, options);
+                    if (isTerminalProgress(progressData)) {
+                        stopProgressTracking();
+                        return;
                     }
                 } catch (error) {
-                    console.error('轮询进度失败:', error);
+                    if (controller.signal.aborted || progressPollController !== controller) {
+                        return;
+                    }
+                    failures++;
+                    if ([401, 403, 404].includes(error.httpStatus) || failures >= maxReconnectAttempts) {
+                        error.requestPhase = 'status';
+                        await showJudgeSubmissionFailure(error);
+                        return;
+                    }
+                } finally {
+                    if (progressPollController === controller && !controller.signal.aborted
+                            && currentJudgeId === judgeId) {
+                        progressPollTimer = setTimeout(poll, failures ? 3000 * failures : 1000);
+                    }
                 }
-            }, 1000); // 每秒轮询一次
+            };
+            progressPollTimer = setTimeout(poll, 1000);
         }
 
         // 在控制台中可以调用 testProgressBar() 来测试进度条
     </script>
-
-    <!-- Toast Container -->
-    <div class="toast-container">
-        <div id="success-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-header bg-success text-white">
-                <i class="fas fa-check-circle me-2"></i>
-                <strong class="me-auto">成功</strong>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
-            </div>
-            <div class="toast-body" id="success-message"></div>
-        </div>
-
-        <div id="error-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-header bg-danger text-white">
-                <i class="fas fa-exclamation-circle me-2"></i>
-                <strong class="me-auto">错误</strong>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
-            </div>
-            <div class="toast-body" id="error-message"></div>
-        </div>
-    </div>
 
 </body>
 

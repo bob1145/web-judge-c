@@ -7,9 +7,11 @@ import com.example.demo.service.TaskPolicyResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 
@@ -20,6 +22,20 @@ import java.util.Map;
 @ControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableRequest(WebRequest request) {
+        return handleResponseStatusException(
+                new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体格式或参数无效"), request);
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException exception, WebRequest request) {
+        ErrorResponse response = new ErrorResponse("HTTP_ERROR", "请求失败",
+                exception.getReason() == null ? "请求被拒绝" : exception.getReason(),
+                request.getDescription(false).replace("uri=", ""));
+        return ResponseEntity.status(exception.getStatusCode()).body(response);
+    }
 
     @ExceptionHandler(TaskPolicyResolver.PolicyValidationException.class)
     public ResponseEntity<JudgeErrorResponse> handlePolicyValidationException(

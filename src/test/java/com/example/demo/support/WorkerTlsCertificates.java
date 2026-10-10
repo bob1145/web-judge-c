@@ -73,7 +73,7 @@ public final class WorkerTlsCertificates {
         keyManagers.init(keys, STORE_PASSWORD.toCharArray());
         SSLContext serverContext = SSLContext.getInstance("TLS");
         serverContext.init(keyManagers.getKeyManagers(), null, null);
-        return new Material(serverContext, clientContext, certificate(certificate));
+        return new Material(serverContext, clientContext, certificate(certificate), store);
     }
 
     private static X509Certificate certificate(Path path) throws Exception {
@@ -110,6 +110,10 @@ public final class WorkerTlsCertificates {
         }
     }
 
-    public record Material(SSLContext serverContext, SSLContext clientContext, X509Certificate certificate) {
+    public record Material(SSLContext serverContext, SSLContext clientContext, X509Certificate certificate,
+                           Path keyStore) {
+        public String storePassword() {
+            return STORE_PASSWORD;
+        }
     }
 }

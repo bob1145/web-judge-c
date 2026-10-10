@@ -14,6 +14,7 @@ import com.example.demo.service.AccessCodeService;
 import com.example.demo.service.AuditService;
 import com.example.demo.service.SessionManagementService;
 import com.example.demo.service.UserAccountService;
+import com.example.demo.security.SessionBoundCsrfTokenRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,10 +57,14 @@ class SessionCredentialLoggingTest {
         auth.setAccessCode("task02-logging-test-material");
         ExecutionProperties execution = new ExecutionProperties();
         execution.setProfile("trusted-local");
-        AccessCodeService access = new AccessCodeService(auth);
-        SessionManagementService management = new SessionManagementService(access);
-        AuthenticationController controller = new AuthenticationController(access, management, new UserAccountService(auth, execution));
-        AuthenticationInterceptor interceptor = new AuthenticationInterceptor(access, management);
+        UserAccountService accounts = new UserAccountService(auth, execution);
+        AccessCodeService access = new AccessCodeService(auth, accounts);
+        SessionManagementService management = new SessionManagementService(access, auth);
+        AuthenticationController controller = new AuthenticationController(access, management,
+                accounts, execution, new SessionBoundCsrfTokenRepository(),
+                new com.example.demo.security.ClientAddressResolver(auth));
+        AuthenticationInterceptor interceptor = new AuthenticationInterceptor(access, management,
+                new com.example.demo.security.ClientAddressResolver(auth));
         List<String> sensitive = new ArrayList<>(List.of(auth.getAccessCode(), "task02-logging-test-password"));
         for (boolean accountMode : new boolean[]{false, true}) {
             auth.setAccountAuthEnabled(accountMode);

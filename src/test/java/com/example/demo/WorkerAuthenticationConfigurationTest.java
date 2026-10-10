@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.util.List;
@@ -91,7 +92,7 @@ class WorkerAuthenticationConfigurationTest {
     }
 
     @Test
-    void startupUsesPrimaryWorkerSettingsRatherThanOnlyNestedSettings() {
+    void trustedLocalStartupUsesPrimaryWorkerSettingsRatherThanOnlyNestedSettings() {
         SandboxProperties sandbox = sandbox();
         WorkerProperties primary = new WorkerProperties();
         primary.setEndpoint("https://worker.example");
@@ -122,15 +123,12 @@ class WorkerAuthenticationConfigurationTest {
     }
 
     @Test
-    void nestedHmacAndActualRunnerBeanUseTheSameResolvedSettings() {
+    void trustedLocalNestedHmacAndActualRunnerBeanUseTheSameResolvedSettings() {
         SandboxProperties sandbox = sandbox();
         sandbox.getWorker().setEndpoint("https://worker.example");
         sandbox.getWorker().setSigningSecret("test-only-signing-material");
         assertThat(sandbox.getWorker().hasAuthenticatedChannel()).isTrue();
         contextRunner(sandbox, new WorkerProperties())
-                .withPropertyValues("judge.sandbox.production.provider=remote-worker")
-                .withUserConfiguration(RemoteWorkerRunner.class)
-                .withBean(ObjectMapper.class, ObjectMapper::new)
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(RemoteWorkerRunner.class);
@@ -160,8 +158,29 @@ class WorkerAuthenticationConfigurationTest {
     }
 
     private ApplicationContextRunner contextRunner(SandboxProperties sandbox, WorkerProperties worker) {
+        return contextRunner(sandbox, worker, "trusted-local");
+    }
+
+    @Test
+    void workerProdRemainsDisabledWithAValidActualRunnerAndCredentials() {
+        WorkerProperties worker = new WorkerProperties();
+        worker.setEndpoint("https://worker.example");
+        worker.setAuthToken("test-only-disabled-worker-token");
+
+        contextRunner(sandbox(), worker, "worker-prod").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(NestedExceptionUtils.getMostSpecificCause(context.getStartupFailure()))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("DISABLED_UNVERIFIED")
+                    .hasMessageNotContaining("test-only-disabled-worker-token");
+        });
+    }
+
+    private ApplicationContextRunner contextRunner(SandboxProperties sandbox, WorkerProperties worker, String profile) {
         return new ApplicationContextRunner()
-                .withUserConfiguration(ProductionSecurityStartupValidator.class)
+                .withUserConfiguration(ProductionSecurityStartupValidator.class, RemoteWorkerRunner.class)
+                .withPropertyValues("judge.sandbox.production.provider=remote-worker")
+                .withBean(ObjectMapper.class, ObjectMapper::new)
                 .withBean(SandboxProperties.class, () -> sandbox)
                 .withBean(WorkerProperties.class, () -> worker)
                 .withBean(WebSocketConfig.class, () -> new WebSocketConfig("https://safe.example"))
@@ -172,7 +191,7 @@ class WorkerAuthenticationConfigurationTest {
                 })
                 .withBean(ExecutionProperties.class, () -> {
                     ExecutionProperties execution = new ExecutionProperties();
-                    execution.setProfile("worker-prod");
+                    execution.setProfile(profile);
                     execution.setRequireSandbox(true);
                     return execution;
                 })

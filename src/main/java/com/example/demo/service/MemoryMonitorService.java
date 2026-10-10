@@ -71,10 +71,10 @@ public class MemoryMonitorService {
                     
                     // 检查是否超出内存限制
                     if (usage.physicalMemory() > memoryLimit && memoryExceeded.compareAndSet(false, true)) {
-                        process.destroyForcibly();
                         future.completeExceptionally(new MemoryLimitExceededException(
                             usage.physicalMemory(), memoryLimit
                         ));
+                        process.destroyForcibly();
                         return;
                     }
                 }

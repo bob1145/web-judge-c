@@ -64,11 +64,11 @@ public class TaskPolicyResolver {
                 && !request.getSpecialJudgeCode().isBlank()) {
             return new SandboxComparison(SandboxComparison.Mode.SPECIAL_JUDGE, "0");
         }
-        double precision = request.getPrecision();
-        if (!Double.isFinite(precision) || precision < 0) {
+        try {
+            return SandboxComparison.decimal(request.precisionText());
+        } catch (IllegalArgumentException exception) {
             throw reject(request.getTestCases(), "precision must be finite and nonnegative");
         }
-        return SandboxComparison.decimal(precision == 0 ? "0" : Double.toString(precision));
     }
 
     public void validate(JudgeRequest request, ResolvedTaskPolicy policy) {

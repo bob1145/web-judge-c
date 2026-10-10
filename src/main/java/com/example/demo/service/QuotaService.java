@@ -1,10 +1,12 @@
 package com.example.demo.service;
 
 import com.example.demo.config.ExecutionProperties;
+import com.example.demo.model.DailyQuotaCharge;
 import com.example.demo.model.JudgeOwnership;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
 import com.example.demo.model.UserSession;
+import com.example.demo.security.SessionAuditId;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -13,8 +15,13 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +29,12 @@ public class QuotaService {
 
     private final ExecutionProperties executionProperties;
     private final TaskStore taskStore;
+    private final Object[] creationLocks = IntStream.range(0, 64)
+            .mapToObj(ignored -> new Object()).toArray(Object[]::new);
+
+    Object creationLockFor(UserSession session) {
+        return creationLocks[Math.floorMod(stableUserId(session).hashCode(), creationLocks.length)];
+    }
 
     public JudgeOwnership ownershipFor(UserSession session) {
         if (session == null) {
@@ -31,16 +44,37 @@ public class QuotaService {
     }
 
     public void assertCanCreate(UserSession session, ResolvedTaskPolicy policy) {
+        assertCanCreate(session, policy, Set.of());
+    }
+
+    void assertCanCreate(UserSession session, ResolvedTaskPolicy policy, Set<String> scheduledRunningTaskIds) {
         String userId = stableUserId(session);
         List<JudgeTask> userTasks = loadTasks().stream()
                 .filter(task -> isOwnedBy(task, userId))
                 .toList();
+        ZoneId zone = ZoneId.systemDefault();
+        LocalDate today = LocalDate.now(zone);
+        Map<String, DailyQuotaCharge> dailyCharges = new LinkedHashMap<>();
+        for (JudgeTask task : userTasks) {
+            if (createdToday(task.getCreatedAt(), today, zone)) {
+                DailyQuotaCharge charge = DailyQuotaCharge.fromTask(task);
+                dailyCharges.put(charge.chargeId(), charge);
+            }
+        }
+        String ownerFingerprint = SessionAuditId.from(userId.trim());
+        for (DailyQuotaCharge charge : loadDeletedQuotaCharges(today, zone)) {
+            if (ownerFingerprint.equals(charge.ownerFingerprint())) {
+                DailyQuotaCharge existing = dailyCharges.putIfAbsent(charge.chargeId(), charge);
+                if (existing != null && !existing.equals(charge)) {
+                    throw new IllegalStateException("Conflicting daily quota charge");
+                }
+            }
+        }
 
         long requestedCases = policy.requestedCases();
-        long dailyCases = userTasks.stream()
-                .filter(this::createdToday)
-                .mapToLong(JudgeTask::getRequestedCases)
-                .sum();
+        long dailyCases = dailyCharges.values().stream()
+                .mapToLong(DailyQuotaCharge::requestedCases)
+                .reduce(0, QuotaService::saturatedAdd);
         if (wouldExceed(dailyCases, requestedCases, executionProperties.getMaxDailyCasesPerUser())) {
             throw QuotaExceededException.forQuota(
                     "daily case quota",
@@ -51,10 +85,9 @@ public class QuotaService {
         }
 
         long requestedRuntimeMillis = estimateRuntimeMillis(policy);
-        long dailyRuntimeMillis = userTasks.stream()
-                .filter(this::createdToday)
+        long dailyRuntimeMillis = dailyCharges.values().stream()
                 .mapToLong(this::estimateRuntimeMillis)
-                .sum();
+                .reduce(0, QuotaService::saturatedAdd);
         if (wouldExceed(dailyRuntimeMillis, requestedRuntimeMillis, executionProperties.getMaxDailyRuntimeMillisPerUser())) {
             throw QuotaExceededException.forQuota(
                     "daily runtime quota",
@@ -64,9 +97,12 @@ public class QuotaService {
             );
         }
 
-        long runningTasks = userTasks.stream()
+        Set<String> runningTaskIds = new HashSet<>(scheduledRunningTaskIds);
+        userTasks.stream()
                 .filter(task -> isRunningQuotaStatus(task.getStatus()))
-                .count();
+                .map(JudgeTask::getJudgeId)
+                .forEach(runningTaskIds::add);
+        long runningTasks = runningTaskIds.size();
         if (wouldExceed(runningTasks, 1, executionProperties.getMaxRunningTasksPerUser())) {
             throw QuotaExceededException.forQuota(
                     "running task quota",
@@ -120,21 +156,22 @@ public class QuotaService {
         return ownership != null && ownership.isOwnedBy(userId);
     }
 
-    private boolean createdToday(JudgeTask task) {
-        Instant createdAt = task.getCreatedAt();
-        if (createdAt == null) {
-            return false;
+    private List<DailyQuotaCharge> loadDeletedQuotaCharges(LocalDate date, ZoneId zone) {
+        try {
+            return taskStore.findDeletedQuotaCharges(date, zone);
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to evaluate judge quota", ex);
         }
-        LocalDate createdDate = LocalDate.ofInstant(createdAt, ZoneId.systemDefault());
-        return createdDate.equals(LocalDate.now(ZoneId.systemDefault()));
     }
 
-    private long estimateRuntimeMillis(JudgeTask task) {
-        ResolvedTaskPolicy policy = task.getPolicy();
-        if (policy == null) {
-            return saturatedMultiply(task.getRequestedCases(), executionProperties.getDefaultTimeLimit().toMillis());
-        }
-        return estimateRuntimeMillis(policy);
+    private boolean createdToday(Instant createdAt, LocalDate today, ZoneId zone) {
+        return createdAt != null && LocalDate.ofInstant(createdAt, zone).equals(today);
+    }
+
+    private long estimateRuntimeMillis(DailyQuotaCharge charge) {
+        long perCaseMillis = charge.caseTimeLimitMillis() == null
+                ? executionProperties.getDefaultTimeLimit().toMillis() : charge.caseTimeLimitMillis();
+        return saturatedMultiply(charge.runtimeCases(), perCaseMillis);
     }
 
     private long estimateRuntimeMillis(ResolvedTaskPolicy policy) {
@@ -150,6 +187,11 @@ public class QuotaService {
             return Long.MAX_VALUE;
         }
         return left * right;
+    }
+
+    private static long saturatedAdd(long used, long additional) {
+        long nonNegative = Math.max(0, additional);
+        return used > Long.MAX_VALUE - nonNegative ? Long.MAX_VALUE : used + nonNegative;
     }
 
     private boolean wouldExceed(long used, long requested, long limit) {

@@ -19,6 +19,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Service
@@ -46,6 +48,7 @@ public class DirectProcessRunner implements ProcessRunner {
         }
 
         Process process = processBuilder.start();
+        AtomicReference<Long> cleanupStarted = new AtomicReference<>();
         AtomicReference<MemoryLimitExceededException> memoryExceeded = new AtomicReference<>();
         CompletableFuture<MemoryMonitorService.MemoryUsage> memoryFuture =
                 memoryMonitorService.monitorProcess(process, request.memoryLimitBytes());
@@ -53,33 +56,49 @@ public class DirectProcessRunner implements ProcessRunner {
             MemoryLimitExceededException exceeded = unwrapMemoryExceeded(throwable);
             if (exceeded != null) {
                 memoryExceeded.compareAndSet(null, exceeded);
-                killProcessTree(process, request.killGrace());
+                killProcessTree(process, cleanupStarted, request.killGrace());
             }
         });
 
+        AtomicLong remainingOutputBytes = new AtomicLong(Math.max(0, request.maxOutputBytes()));
+        AtomicBoolean outputLimitExceeded = new AtomicBoolean();
         CompletableFuture<StreamCapture> stdout = CompletableFuture.supplyAsync(() ->
-                captureStream(process.getInputStream(), request.outputFile(), request.maxOutputBytes(), process, request.killGrace()));
+                captureStream(process.getInputStream(), request.outputFile(), request.maxOutputBytes(),
+                        remainingOutputBytes, outputLimitExceeded, process, cleanupStarted, request.killGrace()));
         CompletableFuture<StreamCapture> stderr = CompletableFuture.supplyAsync(() ->
-                captureStream(process.getErrorStream(), null, request.maxErrorBytes(), process, request.killGrace()));
+                captureStream(process.getErrorStream(), null, request.maxErrorBytes(),
+                        remainingOutputBytes, outputLimitExceeded, process, cleanupStarted, request.killGrace()));
 
-        boolean finished = process.waitFor(request.timeout().toMillis(), TimeUnit.MILLISECONDS);
+        boolean finished;
+        try {
+            process.getOutputStream().close();
+            finished = process.waitFor(remainingNanos(started, request.timeout()), TimeUnit.NANOSECONDS);
+        } catch (IOException | InterruptedException failure) {
+            killProcessTree(process, cleanupStarted, request.killGrace());
+            throw failure;
+        }
         long executionTime = Duration.ofNanos(System.nanoTime() - started).toMillis();
         if (!finished) {
-            boolean cleaned = killProcessTree(process, request.killGrace());
-            StreamCapture error = awaitCapture(stderr, request.killGrace());
-            String cleanupError = cleaned ? "" : " Process timed out and could not be fully terminated.";
+            boolean cleaned = killProcessTree(process, cleanupStarted, request.killGrace());
+            long cleanupStart = startCleanup(cleanupStarted);
+            StreamCapture output = awaitCapture(stdout, cleanupStart, request.killGrace());
+            StreamCapture error = awaitCapture(stderr, cleanupStart, request.killGrace());
+            String cleanupError = cleaned && output.failure() == null && error.failure() == null ? ""
+                    : " Process timed out and termination or stream capture could not be confirmed.";
             return new ProcessResult(
                     ProcessResult.Status.TIME_LIMIT_EXCEEDED,
-                    awaitCapture(stdout, request.killGrace()).content(),
+                    output.content(),
                     error.content() + cleanupError,
                     executionTime,
-                    peakMemory(memoryFuture),
+                    peakMemory(memoryFuture, memoryExceeded),
                     -1
             );
         }
 
-        StreamCapture output = awaitCapture(stdout, request.killGrace());
-        StreamCapture error = awaitCapture(stderr, request.killGrace());
+        long cleanupStart = startCleanup(cleanupStarted);
+        StreamCapture output = awaitCapture(stdout, cleanupStart, request.killGrace());
+        StreamCapture error = awaitCapture(stderr, cleanupStart, request.killGrace());
+        long peakMemory = peakMemory(memoryFuture, memoryExceeded);
         MemoryLimitExceededException exceeded = memoryExceeded.get();
         if (exceeded != null) {
             return new ProcessResult(
@@ -92,22 +111,31 @@ public class DirectProcessRunner implements ProcessRunner {
             );
         }
 
-        if (output.limitExceeded() || error.limitExceeded()) {
+        if (outputLimitExceeded.get() || output.limitExceeded() || error.limitExceeded()) {
             return new ProcessResult(
                     ProcessResult.Status.OUTPUT_LIMIT_EXCEEDED,
                     output.content(),
                     error.content(),
                     executionTime,
-                    peakMemory(memoryFuture),
+                    peakMemory,
                     safeExitValue(process)
             );
+        }
+
+        for (StreamCapture capture : List.of(output, error)) {
+            if (capture.failure() instanceof IOException failure) {
+                throw failure;
+            }
+            if (capture.failure() instanceof InterruptedException failure) {
+                throw failure;
+            }
         }
 
         int exitCode = safeExitValue(process);
         ProcessResult.Status status = exitCode == 0
                 ? ProcessResult.Status.SUCCESS
                 : ProcessResult.Status.RUNTIME_ERROR;
-        return new ProcessResult(status, output.content(), error.content(), executionTime, peakMemory(memoryFuture), exitCode);
+        return new ProcessResult(status, output.content(), error.content(), executionTime, peakMemory, exitCode);
     }
 
     private ProcessResult validate(Request request) {
@@ -140,7 +168,10 @@ public class DirectProcessRunner implements ProcessRunner {
             InputStream inputStream,
             Path outputFile,
             long maxBytes,
+            AtomicLong remainingOutputBytes,
+            AtomicBoolean outputLimitExceeded,
             Process process,
+            AtomicReference<Long> cleanupStarted,
             Duration killGrace
     ) {
         long limit = Math.max(0, maxBytes);
@@ -157,10 +188,13 @@ public class DirectProcessRunner implements ProcessRunner {
             byte[] buffer = new byte[BUFFER_SIZE];
             int read;
             while ((read = in.read(buffer)) != -1) {
-                long remaining = limit - total;
+                int bytesRead = read;
+                long sharedRemaining = remainingOutputBytes.getAndUpdate(value -> Math.max(0, value - bytesRead));
+                long remaining = Math.min(limit - total, sharedRemaining);
                 if (remaining <= 0) {
                     limitExceeded = true;
-                    killProcessTree(process, killGrace);
+                    outputLimitExceeded.set(true);
+                    killProcessTree(process, cleanupStarted, killGrace);
                     break;
                 }
                 int toWrite = (int) Math.min(read, remaining);
@@ -168,29 +202,34 @@ public class DirectProcessRunner implements ProcessRunner {
                 total += toWrite;
                 if (toWrite < read) {
                     limitExceeded = true;
-                    killProcessTree(process, killGrace);
+                    outputLimitExceeded.set(true);
+                    killProcessTree(process, cleanupStarted, killGrace);
                     break;
                 }
             }
         } catch (IOException e) {
             log.warn("Failed to capture process stream: {}", e.getMessage());
-            return new StreamCapture(memory == null ? "" : memory.toString(StandardCharsets.UTF_8), true);
+            if (!limitExceeded) {
+                killProcessTree(process, cleanupStarted, killGrace);
+            }
+            return new StreamCapture(memory == null ? "" : memory.toString(StandardCharsets.UTF_8), limitExceeded, e);
         }
-        return new StreamCapture(memory == null ? "" : memory.toString(StandardCharsets.UTF_8), limitExceeded);
+        return new StreamCapture(memory == null ? "" : memory.toString(StandardCharsets.UTF_8), limitExceeded, null);
     }
 
-    private StreamCapture awaitCapture(CompletableFuture<StreamCapture> capture, Duration grace) {
+    private StreamCapture awaitCapture(CompletableFuture<StreamCapture> capture, long cleanupStarted, Duration grace) {
         try {
-            return capture.get(Math.max(1, grace.toMillis()), TimeUnit.MILLISECONDS);
+            return capture.get(remainingNanos(cleanupStarted, grace), TimeUnit.NANOSECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return new StreamCapture("", true);
+            return new StreamCapture("", false, e);
         } catch (ExecutionException | TimeoutException e) {
-            return new StreamCapture("", true);
+            return new StreamCapture("", false, new IOException("Failed to capture process stream", e));
         }
     }
 
-    private long peakMemory(CompletableFuture<MemoryMonitorService.MemoryUsage> memoryFuture) {
+    private long peakMemory(CompletableFuture<MemoryMonitorService.MemoryUsage> memoryFuture,
+                            AtomicReference<MemoryLimitExceededException> memoryExceeded) {
         try {
             if (!memoryFuture.isDone()) {
                 return 0;
@@ -201,6 +240,9 @@ public class DirectProcessRunner implements ProcessRunner {
             return 0;
         } catch (ExecutionException e) {
             MemoryLimitExceededException exceeded = unwrapMemoryExceeded(e);
+            if (exceeded != null) {
+                memoryExceeded.compareAndSet(null, exceeded);
+            }
             return exceeded == null ? 0 : exceeded.getCurrentUsage();
         }
     }
@@ -224,24 +266,40 @@ public class DirectProcessRunner implements ProcessRunner {
         }
     }
 
-    private static boolean killProcessTree(Process process, Duration grace) {
-        process.descendants().forEach(handle -> {
+    private static long startCleanup(AtomicReference<Long> cleanupStarted) {
+        return cleanupStarted.updateAndGet(started -> started == null ? System.nanoTime() : started);
+    }
+
+    private static long remainingNanos(long started, Duration budget) {
+        return Math.max(0, budget.toNanos() - (System.nanoTime() - started));
+    }
+
+    private static boolean killProcessTree(Process process, AtomicReference<Long> cleanupStarted, Duration grace) {
+        long cleanupStart = startCleanup(cleanupStarted);
+        List<ProcessHandle> descendants = process.descendants().toList();
+        descendants.forEach(handle -> {
             try {
                 handle.destroyForcibly();
             } catch (Exception ignored) {
-                // The result below reports if the process is still alive.
             }
         });
         process.destroyForcibly();
         try {
-            process.waitFor(Math.max(1, grace.toMillis()), TimeUnit.MILLISECONDS);
+            process.waitFor(remainingNanos(cleanupStart, grace), TimeUnit.NANOSECONDS);
+            for (ProcessHandle descendant : descendants) {
+                if (descendant.isAlive()) {
+                    descendant.onExit().get(remainingNanos(cleanupStart, grace), TimeUnit.NANOSECONDS);
+                }
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return false;
+        } catch (ExecutionException | TimeoutException e) {
+            return false;
         }
-        return !process.isAlive();
+        return !process.isAlive() && descendants.stream().noneMatch(ProcessHandle::isAlive);
     }
 
-    private record StreamCapture(String content, boolean limitExceeded) {
+    private record StreamCapture(String content, boolean limitExceeded, Exception failure) {
     }
 }

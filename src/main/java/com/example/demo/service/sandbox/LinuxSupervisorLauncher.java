@@ -46,18 +46,26 @@ public final class LinuxSupervisorLauncher {
     }
 
     public Launch start(SandboxTaskSpec spec) throws IOException, InterruptedException {
+        return start(spec, spec.maxTaskRuntime());
+    }
+
+    public Launch start(SandboxTaskSpec spec, Duration timeout) throws IOException, InterruptedException {
+        require(timeout != null && !timeout.isZero() && !timeout.isNegative(), "invalid startup timeout");
+        long started = System.nanoTime();
+        long budgetNanos = timeout.toNanos();
         require("trusted-local".equals(spec.profile()), "supervisor execution is restricted to trusted-local");
         Path workDir = validateLocalIdentityAndPaths(spec.workDir());
         try (TaskLock taskLock = acquireGuardedTaskLock(workDir, true)) {
             rejectManagedAttempts(workDir);
-            return startLocked(spec, workDir);
+            return startLocked(spec, workDir, started, budgetNanos);
         }
     }
 
-    private Launch startLocked(SandboxTaskSpec spec, Path workDir) throws IOException, InterruptedException {
+    private Launch startLocked(SandboxTaskSpec spec, Path workDir, long started, long budgetNanos)
+            throws IOException, InterruptedException {
         SandboxManifestFactory.Prepared prepared = SandboxManifestFactory.prepare(spec);
-        verifyImage(options.executorImageId(), false);
-        verifyImage(options.supervisorImageId(), true);
+        verifyImage(options.executorImageId(), false, remainingStartupBudget(started, budgetNanos));
+        verifyImage(options.supervisorImageId(), true, remainingStartupBudget(started, budgetNanos));
         prepared.write(mapper);
         Path attemptDir = workDir.resolve(prepared.manifest().attemptDirectory());
         Files.setPosixFilePermissions(attemptDir, PosixFilePermissions.fromString("rwx------"));
@@ -80,8 +88,9 @@ public final class LinuxSupervisorLauncher {
             addLabels(volumeCommand, spec.judgeId(), attempt, "stage-volume");
             volumeCommand.add(text(volume, "name"));
             beforeCreate(journal, state, volume);
-            require(command(volumeCommand).trim().equals(text(volume, "name")), "volume create returned a different identity");
-            JsonNode inspectedVolume = inspect("volume", text(volume, "name"));
+            require(command(volumeCommand, remainingStartupBudget(started, budgetNanos)).trim().equals(text(volume, "name")),
+                    "volume create returned a different identity");
+            JsonNode inspectedVolume = inspect("volume", text(volume, "name"), remainingStartupBudget(started, budgetNanos));
             String stageRoot = verifyVolume(inspectedVolume, state);
             volume.put("mountpoint", stageRoot);
             confirmed(journal, state, volume, text(volume, "name"));
@@ -92,13 +101,14 @@ public final class LinuxSupervisorLauncher {
             List<String> holderCommand = containerCommand(state, "holder", options.executorImageId(),
                     options.holderUid(), options.holderGid(), options.holderLimits(), holderMounts, holderArguments);
             beforeCreate(journal, state, holder);
-            String holderId = containerId(command(holderCommand));
-            verifyContainer(inspect("container", holderId), state, "holder", holderId, options.executorImageId(),
+            String holderId = containerId(command(holderCommand, remainingStartupBudget(started, budgetNanos)));
+            verifyContainer(inspect("container", holderId, remainingStartupBudget(started, budgetNanos)), state, "holder", holderId,
+                    options.executorImageId(),
                     options.holderUid(), options.holderGid(), options.holderLimits(), holderMounts, holderArguments);
             confirmed(journal, state, holder, holderId);
             beforeStart(journal, state, holder);
-            command(List.of("container", "start", holderId));
-            JsonNode runningHolder = inspect("container", holderId);
+            command(List.of("container", "start", holderId), remainingStartupBudget(started, budgetNanos));
+            JsonNode runningHolder = inspect("container", holderId, remainingStartupBudget(started, budgetNanos));
             verifyContainer(runningHolder, state, "holder", holderId, options.executorImageId(),
                     options.holderUid(), options.holderGid(), options.holderLimits(), holderMounts, holderArguments);
             require(runningHolder.path("State").path("Running").isBoolean()
@@ -114,17 +124,17 @@ public final class LinuxSupervisorLauncher {
             List<String> create = containerCommand(state, "supervisor", options.supervisorImageId(),
                     options.supervisorUid(), options.supervisorGid(), options.supervisorLimits(), mounts, arguments);
             beforeCreate(journal, state, supervisor);
-            String supervisorId = containerId(command(create));
-            verifyContainer(inspect("container", supervisorId), state, "supervisor", supervisorId,
+            String supervisorId = containerId(command(create, remainingStartupBudget(started, budgetNanos)));
+            verifyContainer(inspect("container", supervisorId, remainingStartupBudget(started, budgetNanos)), state, "supervisor", supervisorId,
                     options.supervisorImageId(), options.supervisorUid(), options.supervisorGid(),
                     options.supervisorLimits(), mounts, arguments);
             confirmed(journal, state, supervisor, supervisorId);
             beforeStart(journal, state, supervisor);
-            command(List.of("container", "start", supervisorId));
-            JsonNode started = inspect("container", supervisorId);
-            verifyContainer(started, state, "supervisor", supervisorId, options.supervisorImageId(),
+            command(List.of("container", "start", supervisorId), remainingStartupBudget(started, budgetNanos));
+            JsonNode observed = inspect("container", supervisorId, remainingStartupBudget(started, budgetNanos));
+            verifyContainer(observed, state, "supervisor", supervisorId, options.supervisorImageId(),
                     options.supervisorUid(), options.supervisorGid(), options.supervisorLimits(), mounts, arguments);
-            JsonNode runtimeState = started.path("State");
+            JsonNode runtimeState = observed.path("State");
             requireHealthyState(runtimeState);
             require(runtimeState.path("Running").isBoolean()
                     && (runtimeState.path("Running").booleanValue()
@@ -146,9 +156,38 @@ public final class LinuxSupervisorLauncher {
         }
     }
 
+    public SandboxRunner.ExecutionState executionState(SandboxRunHandle handle, Path workDir, Duration timeout)
+            throws IOException, InterruptedException {
+        require(handle != null && "linux-container".equals(handle.provider())
+                && handle.protocolVersion() == SandboxExecutionManifest.VERSION, "invalid supervisor handle");
+        containerId(handle.runId());
+        require(handle.attemptId() != null && UUID.fromString(handle.attemptId()).toString().equals(handle.attemptId()),
+                "invalid supervisor attempt");
+        require(timeout != null && !timeout.isNegative() && !timeout.isZero(), "invalid observation timeout");
+        Path root = validateLocalIdentityAndPaths(workDir);
+        try (TaskLock taskLock = acquireGuardedTaskLock(root, false);
+             LinuxRuntimeJournal journal = LinuxRuntimeJournal.openExisting(
+                     root.resolve("control/attempts").resolve(handle.attemptId()), handle.judgeId(), handle.attemptId(),
+                     mapper, options.configWriterUid(), options.configWriterGid())) {
+            ObjectNode state = journal.read();
+            LinuxRuntimeState.classifyUnresolvedSnapshot(state);
+            require(state.path("configuration").equals(mapper.readTree(mapper.writeValueAsBytes(configuration(root)))),
+                    "runtime configuration differs from durable identity");
+            require(handle.runId().equals(state.path("supervisor").path("runtimeId").asText()), "supervisor handle differs");
+            JsonNode observed = inspect("container", handle.runId(),
+                    timeout.compareTo(options.commandTimeout()) < 0 ? timeout : options.commandTimeout());
+            verifyRecoveryContainer(observed, state, "supervisor");
+            return supervisorRunning(observed) ? SandboxRunner.ExecutionState.ACTIVE : SandboxRunner.ExecutionState.EXITED;
+        }
+    }
+
     public void cancelAndStop(SandboxRunHandle handle, Path workDir) throws IOException, InterruptedException {
+        cancelAndStop(handle, workDir, options.commandTimeout());
+    }
+
+    public void cancelAndStop(SandboxRunHandle handle, Path workDir, Duration timeout) throws IOException, InterruptedException {
         try {
-            stop(handle, workDir, true);
+            stop(handle, workDir, true, timeout);
         } catch (InterruptedException failure) {
             Thread.currentThread().interrupt();
             throw failure;
@@ -156,11 +195,14 @@ public final class LinuxSupervisorLauncher {
     }
 
     public void stop(SandboxRunHandle handle, Path workDir) throws IOException, InterruptedException {
-        stop(handle, workDir, false);
+        stop(handle, workDir, false, options.commandTimeout());
     }
 
-    private void stop(SandboxRunHandle handle, Path workDir, boolean cancellation)
+    private void stop(SandboxRunHandle handle, Path workDir, boolean cancellation, Duration timeout)
             throws IOException, InterruptedException {
+        require(timeout != null && !timeout.isZero() && !timeout.isNegative(), "supervisor stop requires a positive timeout");
+        long started = System.nanoTime();
+        long budgetNanos = timeout.toNanos();
         require(handle != null && "linux-container".equals(handle.provider())
                 && handle.protocolVersion() == SandboxExecutionManifest.VERSION, "invalid supervisor handle");
         containerId(handle.runId());
@@ -168,11 +210,12 @@ public final class LinuxSupervisorLauncher {
                 "invalid supervisor attempt");
         Path root = validateLocalIdentityAndPaths(workDir);
         try (TaskLock taskLock = acquireGuardedTaskLock(root, false)) {
-            stopLocked(handle, root, cancellation);
+            stopLocked(handle, root, cancellation, started, budgetNanos);
         }
     }
 
-    private void stopLocked(SandboxRunHandle handle, Path root, boolean cancellation) throws IOException, InterruptedException {
+    private void stopLocked(SandboxRunHandle handle, Path root, boolean cancellation, long started, long budgetNanos)
+            throws IOException, InterruptedException {
         Path attemptDir = root.resolve("control/attempts").resolve(handle.attemptId());
         try (LinuxRuntimeJournal journal = LinuxRuntimeJournal.openExisting(attemptDir, handle.judgeId(),
                 handle.attemptId(), mapper, options.configWriterUid(), options.configWriterGid())) {
@@ -189,7 +232,7 @@ public final class LinuxSupervisorLauncher {
             containerId(text(object(state, "holder"), "runtimeId"));
             require(text(object(state, "volume"), "name").equals(text(object(state, "volume"), "runtimeId")), "volume identity differs");
             validateStageRoot(text(object(state, "volume"), "mountpoint"), root);
-            JsonNode initial = inspect("container", handle.runId());
+            JsonNode initial = inspect("container", handle.runId(), remainingCleanupBudget(started, budgetNanos));
             verifyRecoveryContainer(initial, state, "supervisor");
             if (cancellation) {
                 supervisorRunning(initial);
@@ -200,13 +243,14 @@ public final class LinuxSupervisorLauncher {
             List<String> stopCommand = List.of("container", "stop", "-t", "0", handle.runId());
             if (cancellation) {
                 journal.requestCancellation();
-                awaitCooperativeStop(handle.runId(), state);
+                awaitCooperativeStop(handle.runId(), state, started, budgetNanos);
                 requireCancellationNotInterrupted();
-                require((handle.runId() + "\n").equals(recoveryCommand(stopCommand)), "supervisor stop acknowledgement differs");
+                require((handle.runId() + "\n").equals(recoveryCommand(stopCommand, remainingCleanupBudget(started, budgetNanos))),
+                        "supervisor stop acknowledgement differs");
             } else {
-                command(stopCommand);
+                command(stopCommand, remainingCleanupBudget(started, budgetNanos));
             }
-            JsonNode stopped = inspect("container", handle.runId());
+            JsonNode stopped = inspect("container", handle.runId(), remainingCleanupBudget(started, budgetNanos));
             verifyContainer(stopped, state, "supervisor", handle.runId(), options.supervisorImageId(),
                     options.supervisorUid(), options.supervisorGid(), options.supervisorLimits(),
                     supervisorMounts(state), supervisorArguments(handle.attemptId()));
@@ -220,23 +264,22 @@ public final class LinuxSupervisorLauncher {
         }
     }
 
-    private void awaitCooperativeStop(String supervisorId, ObjectNode state) throws IOException, InterruptedException {
-        long started = System.nanoTime();
-        long budget = options.commandTimeout().toNanos();
+    private void awaitCooperativeStop(String supervisorId, ObjectNode state, long started, long budgetNanos)
+            throws IOException, InterruptedException {
         while (true) {
             requireCancellationNotInterrupted();
-            long remaining = budget - (System.nanoTime() - started);
+            long remaining = budgetNanos - (System.nanoTime() - started);
             if (remaining <= 0) {
                 return;
             }
-            JsonNode observed = inspect("container", supervisorId, Duration.ofNanos(remaining));
+            JsonNode observed = inspect("container", supervisorId, remainingCleanupBudget(started, budgetNanos));
             verifyRecoveryContainer(observed, state, "supervisor");
             boolean running = supervisorRunning(observed);
             requireCancellationNotInterrupted();
             if (!running) {
                 return;
             }
-            remaining = budget - (System.nanoTime() - started);
+            remaining = budgetNanos - (System.nanoTime() - started);
             if (remaining > 0) {
                 TimeUnit.NANOSECONDS.sleep(Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(50)));
             }
@@ -433,8 +476,8 @@ public final class LinuxSupervisorLauncher {
                 && (((Number) attributes.get("mode")).intValue() & 0022) == 0, "unsafe trusted directory ownership or permissions");
     }
 
-    private void verifyImage(String imageId, boolean supervisor) throws IOException, InterruptedException {
-        JsonNode image = inspect("image", imageId);
+    private void verifyImage(String imageId, boolean supervisor, Duration timeout) throws IOException, InterruptedException {
+        JsonNode image = inspect("image", imageId, timeout);
         require(imageId.equals(image.path("Id").asText()) && "linux".equals(image.path("Os").asText()), "image identity or operating system differs");
         JsonNode config = image.path("Config");
         require(empty(config.path("Volumes")), "image declares implicit volumes");
@@ -659,13 +702,35 @@ public final class LinuxSupervisorLauncher {
     }
 
     String recoveryCommand(List<String> arguments) throws IOException, InterruptedException {
-        LinuxContainerRunner.CommandResult result = commandResult(arguments);
+        return recoveryCommand(arguments, options.commandTimeout());
+    }
+
+    private String recoveryCommand(List<String> arguments, Duration timeout) throws IOException, InterruptedException {
+        LinuxContainerRunner.CommandResult result = commandResult(arguments, timeout);
         require(result.stderr() != null && result.stderr().isEmpty(), "unexpected runtime recovery error output");
         return result.stdout();
     }
 
     private String command(List<String> arguments) throws IOException, InterruptedException {
         return commandResult(arguments).stdout();
+    }
+
+    private String command(List<String> arguments, Duration timeout) throws IOException, InterruptedException {
+        return commandResult(arguments, timeout).stdout();
+    }
+
+    private Duration remainingStartupBudget(long started, long budgetNanos) throws IOException {
+        long remaining = budgetNanos - (System.nanoTime() - started);
+        require(remaining > 0, "Supervisor startup deadline exceeded");
+        Duration timeout = Duration.ofNanos(remaining);
+        return timeout.compareTo(options.commandTimeout()) < 0 ? timeout : options.commandTimeout();
+    }
+
+    private Duration remainingCleanupBudget(long started, long budgetNanos) throws IOException {
+        long remaining = budgetNanos - (System.nanoTime() - started);
+        require(remaining > 0, "Supervisor cleanup deadline exceeded; stop is not confirmed");
+        Duration timeout = Duration.ofNanos(remaining);
+        return timeout.compareTo(options.commandTimeout()) < 0 ? timeout : options.commandTimeout();
     }
 
     private LinuxContainerRunner.CommandResult commandResult(List<String> arguments) throws IOException, InterruptedException {

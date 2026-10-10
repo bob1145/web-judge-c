@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.dto.SessionInfo;
+import com.example.demo.config.AuthConfiguration;
 import com.example.demo.model.UserSession;
 import com.example.demo.security.SessionAuditId;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 /**
  * 会话管理服务
@@ -21,6 +23,7 @@ import java.time.LocalDateTime;
 public class SessionManagementService {
     
     private final AccessCodeService accessCodeService;
+    private final AuthConfiguration authConfiguration;
     
     /**
      * 获取会话详细信息
@@ -64,17 +67,21 @@ public class SessionManagementService {
             return false;
         }
         
-        // 检查IP地址匹配
-        if (session.getIpAddress() != null && !session.getIpAddress().equals(ipAddress)) {
-            log.warn("会话 {} 的IP地址不匹配，原IP: {}, 当前IP: {}", 
-                    SessionAuditId.from(sessionId), session.getIpAddress(), ipAddress);
-            // 注意：在某些网络环境下IP可能会变化，这里只记录警告，不强制验证失败
+        AuthConfiguration.SessionEnvironmentPolicy policy = session.isAdmin()
+                ? AuthConfiguration.SessionEnvironmentPolicy.STRICT
+                : authConfiguration.getSessionEnvironmentPolicy();
+        if (policy == null) {
+            return false;
         }
-        
-        // 检查User-Agent匹配
-        if (session.getUserAgent() != null && !session.getUserAgent().equals(userAgent)) {
-            log.warn("会话 {} 的User-Agent不匹配", SessionAuditId.from(sessionId));
-            // 同样只记录警告，不强制验证失败
+        boolean sourceChanged = !Objects.equals(session.getIpAddress(), ipAddress);
+        boolean agentChanged = !Objects.equals(session.getUserAgent(), userAgent);
+        if (sourceChanged || agentChanged) {
+            log.warn("会话环境变化，auditId: {}, policy: {}, sourceChanged: {}, agentChanged: {}",
+                    SessionAuditId.from(sessionId), policy, sourceChanged, agentChanged);
+            if (policy == AuthConfiguration.SessionEnvironmentPolicy.STRICT) {
+                accessCodeService.invalidateSession(sessionId);
+                return false;
+            }
         }
         
         return true;
@@ -119,9 +126,9 @@ public class SessionManagementService {
     
     /**
      * 定期清理过期会话
-     * 每小时执行一次
+     * 按配置间隔执行
      */
-    @Scheduled(fixedRate = 3600000) // 1小时 = 3600000毫秒
+    @Scheduled(fixedRateString = "${judge.auth.attempt-cleanup-interval-ms:60000}")
     public void scheduledCleanup() {
         log.debug("开始定期清理过期会话");
         int beforeCount = accessCodeService.getActiveSessionCount();

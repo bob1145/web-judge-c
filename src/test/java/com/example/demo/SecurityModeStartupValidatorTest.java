@@ -27,6 +27,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static com.example.demo.support.CsrfTestSupport.withCsrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -102,13 +103,13 @@ class SecurityModeStartupValidatorTest {
 
     @Test
     void unauthenticatedProtectedEndpointsAreRejected() throws Exception {
-        mockMvc.perform(post("/judge")
+        mockMvc.perform(withCsrf(mockMvc, post("/judge")
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request(1))))
+                        .content(objectMapper.writeValueAsString(request(1)))))
                 .andExpect(status().isUnauthorized());
 
-        mockMvc.perform(post("/judge/start/abc").accept(MediaType.APPLICATION_JSON))
+        mockMvc.perform(withCsrf(mockMvc, post("/judge/start/abc").accept(MediaType.APPLICATION_JSON)))
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get("/judge/status/abc").accept(MediaType.APPLICATION_JSON))

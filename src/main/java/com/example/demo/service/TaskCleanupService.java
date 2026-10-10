@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.config.ExecutionProperties;
+import com.example.demo.config.ProductionSecurityStartupValidator;
 import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
@@ -8,12 +9,15 @@ import com.example.demo.service.sandbox.SandboxRunner;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -25,20 +29,36 @@ public class TaskCleanupService {
     private final FileTaskStore taskStore;
     private final ExecutionProperties executionProperties;
     private final Optional<SandboxRunner> sandboxRunner;
+    private final Optional<ProgressPublisher> progressPublisher;
 
     public TaskCleanupService(FileTaskStore taskStore, ExecutionProperties executionProperties) {
-        this(taskStore, executionProperties, Optional.empty());
+        this(taskStore, executionProperties, Optional.empty(), Optional.empty());
+    }
+
+    public TaskCleanupService(
+            FileTaskStore taskStore,
+            ExecutionProperties executionProperties,
+            Optional<SandboxRunner> sandboxRunner
+    ) {
+        this(taskStore, executionProperties, sandboxRunner, Optional.empty());
     }
 
     @Autowired
     public TaskCleanupService(
             FileTaskStore taskStore,
             ExecutionProperties executionProperties,
-            Optional<SandboxRunner> sandboxRunner
+            Optional<SandboxRunner> sandboxRunner,
+            Optional<ProgressPublisher> progressPublisher
     ) {
         this.taskStore = taskStore;
         this.executionProperties = executionProperties;
         this.sandboxRunner = sandboxRunner == null ? Optional.empty() : sandboxRunner;
+        this.progressPublisher = progressPublisher == null ? Optional.empty() : progressPublisher;
+    }
+
+    @Autowired
+    void validateStartupPolicy(ObjectProvider<ProductionSecurityStartupValidator> validators) {
+        validators.ifAvailable(ProductionSecurityStartupValidator::rejectUnverifiedProvidersBeforeRecovery);
     }
 
     @PostConstruct
@@ -51,20 +71,17 @@ public class TaskCleanupService {
             cleanupExpiredTasks(Instant.now());
         } catch (Exception ex) {
             log.warn("Judge task startup cleanup failed: {}", ex.getMessage());
+            throw new IllegalStateException("Judge task startup reconciliation failed", ex);
         }
     }
 
     public List<JudgeTask> reconcileStartup() throws IOException {
-        List<JudgeTask> unfinishedTasks = taskStore.findAll().stream()
-                .filter(task -> task.getStatus() == JudgeStatus.RUNNING || task.getStatus() == JudgeStatus.QUEUED)
-                .toList();
-        List<String> residualCleanupFailures = cleanupResidualHandles(unfinishedTasks);
-        List<JudgeTask> staleTasks = taskStore.markStaleRunningTasksOnStartup();
+        List<String> residualCleanupFailures = cleanupResidualHandles(taskStore.findAll());
         if (!residualCleanupFailures.isEmpty()) {
             throw new IOException("Residual sandbox cleanup failed for judgeIds: "
                     + String.join(",", residualCleanupFailures));
         }
-        return staleTasks;
+        return taskStore.markStaleRunningTasksOnStartup();
     }
 
     @Scheduled(
@@ -76,10 +93,13 @@ public class TaskCleanupService {
     }
 
     public CleanupReport cleanupExpiredTasks(Instant now) {
+        progressPublisher.ifPresent(ProgressPublisher::expireThrottleState);
         List<String> deletedJudgeIds = new ArrayList<>();
         List<String> failedJudgeIds = new ArrayList<>();
         List<JudgeTask> tasks;
         try {
+            ZoneId zone = ZoneId.systemDefault();
+            taskStore.findDeletedQuotaCharges(LocalDate.ofInstant(now, zone), zone);
             tasks = taskStore.findAll();
         } catch (IOException ex) {
             log.warn("Judge task cleanup failed to list storage base: {}", ex.getMessage());
@@ -96,6 +116,7 @@ public class TaskCleanupService {
             try {
                 cleanupResidualHandle(task);
                 if (taskStore.deleteTaskDirectory(judgeId)) {
+                    progressPublisher.ifPresent(publisher -> publisher.clearThrottleState(judgeId));
                     deletedJudgeIds.add(judgeId);
                     log.info("Cleaned expired judge task {} at {}", judgeId, relativePath);
                 }
@@ -124,12 +145,15 @@ public class TaskCleanupService {
 
     private void cleanupResidualHandle(JudgeTask task) {
         SandboxRunHandle handle = task.getSandboxRunHandle();
-        if (handle == null || handle.runId() == null || handle.runId().isBlank()) {
+        if (handle == null) {
             return;
+        }
+        if (handle.runId() == null || handle.runId().isBlank()) {
+            throw new IllegalStateException("Sandbox runId is missing for judgeId: " + task.getJudgeId());
         }
         SandboxRunner runner = sandboxRunner.orElseThrow(() ->
                 new IllegalStateException("SandboxRunner is required to cleanup residual run " + handle.runId()));
-        runner.cleanupResidual(handle);
+        runner.cleanupResidual(handle, Duration.ofSeconds(2));
     }
 
     private boolean isExpired(JudgeTask task, Instant now) {

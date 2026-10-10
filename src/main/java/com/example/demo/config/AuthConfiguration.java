@@ -1,6 +1,7 @@
 package com.example.demo.config;
 
 import lombok.Data;
+import jakarta.annotation.PostConstruct;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
@@ -29,6 +30,8 @@ public class AuthConfiguration {
 
     private boolean accountAuthEnabled = false;
 
+    private SessionEnvironmentPolicy sessionEnvironmentPolicy = SessionEnvironmentPolicy.AUDIT;
+
     private List<AccountProperties> accounts = new ArrayList<>();
     
     /**
@@ -51,6 +54,35 @@ public class AuthConfiguration {
      */
     private int attemptResetHours = 1;
 
+    private int maxSourceAttempts = 30;
+    private Duration sourceAttemptWindow = Duration.ofMinutes(10);
+    private int maxGlobalAccessCodeAttempts = 300;
+    private Duration globalAccessCodeAttemptWindow = Duration.ofMinutes(10);
+    private int maxAttemptStates = 10_000;
+    private Duration attemptStateTtl = Duration.ofHours(2);
+    private long attemptCleanupIntervalMs = 60_000;
+    private int maxActiveSessions = 10_000;
+    private List<String> trustedProxyCidrs = new ArrayList<>();
+    private String forwardedClientHeader = "X-Forwarded-For";
+    private int maxForwardedHeaderBytes = 4_096;
+    private int maxForwardedHops = 16;
+
+    @PostConstruct
+    public void validateAuthenticationLimits() {
+        if (maxAttempts < 1 || attemptResetHours < 1 || maxSourceAttempts < 1
+                || maxGlobalAccessCodeAttempts < 1 || maxAttemptStates < 1
+                || maxActiveSessions < 1 || attemptCleanupIntervalMs < 1
+                || sourceAttemptWindow == null || sourceAttemptWindow.isZero() || sourceAttemptWindow.isNegative()
+                || globalAccessCodeAttemptWindow == null || globalAccessCodeAttemptWindow.isZero()
+                || globalAccessCodeAttemptWindow.isNegative() || attemptStateTtl == null
+                || attemptStateTtl.compareTo(Duration.ofHours(attemptResetHours)) < 0
+                || attemptStateTtl.compareTo(sourceAttemptWindow) < 0
+                || attemptStateTtl.compareTo(globalAccessCodeAttemptWindow) < 0
+                || maxForwardedHeaderBytes < 1 || maxForwardedHops < 1) {
+            throw new IllegalArgumentException("Authentication limits must be positive and state TTL must cover every failure window");
+        }
+    }
+
     public boolean requiresAccountAuthentication(String profile) {
         return accountAuthEnabled || profile == null || !"trusted-local".equalsIgnoreCase(profile.trim());
     }
@@ -62,6 +94,11 @@ public class AuthConfiguration {
         String normalized = accessCode.trim();
         return !LEGACY_ACCESS_CODES.contains(normalized)
                 && (defaultAccessCode == null || !normalized.equals(defaultAccessCode.trim()));
+    }
+
+    public enum SessionEnvironmentPolicy {
+        AUDIT,
+        STRICT
     }
 
     @Data

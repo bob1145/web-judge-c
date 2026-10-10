@@ -10,6 +10,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 RUNNER = ROOT / "runner" / "scripts" / "task_runner.py"
+sys.path.insert(0, str(ROOT / "runner" / "scripts"))
+from runner_manifest import load_manifest
 
 
 class TaskRunnerContractTest(unittest.TestCase):
@@ -30,6 +32,9 @@ class TaskRunnerContractTest(unittest.TestCase):
             events = self._read_events(work_dir)
             self.assertEqual(summary["ac"], 2)
             self.assertEqual(events[-1]["type"], "COMPLETED")
+            self.assertEqual([event["sequence"] for event in events], list(range(1, len(events) + 1)))
+            self.assertTrue(all(event["protocolVersion"] == 2 for event in events))
+            self.assertTrue(all(event["attemptId"] == self.attempt_dir.name for event in events))
 
     def test_compile_error_has_stable_exit_code_and_terminal_event(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -55,7 +60,7 @@ class TaskRunnerContractTest(unittest.TestCase):
         capabilities = json.loads(completed.stdout)
         self.assertEqual(capabilities["versions"], [2])
         self.assertIn("LEGACY_TEXT", capabilities["comparisonModes"])
-        self.assertNotIn("DECIMAL_ABSOLUTE", capabilities["comparisonModes"])
+        self.assertIn("DECIMAL_ABSOLUTE", capabilities["comparisonModes"])
 
     def test_v2_rejects_all_unsafe_source_path_forms_without_writing(self):
         values = ["/tmp/outside.cpp", "../outside.cpp", "a/../user.cpp", "C:/user.cpp", "C:user.cpp",
@@ -94,7 +99,9 @@ class TaskRunnerContractTest(unittest.TestCase):
             changes += [(field, value) for value in (0, -1, "1000", True, 2**63)]
         changes += [("comparison", {"mode": "LEGACY_TEXT", "precision": value})
                     for value in (None, 0, True, "NaN", "Infinity", "-0.1", "1e-9")]
-        changes += [("comparison", {"mode": mode, "precision": "0"}) for mode in ("UNKNOWN", "DECIMAL_ABSOLUTE")]
+        changes += [("comparison", {"mode": "UNKNOWN", "precision": "0"})]
+        changes += [("comparison", {"mode": "DECIMAL_ABSOLUTE", "precision": value})
+                    for value in (None, 0, True, "NaN", "Infinity", "-0.1", "1e1001", "1e-1001", "0" * 4097)]
         changes += [("stopOnFirstNonAc", value) for value in (None, "false", 0)]
         changes += [("retention", {"completedMillis": 1, "failedMillis": 1, "cancelledMillis": 0})]
         with tempfile.TemporaryDirectory() as tmp:
@@ -104,6 +111,16 @@ class TaskRunnerContractTest(unittest.TestCase):
                 with self.subTest(field=field, value=value):
                     spec.write_text(json.dumps(dict(original, **{field: value})))
                     self._assert_rejected_unchanged(root, spec)
+
+    def test_v2_preserves_nonzero_decimal_precision_and_accepts_inclusive_budget(self):
+        for precision in ("1.00000000000000000000000000000000000001", "1e1000", "1e-1000", "0" * 4096):
+            with self.subTest(precision=precision), tempfile.TemporaryDirectory() as temporary:
+                root, spec = self._fixture(Path(temporary))
+                manifest = json.loads(spec.read_text())
+                manifest["comparison"] = {"mode": "DECIMAL_ABSOLUTE", "precision": precision}
+                spec.write_text(json.dumps(manifest))
+                loaded, _, _, _ = load_manifest(spec, root)
+                self.assertEqual(loaded["comparison"], manifest["comparison"])
 
     def test_v2_rejects_linked_source_before_creating_workspace_or_events(self):
         with tempfile.TemporaryDirectory() as tmp:

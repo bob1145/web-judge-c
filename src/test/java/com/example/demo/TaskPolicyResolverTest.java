@@ -3,6 +3,7 @@ package com.example.demo;
 import com.example.demo.config.ExecutionProperties;
 import com.example.demo.config.MemoryConfiguration;
 import com.example.demo.dto.JudgeRequest;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.demo.service.ResolvedTaskPolicy;
 import com.example.demo.service.TaskPolicyResolver;
 import org.junit.jupiter.api.Test;
@@ -124,6 +125,9 @@ class TaskPolicyResolverTest {
         request.setPrecision(0);
         assertThat(resolver.resolve(request).comparison().precision()).isEqualTo("0");
         request.setPrecision(1e-9);
+        var serializedPrecision = new ObjectMapper().valueToTree(request).path("precision");
+        assertThat(serializedPrecision.isNumber()).isTrue();
+        assertThat(serializedPrecision.doubleValue()).isEqualTo(1e-9);
         ResolvedTaskPolicy policy = resolver.resolve(request);
         assertThat(policy.comparison().precision()).isEqualTo("1.0E-9");
         assertThat(policy.comparison().mode()).isEqualTo(com.example.demo.dto.SandboxComparison.Mode.DECIMAL_ABSOLUTE);
@@ -143,6 +147,35 @@ class TaskPolicyResolverTest {
             JudgeRequest request = request(1);
             request.setPrecision(value);
             assertRejectedWithPolicyContext(resolver, request, "precision");
+        }
+    }
+
+    @Test
+    void jsonNumbersAndStringsKeepExactPrecisionThroughSnapshotAndSerialization() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        TaskPolicyResolver resolver = resolver(ordinaryProperties(12), memoryConfiguration());
+        String exact = "1.00000000000000000000000000000000000001";
+        for (String jsonPrecision : new String[]{exact, mapper.writeValueAsString(exact)}) {
+            JudgeRequest request = mapper.readValue("{\"testCases\":1,\"precision\":" + jsonPrecision + "}", JudgeRequest.class);
+            assertThat(request.precisionText()).isEqualTo(exact);
+            assertThat(resolver.resolve(request).comparison().precision()).isEqualTo(exact);
+            JudgeRequest roundTrip = mapper.readValue(mapper.writeValueAsString(request), JudgeRequest.class);
+            assertThat(roundTrip.getDecimalPrecision()).isEqualByComparingTo(exact);
+        }
+    }
+
+    @Test
+    void precisionBudgetAcceptsInclusiveLimitsAndRejectsOutOfRangeBeforeAssignment() {
+        TaskPolicyResolver resolver = resolver(ordinaryProperties(12), memoryConfiguration());
+        JudgeRequest request = request(1);
+        for (String valid : new String[]{"1e1000", "1e-1000", "0".repeat(4096)}) {
+            request.setPrecision(valid);
+            assertThat(resolver.resolve(request).comparison().precision())
+                    .isEqualTo(valid.startsWith("1") ? valid : "0");
+        }
+        for (String invalid : new String[]{"1e1001", "1e-1001", "0".repeat(4097), "NaN", "0x1p0", "1f"}) {
+            assertThatThrownBy(() -> request.setPrecision(invalid)).isInstanceOf(IllegalArgumentException.class);
+            assertThat(request.precisionText()).isEqualTo("0".repeat(4096));
         }
     }
 

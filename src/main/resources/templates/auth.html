@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:content="${_csrf.token}">
     <title>身份验证 - C++ 在线对拍工具</title>
     <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAABILAAASCwAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///wAAAAA">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -539,19 +540,35 @@
 </head>
 
 <body>
-    <div class="auth-container fade-in">
+    <div class="auth-container">
         <div class="auth-header">
             <div class="logo">
                 <i class="fas fa-shield-alt"></i>
             </div>
             <h1>身份验证</h1>
-            <p>请输入访问码以继续使用系统</p>
+            <p th:text="${accountAuthRequired ? '请输入用户名和密码以继续使用系统' : '请输入访问码以继续使用系统'}">请输入访问码以继续使用系统</p>
         </div>
 
         <form id="auth-form">
             <div id="alert-container"></div>
             
-            <div class="mb-3">
+            <div class="mb-3" th:if="${accountAuthRequired}">
+                <label for="username" class="form-label">
+                    <i class="fas fa-user"></i> 用户名
+                </label>
+                <input type="text" class="form-control" id="username"
+                       placeholder="请输入用户名" required autocomplete="username">
+            </div>
+
+            <div class="mb-3" th:if="${accountAuthRequired}">
+                <label for="password" class="form-label">
+                    <i class="fas fa-lock"></i> 密码
+                </label>
+                <input type="password" class="form-control" id="password"
+                       placeholder="请输入密码" required autocomplete="current-password">
+            </div>
+
+            <div class="mb-3" th:unless="${accountAuthRequired}">
                 <label for="access-code" class="form-label">
                     <i class="fas fa-key"></i> 访问码
                 </label>
@@ -580,9 +597,13 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <script>
+        const csrfToken = document.querySelector('meta[name="_csrf"]').content;
         const form = document.getElementById('auth-form');
         const submitBtn = document.getElementById('submit-btn');
         const accessCodeInput = document.getElementById('access-code');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const credentialInput = passwordInput || accessCodeInput;
         const rememberMeCheckbox = document.getElementById('remember-me');
         const alertContainer = document.getElementById('alert-container');
         const authContainer = document.querySelector('.auth-container');
@@ -624,7 +645,7 @@
 
         // 自动聚焦到输入框
         window.addEventListener('load', () => {
-            accessCodeInput.focus();
+            (usernameInput || accessCodeInput).focus();
         });
 
         // 获取URL参数
@@ -636,11 +657,19 @@
         // 处理表单提交
         form.addEventListener('submit', async function(event) {
             event.preventDefault();
-            
-            const accessCode = accessCodeInput.value.trim();
-            
-            if (!accessCode) {
-                showAlert('请输入访问码', 'danger');
+            if (submitBtn.disabled) {
+                return;
+            }
+
+            const credentials = { rememberMe: rememberMeCheckbox.checked };
+            if (usernameInput) {
+                credentials.username = usernameInput.value.trim();
+                credentials.password = passwordInput.value;
+            } else {
+                credentials.accessCode = accessCodeInput.value.trim();
+            }
+            if (usernameInput ? !credentials.username || !credentials.password : !credentials.accessCode) {
+                showAlert(usernameInput ? '请输入用户名和密码' : '请输入访问码', 'danger');
                 shakeContainer();
                 return;
             }
@@ -660,21 +689,38 @@
                 const response = await fetch(requestUrl, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
                     },
-                    body: JSON.stringify({
-                        accessCode: accessCode,
-                        rememberMe: rememberMeCheckbox.checked
-                    })
+                    body: JSON.stringify(credentials)
                 });
 
                 if (!response.ok) {
-                    throw new Error('网络请求失败');
+                    let message = '认证请求失败，请刷新页面后重试';
+                    if (response.status === 401) {
+                        message = usernameInput ? '用户名或密码错误' : '访问码验证失败';
+                    } else if (response.status === 429) {
+                        message = '尝试次数过多，请稍后重试';
+                    } else if (response.status === 403) {
+                        message = '验证状态已过期，请刷新页面后重试';
+                    } else if (response.status >= 500) {
+                        message = '服务器暂时不可用，请稍后重试';
+                    }
+                    showAlert(message, 'danger');
+                    shakeContainer();
+                    credentialInput.select();
+                    return;
                 }
 
-                const result = await response.json();
+                let result;
+                try {
+                    result = await response.json();
+                } catch {
+                    showAlert('服务器返回异常，请稍后重试', 'danger');
+                    return;
+                }
 
-                if (result.success) {
+                if (result && result.success === true) {
                     showAlert('验证成功，正在跳转...', 'success');
                     
                     // 延迟跳转，让用户看到成功消息
@@ -682,9 +728,9 @@
                         window.location.href = result.redirectUrl || '/';
                     }, 1000);
                 } else {
-                    showAlert(result.message || '验证失败', 'danger');
+                    showAlert(result && result.message || '验证失败', 'danger');
                     shakeContainer();
-                    accessCodeInput.select();
+                    credentialInput.select();
                 }
             } catch (error) {
                 console.error('认证请求失败:', error);
@@ -713,9 +759,10 @@
             
             alertContainer.innerHTML = `
                 <div class="alert ${alertClass} fade-in" role="alert">
-                    <i class="${iconClass}"></i> ${message}
+                    <i class="${iconClass}"></i>
                 </div>
             `;
+            alertContainer.querySelector('.alert').append(document.createTextNode(message));
         }
 
         // 清除警告消息
@@ -730,13 +777,6 @@
                 authContainer.classList.remove('shake');
             }, 500);
         }
-
-        // 回车键提交
-        accessCodeInput.addEventListener('keypress', function(event) {
-            if (event.key === 'Enter') {
-                form.dispatchEvent(new Event('submit'));
-            }
-        });
 
         // 检查是否已经认证（可选功能）
         async function checkAuthStatus() {

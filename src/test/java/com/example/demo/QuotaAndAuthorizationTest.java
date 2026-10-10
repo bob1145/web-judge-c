@@ -7,6 +7,9 @@ import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
 import com.example.demo.model.UserSession;
 import com.example.demo.service.AccessCodeService;
+import com.example.demo.service.FileTaskStore;
+import com.example.demo.service.JudgeService;
+import com.example.demo.service.QuotaService;
 import com.example.demo.service.ResolvedTaskPolicy;
 import com.example.demo.service.TaskStore;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -14,25 +17,41 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = "judge.auth.access-code=task02-test-only-access-material")
 @AutoConfigureMockMvc
+@Import(WebSocketSendHttpTest.IsolatedTaskStore.class)
 class QuotaAndAuthorizationTest {
 
     private static final String TEST_USER_AGENT = "QuotaAndAuthorizationTest";
@@ -51,6 +70,9 @@ class QuotaAndAuthorizationTest {
 
     @Autowired
     private TaskStore taskStore;
+
+    @Autowired
+    private JudgeService judgeService;
 
     private long originalMaxDailyCasesPerUser;
     private long originalMaxDailyRuntimeMillisPerUser;
@@ -106,6 +128,49 @@ class QuotaAndAuthorizationTest {
         assertThat(json.path("message").asText()).contains("daily runtime quota");
     }
 
+    @ParameterizedTest
+    @CsvSource({"daily-case,daily case quota", "daily-runtime,daily runtime quota"})
+    void cancellationAndPhysicalDeletionDoNotRefundDailyQuotaAfterReload(String quota, String expectedQuota) throws Exception {
+        executionProperties.setMaxDailyCasesPerUser(Long.MAX_VALUE);
+        executionProperties.setMaxDailyRuntimeMillisPerUser(Long.MAX_VALUE);
+        if (quota.equals("daily-case")) {
+            executionProperties.setMaxDailyCasesPerUser(1);
+        } else {
+            executionProperties.setMaxDailyRuntimeMillisPerUser(2_000);
+        }
+        String userId = uniqueUser("deleted-daily-quota");
+        String ownerSession = session(userId, false);
+        String judgeId = createJudgeId(ownerSession, 1);
+        mockMvc.perform(post("/judge/cancel/{judgeId}", judgeId)
+                        .header("X-Session-ID", ownerSession)
+                        .header("User-Agent", TEST_USER_AGENT)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+        assertThat(taskStore.find(judgeId).orElseThrow().getStatus()).isEqualTo(JudgeStatus.CANCELLED);
+        createJudge(ownerSession, 1).andExpect(status().isTooManyRequests());
+
+        FileTaskStore fileStore = (FileTaskStore) taskStore;
+        assertThat(fileStore.deleteTaskDirectory(judgeId)).isTrue();
+        assertThat(fileStore.taskDirectory(judgeId)).doesNotExist();
+        String anotherSession = session(userId, false);
+        MvcResult rejected = createJudge(anotherSession, 1)
+                .andExpect(status().isTooManyRequests())
+                .andReturn();
+        JsonNode response = objectMapper.readTree(rejected.getResponse().getContentAsString());
+        assertThat(response.path("code").asText()).isEqualTo("JUDGE_QUOTA_EXCEEDED");
+        assertThat(response.path("message").asText()).contains(expectedQuota);
+
+        FileTaskStore reloadedStore = new FileTaskStore(objectMapper, fileStore.storageBase());
+        assertThat(reloadedStore.find(judgeId)).isEmpty();
+        QuotaService reloadedQuota = new QuotaService(executionProperties, reloadedStore);
+        UserSession reloadedSession = UserSession.builder().userId(userId).sessionId(anotherSession).build();
+        assertThatThrownBy(() -> reloadedQuota.assertCanCreate(reloadedSession, policy(1)))
+                .isInstanceOf(QuotaService.QuotaExceededException.class)
+                .hasMessageContaining(expectedQuota);
+        createJudge(session(uniqueUser("other-deleted-daily-quota"), false), 1)
+                .andExpect(status().isOk());
+    }
+
     @Test
     void userExceedingRunningTaskQuotaReceivesTooManyRequests() throws Exception {
         executionProperties.setMaxRunningTasksPerUser(1);
@@ -135,6 +200,79 @@ class QuotaAndAuthorizationTest {
         JsonNode json = objectMapper.readTree(rejected.getResponse().getContentAsString());
         assertThat(json.path("code").asText()).isEqualTo("JUDGE_QUOTA_EXCEEDED");
         assertThat(json.path("message").asText()).contains("queued task quota");
+    }
+
+    @ParameterizedTest
+    @CsvSource({"queued,false", "queued,true", "daily-case,false", "daily-runtime,false"})
+    void concurrentSessionsOfOneOwnerCannotConsumeTheLastCreationQuotaTwice(String quota, boolean admin) throws Exception {
+        executionProperties.setMaxDailyCasesPerUser(Long.MAX_VALUE);
+        executionProperties.setMaxDailyRuntimeMillisPerUser(Long.MAX_VALUE);
+        executionProperties.setMaxQueuedTasksPerUser(Integer.MAX_VALUE);
+        String expectedQuota = switch (quota) {
+            case "queued" -> {
+                executionProperties.setMaxQueuedTasksPerUser(1);
+                yield "queued task quota";
+            }
+            case "daily-case" -> {
+                executionProperties.setMaxDailyCasesPerUser(1);
+                yield "daily case quota";
+            }
+            case "daily-runtime" -> {
+                executionProperties.setMaxDailyRuntimeMillisPerUser(2_000);
+                yield "daily runtime quota";
+            }
+            default -> throw new IllegalArgumentException(quota);
+        };
+        String ownerId = uniqueUser("concurrent-create");
+        Map<?, ?> pending = (Map<?, ?>) ReflectionTestUtils.getField(judgeService, "pendingJudgeTasks");
+        Set<?> pendingBefore = Set.copyOf(pending.keySet());
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        CountDownLatch ready = new CountDownLatch(8);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<MvcResult>> attempts = new ArrayList<>();
+        List<String> createdIds = new ArrayList<>();
+        try {
+            for (int attemptIndex = 0; attemptIndex < 8; attemptIndex++) {
+                String ownerSession = session(ownerId, admin);
+                attempts.add(executor.submit(() -> {
+                    ready.countDown();
+                    if (!start.await(10, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("Concurrent creation start timed out");
+                    }
+                    return createJudge(ownerSession, 1).andReturn();
+                }));
+            }
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            for (Future<MvcResult> attempt : attempts) {
+                MvcResult result = attempt.get(10, TimeUnit.SECONDS);
+                int statusCode = result.getResponse().getStatus();
+                assertThat(statusCode).isIn(200, 429);
+                JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+                if (statusCode == 200) {
+                    createdIds.add(response.path("judgeId").asText());
+                } else {
+                    assertThat(response.path("code").asText()).isEqualTo("JUDGE_QUOTA_EXCEEDED");
+                    assertThat(response.path("message").asText()).contains(expectedQuota);
+                }
+            }
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+        assertThat(createdIds).hasSize(1);
+        assertThat(taskStore.findAll().stream()
+                .filter(task -> task.getOwnership() != null && task.getOwnership().isOwnedBy(ownerId))
+                .toList()).singleElement().satisfies(task -> {
+                    assertThat(task.getJudgeId()).isEqualTo(createdIds.get(0));
+                    assertThat(task.getStatus()).isEqualTo(JudgeStatus.CREATED);
+                });
+        Set<?> newPending = new HashSet<>(pending.keySet());
+        newPending.removeAll(pendingBefore);
+        assertThat(newPending).isEqualTo(Set.copyOf(createdIds));
+        String otherOwnerSession = session(uniqueUser("independent-create"), false);
+        createJudge(otherOwnerSession, 1).andExpect(status().isOk());
     }
 
     @Test

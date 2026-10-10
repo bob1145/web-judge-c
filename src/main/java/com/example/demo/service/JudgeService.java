@@ -9,6 +9,7 @@ import com.example.demo.dto.JudgeCreateResponse;
 import com.example.demo.dto.JudgeProgress;
 import com.example.demo.dto.JudgeRequest;
 import com.example.demo.dto.JudgeSummary;
+import com.example.demo.dto.SandboxComparison;
 import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.dto.SandboxTaskEvent;
 import com.example.demo.dto.SandboxTaskSpec;
@@ -21,28 +22,40 @@ import com.example.demo.service.sandbox.SandboxRunner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.net.ConnectException;
+import java.net.http.HttpTimeoutException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.EnumMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.MatchResult;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class JudgeService {
+
+    private static final long SANDBOX_POLL_NANOS = Duration.ofMillis(100).toNanos();
+    private static final long SANDBOX_EXIT_FLUSH_NANOS = Duration.ofSeconds(1).toNanos();
+    private static final long SANDBOX_CLEANUP_NANOS = Duration.ofSeconds(2).toNanos();
+    private static final Pattern INTEGER_TOKEN = Pattern.compile("[+-]?[0-9]+");
+    private static final Pattern OUTPUT_TOKEN = Pattern.compile("[^ \\t\\n\\r\\f\\x0B]+");
 
     private final MemoryConfiguration memoryConfiguration;
     private final ExecutionProperties executionProperties;
@@ -56,7 +69,8 @@ public class JudgeService {
     private final JudgeScheduler judgeScheduler;
     private final SecurityModeStartupValidator securityModeStartupValidator;
     private final Map<String, PendingJudgeTask> pendingJudgeTasks = new ConcurrentHashMap<>();
-    private final Map<String, JudgeProgress> judgeStatusMap = new ConcurrentHashMap<>();
+    private final Object createdTaskScanMonitor = new Object();
+    private Iterator<Map.Entry<String, PendingJudgeTask>> createdTaskScan;
     
     @Qualifier(AsyncConfig.TEST_CASE_EXECUTOR)
     private final ThreadPoolTaskExecutor testCaseExecutor;
@@ -82,8 +96,7 @@ public class JudgeService {
      */
     private void safeSendMessage(String topic, JudgeProgress progress) {
         String judgeId = topic.substring(topic.lastIndexOf('/') + 1);
-        JudgeProgress published = progressPublisher.publish(judgeId, progress);
-        judgeStatusMap.put(judgeId, published);
+        progressPublisher.publish(judgeId, progress);
     }
 
     private void safeSendStoppedMessage(
@@ -136,28 +149,24 @@ public class JudgeService {
      * 获取判题状态，用于轮询
      */
     public JudgeProgress getJudgeStatus(String judgeId) {
-        JudgeProgress status = judgeStatusMap.get(judgeId);
-        if (status == null) {
-            try {
-                Optional<JudgeProgress> summary = taskStore.findSummary(judgeId);
-                if (summary.isPresent()) {
-                    return summary.get();
-                }
-                Optional<JudgeTask> task = taskStore.find(judgeId);
-                if (task.isPresent()) {
-                    JudgeTask judgeTask = task.get();
-                    int progress = judgeTask.getStatus().isTerminal() ? 100 : 0;
-                    String message = judgeTask.getMessage() != null
-                            ? judgeTask.getMessage()
-                            : judgeTask.getStatus().name();
-                    return new JudgeProgress(judgeTask.getStatus().name(), message, progress);
-                }
-            } catch (Exception e) {
-                throw new IllegalArgumentException("Judge status not found: " + judgeId, e);
+        try {
+            Optional<JudgeProgress> summary = taskStore.findSummary(judgeId);
+            if (summary.isPresent()) {
+                return summary.get();
             }
-            throw new IllegalArgumentException("Judge status not found: " + judgeId);
+            Optional<JudgeTask> task = taskStore.find(judgeId);
+            if (task.isPresent()) {
+                JudgeTask judgeTask = task.get();
+                int progress = judgeTask.getStatus().isTerminal() ? 100 : 0;
+                String message = judgeTask.getMessage() != null
+                        ? judgeTask.getMessage()
+                        : judgeTask.getStatus().name();
+                return new JudgeProgress(judgeTask.getStatus().name(), message, progress);
+            }
+        } catch (Exception readFailure) {
+            throw new IllegalArgumentException("Judge status not found: " + judgeId, readFailure);
         }
-        return status;
+        throw new IllegalArgumentException("Judge status not found: " + judgeId);
     }
     
     /**
@@ -167,12 +176,6 @@ public class JudgeService {
         try {
             // 标记WebSocket会话为非活跃
             markSessionInactive(judgeId);
-            
-            // 延迟清理状态信息（给客户端更多时间获取最终状态）
-            CompletableFuture.delayedExecutor(60, TimeUnit.MINUTES).execute(() -> {
-                judgeStatusMap.remove(judgeId);
-                log.debug("延迟清理状态信息: {}", judgeId);
-            });
             
         } catch (Exception e) {
             log.error("清理判题任务失败: {} - {}", judgeId, e.getMessage());
@@ -197,30 +200,44 @@ public class JudgeService {
     public JudgeCreateResponse createJudgeTask(JudgeRequest request, String judgeId, UserSession ownerSession) {
         securityModeStartupValidator.assertJudgeCreationAllowed();
         ResolvedTaskPolicy policy = taskPolicyResolver.resolve(request);
-        if (ownerSession != null) {
-            quotaService.assertCanCreate(ownerSession, policy);
+        synchronized (ownerSession == null ? this : quotaService.creationLockFor(ownerSession)) {
+            JudgeOwnership ownership = ownerSession == null
+                    ? JudgeOwnership.anonymous()
+                    : quotaService.ownershipFor(ownerSession);
+            if (ownerSession != null) {
+                quotaService.assertCanCreate(ownerSession, policy,
+                        judgeScheduler.runningTaskIdsForOwner(ownership.getUserId()));
+            }
+            Path workDir = taskStore.taskDirectory(judgeId);
+            JudgeTask task = JudgeTask.builder()
+                    .judgeId(judgeId)
+                    .status(JudgeStatus.CREATED)
+                    .requestedCases(policy.requestedCases())
+                    .mode(policy.profile())
+                    .policy(policy)
+                    .ownership(ownership)
+                    .workDir(workDir.toString())
+                    .createdAt(Instant.now())
+                    .build();
+            PendingJudgeTask pendingTask = new PendingJudgeTask(request, policy);
+            boolean created = false;
+            try {
+                taskStore.create(task, () -> {
+                    if (pendingJudgeTasks.putIfAbsent(judgeId, pendingTask) != null) {
+                        throw new IllegalStateException("Judge task is already registered");
+                    }
+                });
+                created = true;
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to create judge task", e);
+            } finally {
+                if (!created) {
+                    pendingJudgeTasks.computeIfPresent(judgeId,
+                            (ignored, registered) -> registered == pendingTask ? null : registered);
+                }
+            }
+            return JudgeCreateResponse.created(judgeId, policy);
         }
-        Path workDir = taskStore.taskDirectory(judgeId);
-        JudgeOwnership ownership = ownerSession == null
-                ? JudgeOwnership.anonymous()
-                : quotaService.ownershipFor(ownerSession);
-        JudgeTask task = JudgeTask.builder()
-                .judgeId(judgeId)
-                .status(JudgeStatus.CREATED)
-                .requestedCases(policy.requestedCases())
-                .mode(policy.profile())
-                .policy(policy)
-                .ownership(ownership)
-                .workDir(workDir.toString())
-                .createdAt(Instant.now())
-                .build();
-        try {
-            taskStore.create(task);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to create judge task", e);
-        }
-        pendingJudgeTasks.put(judgeId, new PendingJudgeTask(request, policy));
-        return JudgeCreateResponse.created(judgeId, policy);
     }
 
     public boolean canAccessJudgeTask(String judgeId, UserSession session) {
@@ -233,22 +250,61 @@ public class JudgeService {
     public void startJudgeTask(String judgeId) {
         PendingJudgeTask pendingTask = pendingJudgeTasks.get(judgeId);
         if (pendingTask == null) {
-            throw new IllegalArgumentException("Judge task not found: " + judgeId);
+            judgeScheduler.requireScheduled(judgeId);
+            return;
         }
         // 标记WebSocket会话为活跃
         markSessionActive(judgeId);
-        judgeScheduler.enqueue(judgeId, context -> judge(pendingTask.request(), judgeId, pendingTask.policy(), context));
-        pendingJudgeTasks.remove(judgeId);
+        try {
+            judgeScheduler.enqueue(judgeId, context -> judge(pendingTask.request(), judgeId, pendingTask.policy(), context));
+        } catch (JudgeScheduler.TaskAlreadyFinishedException e) {
+            pendingJudgeTasks.remove(judgeId, pendingTask);
+            markSessionInactive(judgeId);
+            throw e;
+        }
+        pendingJudgeTasks.remove(judgeId, pendingTask);
     }
 
     public CancelJudgeResponse cancelJudgeTask(String judgeId) {
         CancelJudgeResponse response = judgeScheduler.cancel(judgeId);
-        if (response.accepted()) {
+        if (response.accepted() || JudgeStatus.fromProgressStatus(response.status())
+                .filter(JudgeStatus::isTerminal).isPresent()) {
             pendingJudgeTasks.remove(judgeId);
             markSessionInactive(judgeId);
-            judgeStatusMap.put(judgeId, new JudgeProgress(response.status(), response.message(), 100));
         }
         return response;
+    }
+
+    @Scheduled(
+            fixedDelayString = "${judge.execution.created-task-scan-interval:1m}",
+            initialDelayString = "${judge.execution.created-task-scan-interval:1m}"
+    )
+    public void expireCreatedTasks() {
+        expireCreatedTasks(Instant.now());
+    }
+
+    public void expireCreatedTasks(Instant now) {
+        synchronized (createdTaskScanMonitor) {
+            if (createdTaskScan == null || !createdTaskScan.hasNext()) {
+                createdTaskScan = pendingJudgeTasks.entrySet().iterator();
+            }
+            long started = System.nanoTime();
+            long budget = executionProperties.getCreatedTaskScanBudget().toNanos();
+            for (int examined = 0; examined < executionProperties.getCreatedTaskScanMaxTasks()
+                    && System.nanoTime() - started < budget && createdTaskScan.hasNext(); examined++) {
+                Map.Entry<String, PendingJudgeTask> pending = createdTaskScan.next();
+                String judgeId = pending.getKey();
+                try {
+                    if (judgeScheduler.expireCreatedTask(judgeId, now).isPresent()
+                            && pendingJudgeTasks.remove(judgeId, pending.getValue())) {
+                        progressPublisher.clearThrottleState(judgeId);
+                        markSessionInactive(judgeId);
+                    }
+                } catch (RuntimeException ex) {
+                    log.warn("Failed to expire CREATED task {}: {}", judgeId, ex.getMessage());
+                }
+            }
+        }
     }
 
     public void judge(
@@ -305,7 +361,6 @@ public class JudgeService {
                 final Path userExecutable = userFuture.get();
                 final Path judgeExecutable = judgeExecutableFuture.get();
 
-                safeSendMessage(topic, new JudgeProgress("COMPILING", "编译成功", 15));
                 if (cancellationToken.isCancellationRequested()) {
                     safeSendStoppedMessage(topic, cancellationToken, 15, emptyStoppedSummary(policy.requestedCases(), schedulerContext.completedCases(), cancellationToken));
                     cleanupJudgeTask(judgeId);
@@ -322,6 +377,8 @@ public class JudgeService {
                         executionProperties.getMaxFailureSamples(),
                         executionProperties.getMaxSlowSamples()
                 );
+                safeSendMessage(topic, new JudgeProgress("RUNNING", "编译成功，开始运行测试...", 15,
+                        null, resultAggregator.toSummary()));
                 Path finalTempDir = tempDir;
                 CaseBatchRunner.RunOutcome runOutcome = caseBatchRunner.run(
                         totalTestCases,
@@ -335,7 +392,7 @@ public class JudgeService {
                             if (!cancellationToken.isCancellationRequested()
                                     && (done % updateThreshold == 0 || done == totalTestCases)) {
                                 int progress = Math.min(99, 15 + (int) ((double) done / totalTestCases * 85));
-                                safeSendMessage(topic, new JudgeProgress("RUNNING", String.format("已完成 %d / %d", done, totalTestCases), progress));
+                                safeSendMessage(topic, new JudgeProgress("RUNNING", String.format("已完成 %d / %d", done, totalTestCases), progress, null, resultAggregator.toSummary()));
                             }
                         },
                         result -> request.isStopOnFirstNonAc() && !isAcceptedStatus(result.getStatus())
@@ -382,8 +439,11 @@ public class JudgeService {
 
         } catch (Exception e) {
             e.printStackTrace();
-            safeSendMessage(topic, new JudgeProgress("SYSTEM_ERROR", e.getMessage(), 100, null));
-            cleanupJudgeTask(judgeId);
+            try {
+                safeSendMessage(topic, new JudgeProgress("SYSTEM_ERROR", e.getMessage(), 100, null));
+            } finally {
+                cleanupJudgeTask(judgeId);
+            }
         }
     }
 
@@ -399,39 +459,112 @@ public class JudgeService {
             Path workDir,
             String topic
     ) {
-        SandboxEventIngestor.Session eventSession = sandboxEventIngestor.start(judgeId, policy);
+        SandboxEventIngestor.Session eventSession = sandboxEventIngestor.start(
+                judgeId, policy, request.isStopOnFirstNonAc());
         if (sandboxRunner.isEmpty()) {
-            rememberRunnerProgress(judgeId, eventSession.terminal(
+            eventSession.terminal(
                     JudgeStatus.SANDBOX_UNAVAILABLE.name(),
                     "SandboxRunner is not configured for profile " + policy.profile()
-            ));
+            );
             return;
         }
 
         SandboxRunHandle handle = null;
         SandboxRunner runner = sandboxRunner.get();
+        boolean startRequested = false;
+        long cleanupStarted = 0;
         try {
             SandboxTaskSpec spec = buildSandboxTaskSpec(request, judgeId, policy, workDir);
-            handle = runner.start(spec);
+            Duration startupBudget = schedulerContext.remainingRuntime();
+            if (startupBudget.isZero()) {
+                schedulerContext.cancellationToken().cancelForBudgetExceeded();
+            }
+            if (schedulerContext.cancellationToken().isCancellationRequested()) {
+                eventSession.terminal(schedulerContext.cancellationToken().isBudgetExceeded()
+                        ? JudgeStatus.BUDGET_EXCEEDED.name() : JudgeStatus.CANCELLED.name(),
+                        schedulerContext.cancellationToken().isBudgetExceeded()
+                                ? "Task runtime budget exceeded" : "Cancellation requested");
+                return;
+            }
+            startRequested = true;
+            handle = runner.start(spec, startupBudget);
             persistRunnerHandle(judgeId, handle);
+            eventSession.bindRunHandle(handle);
             boolean terminal = false;
+            boolean exited = false;
+            long exitObserved = 0;
             while (!terminal && !schedulerContext.cancellationToken().isCancellationRequested()) {
-                List<SandboxTaskEvent> events = runner.pollEvents(handle);
-                if (events == null || events.isEmpty()) {
+                long remaining = schedulerContext.remainingRuntime().toNanos();
+                if (remaining <= 0) {
+                    schedulerContext.cancellationToken().cancelForBudgetExceeded();
                     break;
+                }
+                if (exited && System.nanoTime() - exitObserved >= SANDBOX_EXIT_FLUSH_NANOS) {
+                    break;
+                }
+                if (exited) {
+                    remaining = Math.min(remaining, SANDBOX_EXIT_FLUSH_NANOS - (System.nanoTime() - exitObserved));
+                    if (remaining <= 0) {
+                        break;
+                    }
+                }
+                List<SandboxTaskEvent> events;
+                try {
+                    events = runner.pollEvents(handle, Duration.ofNanos(remaining));
+                } catch (IllegalStateException exception) {
+                    if (!(exception.getCause() instanceof HttpTimeoutException)
+                            && !(exception.getCause() instanceof ConnectException)) {
+                        throw exception;
+                    }
+                    events = List.of();
+                }
+                if (events == null) {
+                    throw new IllegalStateException("SandboxRunner returned a null event batch");
                 }
                 for (SandboxTaskEvent event : events) {
                     if (terminal) {
                         break;
                     }
+                    if (schedulerContext.remainingRuntime().isZero()) {
+                        schedulerContext.cancellationToken().cancelForBudgetExceeded();
+                    }
+                    if (schedulerContext.cancellationToken().isCancellationRequested()) {
+                        break;
+                    }
                     JudgeProgress progress = eventSession.accept(event);
-                    rememberRunnerProgress(judgeId, progress);
                     terminal = eventSession.isTerminal(progress);
+                }
+                if (terminal || !events.isEmpty()) {
+                    continue;
+                }
+                remaining = schedulerContext.remainingRuntime().toNanos();
+                if (remaining <= 0) {
+                    schedulerContext.cancellationToken().cancelForBudgetExceeded();
+                    break;
+                }
+                if (!exited) {
+                    SandboxRunner.ExecutionState state = runner.executionState(handle, Duration.ofNanos(remaining));
+                    if (state == null) {
+                        throw new IllegalStateException("SandboxRunner execution state is not confirmed");
+                    }
+                    if (state == SandboxRunner.ExecutionState.EXITED) {
+                        exited = true;
+                        exitObserved = System.nanoTime();
+                    }
+                }
+                remaining = schedulerContext.remainingRuntime().toNanos();
+                long waitNanos = Math.min(SANDBOX_POLL_NANOS, remaining);
+                if (exited) {
+                    waitNanos = Math.min(waitNanos, SANDBOX_EXIT_FLUSH_NANOS - (System.nanoTime() - exitObserved));
+                }
+                if (waitNanos > 0) {
+                    java.util.concurrent.TimeUnit.NANOSECONDS.sleep(waitNanos);
                 }
             }
             if (schedulerContext.cancellationToken().isCancellationRequested()) {
                 if (handle != null) {
-                    runner.cancel(handle);
+                    cleanupStarted = System.nanoTime();
+                    runner.cancel(handle, Duration.ofNanos(SANDBOX_CLEANUP_NANOS));
                 }
                 String status = schedulerContext.cancellationToken().isBudgetExceeded()
                         ? JudgeStatus.BUDGET_EXCEEDED.name()
@@ -439,19 +572,31 @@ public class JudgeService {
                 String message = schedulerContext.cancellationToken().isBudgetExceeded()
                         ? "Task runtime budget exceeded"
                         : "Cancellation requested";
-                rememberRunnerProgress(judgeId, eventSession.terminal(status, message));
+                eventSession.terminal(status, message);
             } else if (!terminal) {
-                rememberRunnerProgress(judgeId, eventSession.terminal(
+                eventSession.terminal(
                         JudgeStatus.SYSTEM_ERROR.name(),
                         "SandboxRunner finished without a terminal event"
-                ));
+                );
             }
         } catch (Exception e) {
-            cleanupStartedHandle(runner, handle, judgeId);
-            rememberRunnerProgress(judgeId, eventSession.terminal(
-                    JudgeStatus.SYSTEM_ERROR.name(),
-                    "SandboxRunner failed: " + e.getMessage()
-            ));
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            if (schedulerContext.remainingRuntime().isZero()) {
+                schedulerContext.cancellationToken().cancelForBudgetExceeded();
+            }
+            if (schedulerContext.cancellationToken().isBudgetExceeded()) {
+                eventSession.terminal(JudgeStatus.BUDGET_EXCEEDED.name(), "Task runtime budget exceeded");
+            } else {
+                eventSession.terminal(JudgeStatus.SYSTEM_ERROR.name(), "SandboxRunner failed: " + e.getMessage());
+            }
+        } finally {
+            if (startRequested && handle == null) {
+                schedulerContext.markCleanupPending();
+            }
+            cleanupStartedHandle(runner, handle, schedulerContext,
+                    cleanupStarted == 0 ? System.nanoTime() : cleanupStarted);
         }
     }
 
@@ -466,21 +611,21 @@ public class JudgeService {
         }
     }
 
-    private void cleanupStartedHandle(SandboxRunner runner, SandboxRunHandle handle, String judgeId) {
+    private void cleanupStartedHandle(
+            SandboxRunner runner, SandboxRunHandle handle, JudgeScheduler.TaskContext schedulerContext, long started) {
         if (handle == null) {
             return;
         }
         try {
-            runner.cleanupResidual(handle);
+            long remaining = SANDBOX_CLEANUP_NANOS - (System.nanoTime() - started);
+            if (remaining <= 0) {
+                throw new IllegalStateException("Sandbox cleanup deadline exceeded; stop is not confirmed");
+            }
+            runner.cleanupResidual(handle, Duration.ofNanos(remaining));
         } catch (Exception cleanupFailure) {
-            log.warn("Failed to cleanup sandbox run after judge task {} error: {}",
-                    judgeId, cleanupFailure.getMessage());
-        }
-    }
-
-    private void rememberRunnerProgress(String judgeId, JudgeProgress progress) {
-        if (progress != null) {
-            judgeStatusMap.put(judgeId, progress);
+            schedulerContext.markCleanupPending();
+            log.warn("Failed to cleanup sandbox run for judge task {}: {}",
+                    schedulerContext.judgeId(), cleanupFailure.getMessage());
         }
     }
 
@@ -674,7 +819,7 @@ public class JudgeService {
                 || spjResult.status() == ProcessResult.Status.OUTPUT_LIMIT_EXCEEDED
                 || spjResult.status() == ProcessResult.Status.SECURITY_VIOLATION
                 || spjResult.status() == ProcessResult.Status.SANDBOX_UNAVAILABLE) {
-            return new TestCaseResult(caseNumber, "System Error", userResult.executionTime(), userResult.memoryUsed() / 1024);
+            return new TestCaseResult(caseNumber, generatorFailureStatus(spjResult.status()), userResult.executionTime(), userResult.memoryUsed() / 1024);
         }
 
         int spjExitCode = spjResult.exitCode();
@@ -704,13 +849,13 @@ public class JudgeService {
         
         ProcessResult bfResult = runProcess(bfExecutable, inputFile, bfOutputFile, policy.caseTimeLimit().toMillis() * 5, memoryConfiguration.getDefaultLimit() * 2, policy);
         if (bfResult.status() != ProcessResult.Status.SUCCESS) {
-            return new TestCaseResult(caseNumber, "System Error", 0, 0);
+            return new TestCaseResult(caseNumber, generatorFailureStatus(bfResult.status()), 0, 0);
         }
 
         String userOutput = readUtf8FileLimited(userOutputFile, policy.maxOutputBytesPerCase());
         String bfOutput = readUtf8FileLimited(bfOutputFile, policy.maxOutputBytesPerCase());
 
-        if (outputsMatch(userOutput, bfOutput, request.getPrecision())) {
+        if (outputsMatch(userOutput, bfOutput, policy.comparison().precision())) {
             return new TestCaseResult(caseNumber, "AC", userResult.executionTime(), userResult.memoryUsed() / 1024);
         } else {
             return new TestCaseResult(caseNumber, "WA", userResult.executionTime(), userResult.memoryUsed() / 1024);
@@ -739,26 +884,61 @@ public class JudgeService {
         admission.requireTaskDirectory(workDir);
     }
 
-    private boolean outputsMatch(String userOutput, String bfOutput, double precision) {
-        String[] userLines = userOutput.trim().split("\\s+");
-        String[] bfLines = bfOutput.trim().split("\\s+");
+    private boolean outputsMatch(String userOutput, String bfOutput, String precision) {
+        BigDecimal tolerance = SandboxComparison.parseDecimal(precision);
+        String[] userLines = outputTokens(userOutput);
+        String[] bfLines = outputTokens(bfOutput);
+        for (String token : userLines) {
+            SandboxComparison.requireTokenBudget(token);
+        }
+        for (String token : bfLines) {
+            SandboxComparison.requireTokenBudget(token);
+        }
         if (userLines.length != bfLines.length) {
             return false;
         }
-        for (int i = 0; i < userLines.length; i++) {
-            try {
-                double userVal = Double.parseDouble(userLines[i]);
-                double bfVal = Double.parseDouble(bfLines[i]);
-                if (Math.abs(userVal - bfVal) > precision) {
+        for (int tokenIndex = 0; tokenIndex < userLines.length; tokenIndex++) {
+            String userToken = userLines[tokenIndex];
+            String expectedToken = bfLines[tokenIndex];
+            if (INTEGER_TOKEN.matcher(userToken).matches() && INTEGER_TOKEN.matcher(expectedToken).matches()) {
+                if (!integerTokensMatch(userToken, expectedToken)) {
                     return false;
                 }
-            } catch (NumberFormatException e) {
-                if (!userLines[i].equals(bfLines[i])) {
+                continue;
+            }
+            if (!SandboxComparison.isDecimalToken(userToken) || !SandboxComparison.isDecimalToken(expectedToken)) {
+                if (!userToken.equals(expectedToken)) {
                     return false;
                 }
+                continue;
+            }
+            BigDecimal userValue = SandboxComparison.parseDecimal(userToken);
+            BigDecimal expectedValue = SandboxComparison.parseDecimal(expectedToken);
+            if (userValue.subtract(expectedValue).abs().compareTo(tolerance) > 0) {
+                return false;
             }
         }
         return true;
+    }
+
+    private String[] outputTokens(String output) {
+        return OUTPUT_TOKEN.matcher(output).results().map(MatchResult::group).toArray(String[]::new);
+    }
+
+    private boolean integerTokensMatch(String userToken, String expectedToken) {
+        int userOffset = userToken.charAt(0) == '+' || userToken.charAt(0) == '-' ? 1 : 0;
+        int expectedOffset = expectedToken.charAt(0) == '+' || expectedToken.charAt(0) == '-' ? 1 : 0;
+        while (userOffset < userToken.length() - 1 && userToken.charAt(userOffset) == '0') {
+            userOffset++;
+        }
+        while (expectedOffset < expectedToken.length() - 1 && expectedToken.charAt(expectedOffset) == '0') {
+            expectedOffset++;
+        }
+        boolean userNegative = userToken.charAt(0) == '-' && userToken.charAt(userOffset) != '0';
+        boolean expectedNegative = expectedToken.charAt(0) == '-' && expectedToken.charAt(expectedOffset) != '0';
+        int digits = userToken.length() - userOffset;
+        return userNegative == expectedNegative && digits == expectedToken.length() - expectedOffset
+                && userToken.regionMatches(userOffset, expectedToken, expectedOffset, digits);
     }
 
     private Path compile(Path sourceFile, String executableName, ResolvedTaskPolicy policy) {
@@ -774,7 +954,6 @@ public class JudgeService {
                 ))
                 .workingDirectory(sourceFile.getParent())
                 .timeout(java.time.Duration.ofSeconds(60))
-                .killGrace(java.time.Duration.ofSeconds(5))
                 .memoryLimitBytes(memoryConfiguration.getDefaultLimit())
                 .maxOutputBytes(executionProperties.getMaxOutputBytesPerCase())
                 .maxErrorBytes(executionProperties.getMaxOutputBytesPerCase())
@@ -815,7 +994,6 @@ public class JudgeService {
                 .inputFile(inputFile)
                 .outputFile(outputFile)
                 .timeout(java.time.Duration.ofMillis(timeLimit))
-                .killGrace(java.time.Duration.ofSeconds(5))
                 .memoryLimitBytes(memoryLimit)
                 .maxOutputBytes(policy.maxOutputBytesPerCase())
                 .maxErrorBytes(policy.maxOutputBytesPerCase())

@@ -1,27 +1,40 @@
 package com.example.demo;
 
 import com.example.demo.config.ExecutionProperties;
+import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.UserSession;
 import com.example.demo.service.AccessCodeService;
+import com.example.demo.service.JudgeService;
+import com.example.demo.service.TaskStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -30,6 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = "judge.auth.access-code=task02-test-only-access-material")
 @AutoConfigureMockMvc
+@Import(WebSocketSendHttpTest.IsolatedTaskStore.class)
 class JudgeBaselineTest {
 
     private static final Duration STATUS_TIMEOUT = Duration.ofSeconds(30);
@@ -89,6 +103,12 @@ class JudgeBaselineTest {
 
     @Autowired
     private ExecutionProperties executionProperties;
+
+    @Autowired
+    private JudgeService judgeService;
+
+    @Autowired
+    private TaskStore taskStore;
 
     private String sessionId;
 
@@ -204,6 +224,23 @@ class JudgeBaselineTest {
     }
 
     @Test
+    void generatorCaptureIoFailureIsSystemErrorInsteadOfOutputLimitExceeded() throws Exception {
+        String judgeId = createJudgeTask(request(1, ECHO_SOLUTION, FIXED_GENERATOR, ECHO_SOLUTION));
+        Files.createDirectory(taskStore.taskDirectory(judgeId).resolve("1.in"));
+
+        startJudgeTask(judgeId);
+
+        JsonNode statusJson = awaitTerminalStatus(judgeId);
+        assertThat(statusJson.path("status").asText()).isEqualTo("System Error");
+        assertThat(taskStore.find(judgeId).orElseThrow().getStatus()).isEqualTo(JudgeStatus.SYSTEM_ERROR);
+        assertThat(statusJson.path("summary").path("completedCases").asInt()).isEqualTo(1);
+        assertThat(statusJson.path("summary").path("systemError").asInt()).isEqualTo(1);
+        assertThat(statusJson.path("summary").path("outputLimitExceeded").asInt()).isZero();
+        assertThat(statusJson.path("summary").path("ac").asInt()).isZero();
+        assertThat(statusJson.path("results").get(0).path("status").asText()).isEqualTo("System Error");
+    }
+
+    @Test
     void generatorOutputLimitIsReportedAsOutputLimitExceededInsteadOfSystemError() throws Exception {
         long outputBytes = Math.addExact(executionProperties.getMaxOutputBytesPerCase(), 1);
         String judgeId = createJudgeTask(request(1, ECHO_SOLUTION, sizedGenerator(outputBytes), ECHO_SOLUTION));
@@ -232,6 +269,26 @@ class JudgeBaselineTest {
     }
 
     @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void judgeProgramOutputLimitIsReportedAsOutputLimitExceededInsteadOfSystemError(boolean specialJudge) throws Exception {
+        long outputBytes = Math.addExact(executionProperties.getMaxOutputBytesPerCase(), 1);
+        Map<String, Object> taskRequest = request(1, ECHO_SOLUTION, FIXED_GENERATOR, ECHO_SOLUTION);
+        taskRequest.put("useSpecialJudge", specialJudge);
+        taskRequest.put(specialJudge ? "specialJudgeCode" : "bruteForceCode", sizedGenerator(outputBytes));
+        String judgeId = createJudgeTask(taskRequest);
+
+        startJudgeTask(judgeId);
+
+        JsonNode statusJson = awaitTerminalStatus(judgeId);
+        assertThat(statusJson.path("status").asText()).isEqualTo("OUTPUT_LIMIT_EXCEEDED");
+        assertThat(statusJson.path("summary").path("completedCases").asInt()).isEqualTo(1);
+        assertThat(statusJson.path("summary").path("outputLimitExceeded").asInt()).isEqualTo(1);
+        assertThat(statusJson.path("summary").path("systemError").asInt()).isZero();
+        assertThat(statusJson.path("summary").path("ac").asInt()).isZero();
+        assertThat(statusJson.path("results").get(0).path("status").asText()).isEqualTo("OUTPUT_LIMIT_EXCEEDED");
+    }
+
+    @ParameterizedTest
     @ValueSource(longs = {-1, 0})
     void generatorOutputAtOrBelowConfiguredLimitIsAccepted(long limitOffset) throws Exception {
         long outputBytes = Math.addExact(executionProperties.getMaxOutputBytesPerCase(), limitOffset);
@@ -245,6 +302,121 @@ class JudgeBaselineTest {
         assertThat(statusJson.path("summary").path("outputLimitExceeded").asInt()).isZero();
         assertThat(statusJson.path("summary").path("systemError").asInt()).isZero();
         assertThat(statusJson.path("results").get(0).path("status").asText()).isEqualTo("AC");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("ordinaryComparisonVectors")
+    void ordinaryComparisonFollowsApprovedIntegerAndLiteralRules(String vectorId, String userOutput,
+                                                                 String expectedOutput, String precision,
+                                                                 boolean expectedMatch, String expectedError) {
+        if (expectedError != null) {
+            assertThat(expectedError).isEqualTo("System Error");
+            assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(judgeService, "outputsMatch",
+                    userOutput, expectedOutput, precision)).as(vectorId).isInstanceOf(IllegalArgumentException.class);
+            return;
+        }
+        Boolean actual = ReflectionTestUtils.invokeMethod(judgeService, "outputsMatch", userOutput, expectedOutput,
+                precision);
+
+        assertThat(actual).as(vectorId).isEqualTo(expectedMatch);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("ordinaryComparisonRegressionCases")
+    void confirmedFalseAcCasesProduceRealWrongAnswerResults(String vectorId, String userOutput,
+                                                           String expectedOutput, String precision) throws Exception {
+        String userCode = "#include <iostream>\nint main() { std::cout << \"%s\\n\"; }\n".formatted(userOutput);
+        String oracleCode = "#include <iostream>\nint main() { std::cout << \"%s\\n\"; }\n".formatted(expectedOutput);
+        Map<String, Object> body = request(1, userCode, FIXED_GENERATOR, oracleCode);
+        body.put("precision", precision);
+        String judgeId = createJudgeTask(body);
+
+        startJudgeTask(judgeId);
+
+        JsonNode statusJson = awaitTerminalStatus(judgeId);
+        assertThat(statusJson.path("status").asText()).as(vectorId).isEqualTo("WA");
+        assertThat(statusJson.path("results").get(0).path("status").asText()).isEqualTo("WA");
+        assertThat(statusJson.path("summary").path("completedCases").asInt()).isEqualTo(1);
+        assertThat(statusJson.path("summary").path("wa").asInt()).isEqualTo(1);
+        assertThat(statusJson.path("summary").path("ac").asInt()).isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid-user", "invalid-oracle", "long-token", "large-exponent"})
+    void realComparisonInputErrorsAreSystemErrorsRatherThanAcceptedOrWrongAnswer(String shape) throws Exception {
+        String invalidUtf8 = "#include <cstdio>\nint main(){std::putchar(255);}\n";
+        String userCode = switch (shape) {
+            case "invalid-user" -> invalidUtf8;
+            case "long-token" -> "#include <iostream>\n#include <string>\nint main(){std::cout << std::string(4097, 'x');}\n";
+            case "large-exponent" -> "#include <iostream>\nint main(){std::cout << \"1e1001\";}\n";
+            default -> ECHO_SOLUTION;
+        };
+        String oracleCode = shape.equals("invalid-oracle") ? invalidUtf8 : ECHO_SOLUTION;
+        String judgeId = createJudgeTask(request(1, userCode, FIXED_GENERATOR, oracleCode));
+        startJudgeTask(judgeId);
+        JsonNode snapshot = awaitTerminalStatus(judgeId);
+        assertThat(snapshot.path("status").asText()).isEqualTo("System Error");
+        assertThat(taskStore.find(judgeId).orElseThrow().getStatus()).isEqualTo(JudgeStatus.SYSTEM_ERROR);
+        assertThat(snapshot.path("results").get(0).path("status").asText()).isEqualTo("System Error");
+        assertThat(snapshot.path("summary").path("completedCases").asInt()).isEqualTo(1);
+        assertThat(snapshot.path("summary").path("systemError").asInt()).isEqualTo(1);
+        assertThat(snapshot.path("summary").path("ac").asInt()).isZero();
+        assertThat(snapshot.path("summary").path("wa").asInt()).isZero();
+    }
+
+    @Test
+    void aRealNulOutputCannotBeIgnoredAsWhitespaceAndReportedAccepted() throws Exception {
+        String userCode = "#include <iostream>\nint main() { std::cout << char(0) << 7 << std::endl; }\n";
+        String judgeId = createJudgeTask(request(1, userCode, FIXED_GENERATOR, ECHO_SOLUTION));
+        startJudgeTask(judgeId);
+
+        JsonNode snapshot = awaitTerminalStatus(judgeId);
+        assertThat(snapshot.path("status").asText()).isEqualTo("WA");
+        assertThat(snapshot.path("results").get(0).path("status").asText()).isEqualTo("WA");
+        assertThat(snapshot.path("summary").path("completedCases").asInt()).isEqualTo(1);
+        assertThat(snapshot.path("summary").path("wa").asInt()).isEqualTo(1);
+        assertThat(snapshot.path("summary").path("ac").asInt()).isZero();
+        MvcResult details = mockMvc.perform(get("/details/{judgeId}/{caseNumber}", judgeId, 1)
+                        .header("X-Session-ID", sessionId)
+                        .header("User-Agent", TEST_USER_AGENT)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode caseDetails = objectMapper.readTree(details.getResponse().getContentAsString());
+        assertThat(caseDetails.path("userOutput").asText()).isEqualTo("\u00007\n");
+        assertThat(caseDetails.path("correctOutput").asText()).isEqualTo("7\n");
+    }
+
+    static List<Arguments> ordinaryComparisonVectors() throws IOException {
+        List<Arguments> arguments = new ArrayList<>();
+        for (JsonNode vector : loadComparisonVectors()) {
+            arguments.add(Arguments.of(vector.path("id").asText(), vector.path("userOutput").asText(),
+                    vector.path("expectedOutput").asText(), vector.path("precision").asText(),
+                    vector.path("matches").asBoolean(), vector.path("error").asText(null)));
+        }
+        return arguments;
+    }
+
+    static List<Arguments> ordinaryComparisonRegressionCases() throws IOException {
+        List<Arguments> arguments = new ArrayList<>();
+        for (JsonNode vector : loadComparisonVectors()) {
+            if (List.of("large-adjacent-zero", "nan-versus-number", "decimal-large-adjacent-zero",
+                    "finite-overflow-zero", "finite-underflow-zero").contains(vector.path("id").asText())) {
+                arguments.add(Arguments.of(vector.path("id").asText(), vector.path("userOutput").asText(),
+                        vector.path("expectedOutput").asText(), vector.path("precision").asText()));
+            }
+        }
+        return arguments;
+    }
+
+    private static JsonNode loadComparisonVectors() throws IOException {
+        try (InputStream vectors = JudgeBaselineTest.class
+                .getResourceAsStream("/comparison/ordinary-output-vectors.json")) {
+            if (vectors == null) {
+                throw new IOException("Ordinary comparison vectors are missing");
+            }
+            return new ObjectMapper().readTree(vectors);
+        }
     }
 
     private String sizedGenerator(long outputBytes) {

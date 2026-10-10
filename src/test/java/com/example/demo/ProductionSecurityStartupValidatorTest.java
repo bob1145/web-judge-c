@@ -10,17 +10,21 @@ import com.example.demo.config.WorkerProperties;
 import com.example.demo.dto.SandboxCapabilities;
 import com.example.demo.service.sandbox.SandboxRunner;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.NestedExceptionUtils;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,7 +83,7 @@ class ProductionSecurityStartupValidatorTest {
                 .hasMessageContaining("sandbox is disabled")
                 .hasMessageContaining("provider must be windows-container")
                 .hasMessageContaining("isolation must be hyper-v")
-                .hasMessageContaining("control-plane isolation");
+                .hasMessageContaining("DISABLED_UNVERIFIED");
     }
 
     @Test
@@ -335,115 +339,109 @@ class ProductionSecurityStartupValidatorTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"true, true", "true, false", "false, true", "false, false"})
-    void windowsProdRequiresActualIsolationRegardlessOfConfigurationFlags(boolean required, boolean passed) {
-        SandboxProperties properties = validWindowsProperties();
+    @CsvSource({
+            "WINDOWS_CONTAINER, windows-prod, true, true", "WINDOWS_CONTAINER, windows-prod, true, false",
+            "WINDOWS_CONTAINER, windows-prod, false, true", "WINDOWS_CONTAINER, windows-prod, false, false",
+            "REMOTE_WORKER, worker-prod, true, true", "REMOTE_WORKER, worker-prod, true, false",
+            "REMOTE_WORKER, worker-prod, false, true", "REMOTE_WORKER, worker-prod, false, false",
+            "WINDOWS_CONTAINER, linux-prod, false, true", "REMOTE_WORKER, linux-prod, false, true",
+            "WINDOWS_CONTAINER, custom-prod, false, true", "REMOTE_WORKER, custom-prod, false, true",
+            "WINDOWS_CONTAINER, , false, true", "REMOTE_WORKER, , false, true"
+    })
+    void unverifiedProvidersCannotBeEnabledByProfileFlagsOrCapabilityClaims(
+            SandboxProperties.Provider provider, String profile, boolean required, boolean passed
+    ) {
+        SandboxProperties properties = unverifiedProperties(provider);
         properties.setCapabilityProbeRequired(required);
         properties.setCapabilityProbePassed(passed);
         SandboxRunner runner = mock(SandboxRunner.class);
-        when(runner.probe()).thenReturn(isolatedWindowsStartupContract().controlPlaneIsolated(false).build());
+        when(runner.probe()).thenReturn(isolatedStartupContract()
+                .provider(provider == SandboxProperties.Provider.WINDOWS_CONTAINER ? "windows-container" : "remote-worker")
+                .isolation(provider == SandboxProperties.Provider.WINDOWS_CONTAINER ? "hyperv" : "remote")
+                .build());
 
-        assertThatThrownBy(() -> windowsValidator(properties, runner).validateNow())
+        assertThatThrownBy(() -> validator(profile, "changed-secret", "https://safe.example.com", true, true,
+                properties, 1_048_576L, 1_048_576L, runner).validateNow())
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("windows-container control-plane isolation");
-        verify(runner).probe();
+                .hasMessageContaining("DISABLED_UNVERIFIED")
+                .hasMessageNotContaining("test-only-disabled-worker-token");
+        verifyNoInteractions(runner);
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"provider", "isolation", "productionSafe", "controlPlaneIsolated",
-            "networkDisabled", "nonRoot", "resourceLimits", "securityProfile"})
-    void windowsProdRejectsContradictoryCapabilityResults(String field) {
-        SandboxCapabilities.Builder capabilities = isolatedWindowsStartupContract();
-        switch (field) {
-            case "provider" -> capabilities.provider("linux-container");
-            case "isolation" -> capabilities.isolation("process");
-            case "productionSafe" -> capabilities.productionSafe(false);
-            case "controlPlaneIsolated" -> capabilities.controlPlaneIsolated(false);
-            case "networkDisabled" -> capabilities.networkDisabled(false);
-            case "nonRoot" -> capabilities.nonRoot(false);
-            case "resourceLimits" -> capabilities.resourceLimits(false);
-            case "securityProfile" -> capabilities.securityProfile(" ");
-            default -> throw new IllegalArgumentException(field);
-        }
-        SandboxRunner runner = mock(SandboxRunner.class);
-        when(runner.probe()).thenReturn(capabilities.build());
-
-        assertThatThrownBy(() -> windowsValidator(validWindowsProperties(), runner).validateNow())
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("windows-container control-plane isolation");
-        verify(runner).probe();
-    }
-
-    @Test
-    void windowsProdRejectsNullCapabilityResult() {
+    @ValueSource(strings = {"windows-prod", "worker-prod"})
+    void disabledProductionProfilesCannotSelectAnApprovedProviderInstead(String profile) {
         SandboxRunner runner = mock(SandboxRunner.class);
 
-        assertThatThrownBy(() -> windowsValidator(validWindowsProperties(), runner).validateNow())
+        assertThatThrownBy(() -> validator(profile, "changed-secret", "https://safe.example.com", true, true,
+                validLinuxProperties(), 1_048_576L, 1_048_576L, runner).validateNow())
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("windows-container control-plane isolation capability probe is unavailable");
-        verify(runner).probe();
-    }
-
-    @Test
-    void windowsProdSanitizesCapabilityProbeFailure(CapturedOutput output) {
-        SandboxRunner runner = mock(SandboxRunner.class);
-        String secret = "/private/runner/token=do-not-leak";
-        when(runner.probe()).thenThrow(new IllegalStateException(secret));
-
-        assertThatThrownBy(() -> windowsValidator(validWindowsProperties(), runner).validateNow())
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("windows-container control-plane isolation capability probe failed")
-                .hasMessageNotContaining(secret)
-                .hasNoCause();
-        assertThat(output.getAll()).doesNotContain(secret);
+                .hasMessageContaining("DISABLED_UNVERIFIED");
+        verifyNoInteractions(runner);
     }
 
     @ParameterizedTest
-    @CsvSource({"true, true", "true, false", "false, true", "false, false"})
-    void windowsProdAcceptsConsistentActualCapabilityContractNotManualFlags(boolean required, boolean passed) {
-        SandboxProperties properties = validWindowsProperties();
-        properties.setCapabilityProbeRequired(required);
-        properties.setCapabilityProbePassed(passed);
+    @CsvSource({"windows-prod, WINDOWS_CONTAINER", "worker-prod, REMOTE_WORKER"})
+    void springStartupRejectsUnverifiedProviderWithoutProbing(String profile, SandboxProperties.Provider provider) {
         SandboxRunner runner = mock(SandboxRunner.class);
-        when(runner.probe()).thenReturn(isolatedWindowsStartupContract().build());
 
-        assertThatCode(() -> windowsValidator(properties, runner).validateNow()).doesNotThrowAnyException();
-        verify(runner).probe();
+        containerContextRunner(profile, unverifiedProperties(provider))
+                .withBean(SandboxRunner.class, () -> runner).run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(NestedExceptionUtils.getMostSpecificCause(context.getStartupFailure()))
+                            .isInstanceOf(IllegalStateException.class)
+                            .hasMessageContaining("DISABLED_UNVERIFIED");
+                    verifyNoInteractions(runner);
+                });
     }
 
-    @Test
-    void windowsSpringStartupRejectsMissingRunnerDespiteManualApproval() {
-        containerContextRunner("windows-prod", validWindowsProperties()).run(context -> {
+    @ParameterizedTest
+    @CsvSource({"windows-prod, WINDOWS_CONTAINER", "worker-prod, REMOTE_WORKER"})
+    void springStartupRejectsUnverifiedProviderWithoutRunner(String profile, SandboxProperties.Provider provider) {
+        containerContextRunner(profile, unverifiedProperties(provider)).run(context -> {
             assertThat(context).hasFailed();
-            assertThat(NestedExceptionUtils.getMostSpecificCause(context.getStartupFailure())).hasMessage(
-                    "Insecure windows-prod configuration: windows-container control-plane isolation capability probe is unavailable");
+            assertThat(NestedExceptionUtils.getMostSpecificCause(context.getStartupFailure()))
+                    .hasMessageContaining("DISABLED_UNVERIFIED");
         });
     }
 
-    @Test
-    void windowsSpringStartupUsesInjectedRunnerCapabilities() {
+    @ParameterizedTest
+    @ValueSource(strings = {"WINDOWS_CONTAINER", "REMOTE_WORKER"})
+    void trustedLocalRetainsDevelopmentRunnerAccessWithoutProductionApproval(String providerName) {
         SandboxRunner runner = mock(SandboxRunner.class);
-        when(runner.probe()).thenReturn(isolatedWindowsStartupContract().controlPlaneIsolated(false).build());
 
-        containerContextRunner("windows-prod", validWindowsProperties())
-                .withBean(SandboxRunner.class, () -> runner).run(context -> {
-                    assertThat(context).hasFailed();
-                    assertThat(NestedExceptionUtils.getMostSpecificCause(context.getStartupFailure())).hasMessage(
-                            "Insecure windows-prod configuration: windows-container control-plane isolation and production safety must be verified by the runner");
-                    verify(runner).probe();
-                });
+        assertThatCode(() -> validator("trusted-local", "explicit-local-test-material", "*", false, false,
+                unverifiedProperties(SandboxProperties.Provider.valueOf(providerName)),
+                1_048_576L, 1_048_576L, runner).validateNow()).doesNotThrowAnyException();
+        verifyNoInteractions(runner);
     }
 
-    @Test
-    void windowsSpringStartupAcceptsIsolatedCapabilityContractFixture() {
-        SandboxRunner runner = mock(SandboxRunner.class);
-        when(runner.probe()).thenReturn(isolatedWindowsStartupContract().build());
+    @ParameterizedTest
+    @ValueSource(strings = {"windows-prod", "worker-prod"})
+    void actualApplicationRejectsUnverifiedProviderAtStartup(String profile, @TempDir Path directory) {
+        SpringApplication application = new SpringApplication(Demo18Application.class);
+        application.setRegisterShutdownHook(false);
 
-        containerContextRunner("windows-prod", validWindowsProperties())
-                .withBean(SandboxRunner.class, () -> runner).run(context -> {
-                    assertThat(context).hasNotFailed();
-                    verify(runner).probe();
-                });
+        assertThatThrownBy(() -> {
+            try (ConfigurableApplicationContext context = application.run(
+                    "--spring.profiles.active=" + profile,
+                    "--server.address=127.0.0.1", "--server.port=0",
+                    "--logging.file.name=" + directory.resolve("startup.log"),
+                    "--judge.sandbox.base-directory=" + directory.resolve("sandbox"),
+                    "--judge.auth.account-auth-enabled=true",
+                    "--judge.auth.accounts[0].user-id=disabled-provider-test-user",
+                    "--judge.auth.accounts[0].username=disabled-provider-test-user",
+                    "--judge.auth.accounts[0].password-hash=" + passwordEncoder.encode("TestOnly-Provider-Password-57"),
+                    "--judge.sandbox.production.capability-probe-required=false",
+                    "--judge.sandbox.production.capability-probe-passed=true",
+                    "--judge.worker.endpoint=https://127.0.0.1:1",
+                    "--judge.worker.auth-token=test-only-disabled-worker-token")) {
+                assertThat(context).isNotNull();
+            }
+        }).satisfies(failure -> assertThat(NestedExceptionUtils.getMostSpecificCause(failure))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("DISABLED_UNVERIFIED")
+                .hasMessageNotContaining("test-only-disabled-worker-token"));
     }
 
     private ApplicationContextRunner linuxContextRunner() {
@@ -474,18 +472,20 @@ class ProductionSecurityStartupValidatorTest {
                 properties, 1_048_576L, 1_048_576L, runner);
     }
 
-    private ProductionSecurityStartupValidator windowsValidator(SandboxProperties properties, SandboxRunner runner) {
-        return validator("windows-prod", "changed-secret", "https://safe.example.com", true, true,
-                properties, 1_048_576L, 1_048_576L, runner);
-    }
-
     private SandboxProperties validWindowsProperties() {
         return sandboxProperties(SandboxProperties.Provider.WINDOWS_CONTAINER,
                 SandboxProperties.Isolation.HYPER_V, "hyper-v;job-object", true);
     }
 
-    private SandboxCapabilities.Builder isolatedWindowsStartupContract() {
-        return isolatedStartupContract().provider("windows-container").isolation("hyperv");
+    private SandboxProperties unverifiedProperties(SandboxProperties.Provider provider) {
+        if (provider == SandboxProperties.Provider.WINDOWS_CONTAINER) {
+            return validWindowsProperties();
+        }
+        SandboxProperties properties = sandboxProperties(provider, SandboxProperties.Isolation.REMOTE,
+                "worker-policy", true);
+        properties.getWorker().setEndpoint("https://worker.example.com");
+        properties.getWorker().setAuthToken("test-only-disabled-worker-token");
+        return properties;
     }
 
     private SandboxProperties validLinuxProperties() {

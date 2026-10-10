@@ -2,6 +2,7 @@ package com.example.demo.interceptor;
 
 import com.example.demo.security.SessionCredentialResolver;
 import com.example.demo.security.SessionAuditId;
+import com.example.demo.security.ClientAddressResolver;
 import com.example.demo.service.AccessCodeService;
 import com.example.demo.service.SessionManagementService;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
     
     private final AccessCodeService accessCodeService;
     private final SessionManagementService sessionManagementService;
+    private final ClientAddressResolver clientAddressResolver;
     
     
     /**
@@ -88,13 +90,13 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
             return false;
         }
         
-        // 可选：进行额外的安全检查（IP和User-Agent匹配）
         String clientIp = getClientIpAddress(request);
         String userAgent = request.getHeader("User-Agent");
         
         if (!sessionManagementService.validateSessionWithSecurity(sessionId, clientIp, userAgent)) {
-            log.warn("会话安全验证失败: {}, IP: {}", SessionAuditId.from(sessionId), clientIp);
-            // 这里只记录警告，不强制拒绝访问，因为某些网络环境下IP可能会变化
+            log.warn("会话安全验证失败: {}", SessionAuditId.from(sessionId));
+            redirectToAuth(request, response);
+            return false;
         }
         
         log.debug("认证通过，允许访问: {}", requestPath);
@@ -173,16 +175,6 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
      * 获取客户端真实IP地址
      */
     private String getClientIpAddress(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty() && !"unknown".equalsIgnoreCase(xForwardedFor)) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-        
-        String xRealIp = request.getHeader("X-Real-IP");
-        if (xRealIp != null && !xRealIp.isEmpty() && !"unknown".equalsIgnoreCase(xRealIp)) {
-            return xRealIp;
-        }
-        
-        return request.getRemoteAddr();
+        return clientAddressResolver.resolve(request);
     }
 }

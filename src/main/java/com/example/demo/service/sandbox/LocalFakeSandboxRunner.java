@@ -1,6 +1,7 @@
 package com.example.demo.service.sandbox;
 
 import com.example.demo.dto.SandboxCapabilities;
+import com.example.demo.dto.SandboxExecutionManifest;
 import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.dto.SandboxTaskEvent;
 import com.example.demo.dto.SandboxTaskSpec;
@@ -41,6 +42,8 @@ public class LocalFakeSandboxRunner implements SandboxRunner {
                 .provider("local-fake")
                 .startedAt(Instant.now())
                 .eventCursor("0")
+                .protocolVersion(SandboxExecutionManifest.VERSION)
+                .attemptId(UUID.randomUUID().toString())
                 .build();
     }
 
@@ -49,12 +52,31 @@ public class LocalFakeSandboxRunner implements SandboxRunner {
         if (eventsPolledByRunId.putIfAbsent(handle.runId(), true) != null) {
             return List.of();
         }
-        return scriptedEvents;
+        List<SandboxTaskEvent> events = new ArrayList<>();
+        for (int index = 0; index < scriptedEvents.size(); index++) {
+            SandboxTaskEvent event = scriptedEvents.get(index);
+            events.add(new SandboxTaskEvent(event.judgeId(), event.type(), event.occurredAt(), event.caseNumber(),
+                    event.status(), event.message(), event.result(), event.summary(),
+                    event.protocolVersion() == null ? handle.protocolVersion() : event.protocolVersion(),
+                    event.attemptId() == null ? handle.attemptId() : event.attemptId(),
+                    event.sequence() == null ? index + 1L : event.sequence()));
+        }
+        return List.copyOf(events);
     }
 
     @Override
     public void cancel(SandboxRunHandle handle) {
         eventsPolledByRunId.put(handle.runId(), true);
+    }
+
+    @Override
+    public ExecutionState executionState(SandboxRunHandle handle, java.time.Duration timeout) {
+        return eventsPolledByRunId.containsKey(handle.runId()) ? ExecutionState.EXITED : ExecutionState.ACTIVE;
+    }
+
+    @Override
+    public void cleanupResidual(SandboxRunHandle handle) {
+        cancel(handle);
     }
 
     public List<SandboxTaskSpec> startedSpecs() {

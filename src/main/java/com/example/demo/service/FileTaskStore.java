@@ -4,14 +4,21 @@ import com.example.demo.dto.JudgeProgress;
 import com.example.demo.dto.JudgeSummary;
 import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.dto.TestCaseResult;
+import com.example.demo.model.DailyQuotaCharge;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
+import com.example.demo.security.SessionAuditId;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryIteratorException;
@@ -24,12 +31,15 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -39,6 +49,7 @@ import java.util.stream.Stream;
 @Service
 public class FileTaskStore implements TaskStore {
 
+    private static final Logger log = LoggerFactory.getLogger(FileTaskStore.class);
     private static final Pattern SAFE_JUDGE_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");
 
     private final ObjectMapper objectMapper;
@@ -83,62 +94,151 @@ public class FileTaskStore implements TaskStore {
         }
         try (TaskLifecycleGuard.Lease admission = TaskLifecycleGuard.acquire(storageBase, false)) {
             synchronized (lock(judgeId)) {
-                Path directory = taskDirectory(judgeId);
-                if (!Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
-                    return false;
-                }
-
-                admission.requireTaskDirectory(directory);
-                List<Path> paths = safeDeletePaths(directory);
-                ensureNoManagedAttemptEvidence(directory);
-
-                IOException failure = null;
-                Path realStorageBase = storageBase.toRealPath();
-                Path realDirectory = directory.toRealPath();
-                for (Path path : paths) {
-                    try {
-                        validateSafeDeleteEntry(path, realStorageBase, realDirectory);
-                        Files.deleteIfExists(path);
-                    } catch (IOException ex) {
-                        if (failure == null) {
-                            failure = ex;
-                        } else {
-                            failure.addSuppressed(ex);
-                        }
-                    }
-                }
-                if (failure != null) {
-                    throw failure;
-                }
-                locks.remove(judgeId);
-                return true;
+                return deleteTaskDirectory(judgeId, admission, true);
             }
+        }
+    }
+
+    private boolean deleteTaskDirectory(String judgeId, TaskLifecycleGuard.Lease admission, boolean retainDailyCharge) throws IOException {
+        Path directory = taskDirectory(judgeId);
+        if (!Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
+            return false;
+        }
+        admission.requireTaskDirectory(directory);
+        List<Path> paths = safeDeletePaths(directory);
+        ensureNoManagedAttemptEvidence(directory);
+        if (retainDailyCharge) {
+            retainDeletedQuotaCharge(judgeId);
+        }
+        IOException failure = null;
+        Path realStorageBase = storageBase.toRealPath();
+        Path realDirectory = directory.toRealPath();
+        for (Path path : paths) {
+            try {
+                validateSafeDeleteEntry(path, realStorageBase, realDirectory);
+                Files.deleteIfExists(path);
+            } catch (IOException ex) {
+                if (failure == null) {
+                    failure = ex;
+                } else {
+                    failure.addSuppressed(ex);
+                }
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
+        locks.remove(judgeId);
+        return true;
+    }
+
+    @Override
+    public List<DailyQuotaCharge> findDeletedQuotaCharges(LocalDate date, ZoneId zone) throws IOException {
+        if (!Files.exists(storageBase, LinkOption.NOFOLLOW_LINKS)) {
+            return List.of();
+        }
+        try (TaskLifecycleGuard.Lease admission = TaskLifecycleGuard.acquire(storageBase, false);
+             DirectoryStream<Path> entries = Files.newDirectoryStream(storageBase, "quota-*.json")) {
+            List<DailyQuotaCharge> charges = new ArrayList<>();
+            for (Path path : entries) {
+                validateRegularFile(path);
+                DailyQuotaCharge charge = objectMapper.readValue(path.toFile(), DailyQuotaCharge.class);
+                validateQuotaCharge(path, charge);
+                LocalDate chargeDate = LocalDate.ofInstant(charge.createdAt(), zone);
+                if (chargeDate.isBefore(date)) {
+                    Files.delete(path);
+                } else if (chargeDate.equals(date)) {
+                    charges.add(charge);
+                }
+            }
+            return charges;
+        } catch (DirectoryIteratorException failure) {
+            throw failure.getCause();
+        }
+    }
+
+    private void retainDeletedQuotaCharge(String judgeId) throws IOException {
+        Optional<JudgeTask> storedTask = find(judgeId);
+        if (storedTask.isEmpty()) {
+            return;
+        }
+        JudgeTask task = storedTask.get();
+        requireStoredTaskDirectory(judgeId, task);
+        DailyQuotaCharge charge = DailyQuotaCharge.fromTask(task);
+        ZoneId zone = ZoneId.systemDefault();
+        if (charge.ownerFingerprint() == null || charge.createdAt() == null
+                || !LocalDate.ofInstant(charge.createdAt(), zone).equals(LocalDate.now(zone))) {
+            return;
+        }
+        Path path = quotaChargeFile(charge.chargeId());
+        validateQuotaCharge(path, charge);
+        if (Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
+            validateRegularFile(path);
+            DailyQuotaCharge existing = objectMapper.readValue(path.toFile(), DailyQuotaCharge.class);
+            if (!charge.equals(existing)) {
+                throw new IOException("Conflicting daily quota charge");
+            }
+            return;
+        }
+        writeJsonAtomically(path, charge);
+    }
+
+    private Path quotaChargeFile(String chargeId) {
+        String fingerprint = SessionAuditId.from(chargeId);
+        return storageBase.resolve("quota-" + fingerprint.substring("session-sha256:".length()) + ".json");
+    }
+
+    private void validateQuotaCharge(Path path, DailyQuotaCharge charge) throws IOException {
+        if (charge == null || charge.chargeId() == null || charge.chargeId().isBlank()
+                || charge.ownerFingerprint() == null || !charge.ownerFingerprint().matches("session-sha256:[0-9a-f]{64}")
+                || charge.createdAt() == null || charge.requestedCases() < 0 || charge.runtimeCases() < 0
+                || (charge.caseTimeLimitMillis() != null && charge.caseTimeLimitMillis() < 0)
+                || !path.equals(quotaChargeFile(charge.chargeId()))) {
+            throw new IOException("Invalid daily quota charge");
         }
     }
 
     @Override
     public JudgeTask create(JudgeTask task) throws IOException {
-        validateJudgeId(task.getJudgeId());
+        return create(task, () -> {});
+    }
+
+    @Override
+    public JudgeTask create(JudgeTask task, Runnable registerPendingTask) throws IOException {
+        Objects.requireNonNull(registerPendingTask, "Pending task registration is required");
+        String judgeId = task.getJudgeId();
+        validateJudgeId(judgeId);
         Path workDir = Path.of(task.getWorkDir()).toAbsolutePath().normalize();
         ensureInsideStorageBase(workDir);
-        if (!workDir.equals(taskDirectory(task.getJudgeId()))) {
+        if (!workDir.equals(taskDirectory(judgeId))) {
             throw new IllegalArgumentException("Task workDir must match its canonical task directory");
         }
         try (TaskLifecycleGuard.Lease admission = TaskLifecycleGuard.acquire(storageBase, true)) {
-            synchronized (lock(task.getJudgeId())) {
-                Files.createDirectories(workDir);
-                admission.requireTaskDirectory(workDir);
-                validateTaskDirectory(workDir);
-                JudgeTask normalized = copyForWrite(task);
-                if (normalized.getCreatedAt() == null) {
-                    normalized.setCreatedAt(Instant.now());
+            synchronized (lock(judgeId)) {
+                Files.createDirectory(workDir);
+                try {
+                    admission.requireTaskDirectory(workDir);
+                    validateTaskDirectory(workDir);
+                    JudgeTask normalized = copyForWrite(task);
+                    if (normalized.getCreatedAt() == null) {
+                        normalized.setCreatedAt(Instant.now());
+                    }
+                    normalized.setQuotaChargeId(UUID.randomUUID().toString());
+                    if (normalized.getStatus() == null) {
+                        normalized.setStatus(JudgeStatus.CREATED);
+                    }
+                    writeJsonAtomically(metadataFile(workDir), normalized);
+                    appendEvent(workDir, event(normalized.getJudgeId(), normalized.getStatus(), normalized.getMessage()));
+                    registerPendingTask.run();
+                    return normalized;
+                } catch (IOException | RuntimeException failure) {
+                    try {
+                        deleteTaskDirectory(judgeId, admission, false);
+                    } catch (IOException | RuntimeException rollbackFailure) {
+                        failure.addSuppressed(rollbackFailure);
+                    }
+                    throw failure;
                 }
-                if (normalized.getStatus() == null) {
-                    normalized.setStatus(JudgeStatus.CREATED);
-                }
-                writeJsonAtomically(metadataFile(workDir), normalized);
-                appendEvent(workDir, event(normalized.getJudgeId(), normalized.getStatus(), normalized.getMessage()));
-                return normalized;
             }
         }
     }
@@ -157,7 +257,10 @@ public class FileTaskStore implements TaskStore {
                 return Optional.empty();
             }
             validateRegularFile(metadata);
-            return Optional.of(objectMapper.readValue(metadata.toFile(), JudgeTask.class));
+            JudgeTask task = objectMapper.readValue(metadata.toFile(), JudgeTask.class);
+            requireStoredTaskDirectory(judgeId, task);
+            applyStoredTerminal(workDir, task);
+            return Optional.of(task);
         }
     }
 
@@ -170,21 +273,47 @@ public class FileTaskStore implements TaskStore {
                         .orElseThrow(() -> new IllegalArgumentException("Judge task not found: " + judgeId));
                 JudgeStatus current = task.getStatus();
                 validateTransition(current, status);
+                Path workDir = requireStoredTaskDirectory(judgeId, task);
+                admission.requireTaskDirectory(workDir);
+                if (current != null && current.isTerminal()) {
+                    return task;
+                }
 
+                if (status != null && status.isTerminal()) {
+                    JudgeProgress existing = findSummary(judgeId).orElse(new JudgeProgress(status.name(), message, 0));
+                    if (existing.getSummary() != null) {
+                        existing.getSummary().setStoppedReason(message);
+                    }
+                    JudgeProgress snapshot = finalizeTaskLocked(judgeId, task,
+                            new JudgeProgress(status.name(), message, existing.getProgress(),
+                                    existing.getResults(), existing.getSummary()), admission);
+                    applyFinal(task, snapshot);
+                    return task;
+                }
+
+                JudgeStatus previousStatus = task.getStatus();
+                String previousMessage = task.getMessage();
+                Instant previousStartedAt = task.getStartedAt();
                 task.setStatus(status);
                 task.setMessage(message);
                 Instant now = Instant.now();
                 if (task.getStartedAt() == null && startsExecution(status)) {
                     task.setStartedAt(now);
                 }
-                if (status.isTerminal()) {
-                    task.setFinishedAt(now);
-                }
-
-                Path workDir = requireStoredTaskDirectory(judgeId, task);
-                admission.requireTaskDirectory(workDir);
                 writeJsonAtomically(metadataFile(workDir), task);
-                appendEvent(workDir, event(judgeId, status, message));
+                try {
+                    appendEvent(workDir, event(judgeId, status, message));
+                } catch (IOException failure) {
+                    task.setStatus(previousStatus);
+                    task.setMessage(previousMessage);
+                    task.setStartedAt(previousStartedAt);
+                    try {
+                        writeJsonAtomically(metadataFile(workDir), task);
+                    } catch (IOException | RuntimeException rollbackFailure) {
+                        failure.addSuppressed(rollbackFailure);
+                    }
+                    throw failure;
+                }
                 return task;
             }
         }
@@ -203,6 +332,10 @@ public class FileTaskStore implements TaskStore {
             synchronized (lock(judgeId)) {
                 JudgeTask task = find(judgeId)
                         .orElseThrow(() -> new IllegalArgumentException("Judge task not found: " + judgeId));
+                if (task.getStatus() != null && task.getStatus().isTerminal()
+                        && !Objects.equals(task.getSandboxRunHandle(), handle)) {
+                    throw new IllegalStateException("Cannot replace a terminal task run handle");
+                }
                 task.setSandboxRunHandle(handle);
 
                 Path workDir = requireStoredTaskDirectory(judgeId, task);
@@ -222,8 +355,92 @@ public class FileTaskStore implements TaskStore {
                         .orElseThrow(() -> new IllegalArgumentException("Judge task not found: " + judgeId));
                 Path workDir = requireStoredTaskDirectory(judgeId, task);
                 admission.requireTaskDirectory(workDir);
-                writeJsonAtomically(summaryFile(workDir), summary);
+                if (JudgeStatus.fromProgressStatus(summary.getStatus()).map(JudgeStatus::isTerminal).orElse(false)) {
+                    finalizeTaskLocked(judgeId, task, summary, admission);
+                    return;
+                }
+                Optional<JudgeProgress> existing = findSummary(judgeId);
+                if ((task.getStatus() != null && task.getStatus().isTerminal())
+                        || existing.filter(this::isTerminal).isPresent()) {
+                    return;
+                }
+                JudgeProgress frozen = readProgress(objectMapper.valueToTree(summary));
+                JudgeSummary previous = existing.map(JudgeProgress::getSummary).orElse(null);
+                if (previous != null && (frozen.getSummary() == null
+                        || frozen.getSummary().getCompletedCases() < previous.getCompletedCases())) {
+                    return;
+                }
+                frozen.setAttemptId(task.getSandboxRunHandle() == null ? null : task.getSandboxRunHandle().attemptId());
+                frozen.setRevision(nextRevision(existing));
+                frozen.setFinalizedAt(null);
+                writeJsonAtomically(summaryFile(workDir), frozen);
             }
+        }
+    }
+
+    @Override
+    public JudgeProgress finalizeTask(String judgeId, JudgeProgress snapshot) throws IOException {
+        validateJudgeId(judgeId);
+        try (TaskLifecycleGuard.Lease admission = TaskLifecycleGuard.acquire(storageBase, false)) {
+            synchronized (lock(judgeId)) {
+                JudgeTask task = find(judgeId)
+                        .orElseThrow(() -> new IllegalArgumentException("Judge task not found: " + judgeId));
+                return finalizeTaskLocked(judgeId, task, snapshot, admission);
+            }
+        }
+    }
+
+    private JudgeProgress finalizeTaskLocked(String judgeId, JudgeTask task, JudgeProgress snapshot,
+                                             TaskLifecycleGuard.Lease admission) throws IOException {
+        Path workDir = requireStoredTaskDirectory(judgeId, task);
+        admission.requireTaskDirectory(workDir);
+        Optional<JudgeProgress> committed = readFinal(workDir, task);
+        if (committed.isPresent()) {
+            forceFinalDirectory(workDir);
+            repairFinalProjections(task, committed.get(), admission);
+            return committed.get();
+        }
+        Optional<JudgeProgress> existing = readProgress(summaryFile(workDir));
+        if (existing.filter(this::isTerminal).isPresent()) {
+            validateTerminalSnapshot(existing.get());
+            return existing.get();
+        }
+        if (snapshot == null) {
+            throw new IOException("Final judge snapshot is required");
+        }
+        JudgeProgress frozen = readProgress(objectMapper.valueToTree(snapshot));
+        JudgeSummary persisted = existing.map(JudgeProgress::getSummary).orElse(null);
+        if (frozen.getSummary() == null && persisted != null) {
+            frozen.setSummary(persisted);
+            frozen.getSummary().setStoppedReason(frozen.getMessage());
+        }
+        if (persisted != null && frozen.getSummary() != null
+                && frozen.getSummary().getCompletedCases() < persisted.getCompletedCases()) {
+            throw new IOException("Final snapshot cannot discard completed cases");
+        }
+        if (task.getStatus() != null && task.getStatus().isTerminal()) {
+            frozen.setStatus(task.getStatus().name());
+            frozen.setMessage(task.getMessage());
+        }
+        frozen.setAttemptId(task.getSandboxRunHandle() == null ? null : task.getSandboxRunHandle().attemptId());
+        frozen.setRevision(nextRevision(existing));
+        frozen.setFinalizedAt(Instant.now());
+        validateTerminalSnapshot(frozen);
+        writeJsonAtomically(finalFile(workDir), frozen);
+        admission.requireTaskDirectory(workDir);
+        repairFinalProjections(task, frozen, admission);
+        return frozen;
+    }
+
+    private long nextRevision(Optional<JudgeProgress> existing) throws IOException {
+        long previous = existing.map(JudgeProgress::getRevision).orElse(0L);
+        if (previous < 0) {
+            throw new IOException("Invalid judge progress revision");
+        }
+        try {
+            return Math.addExact(previous, 1L);
+        } catch (ArithmeticException exhausted) {
+            throw new IOException("Judge progress revision is exhausted", exhausted);
         }
     }
 
@@ -236,24 +453,124 @@ public class FileTaskStore implements TaskStore {
                 return Optional.empty();
             }
             validateTaskDirectory(workDir);
-            Path summaryPath = summaryFile(workDir);
-            if (!Files.exists(summaryPath, LinkOption.NOFOLLOW_LINKS)) {
-                return Optional.empty();
+            if (Files.exists(finalFile(workDir), LinkOption.NOFOLLOW_LINKS)) {
+                JudgeTask task = find(judgeId)
+                        .orElseThrow(() -> new IOException("Final snapshot has no trusted task metadata"));
+                return readFinal(workDir, task);
             }
-            validateRegularFile(summaryPath);
-
-            JsonNode json = objectMapper.readTree(summaryPath.toFile());
-            String status = json.path("status").asText();
-            String message = json.path("message").asText();
-            int progress = json.path("progress").asInt();
-            List<TestCaseResult> results = readResults(json.path("results"));
-            JudgeSummary judgeSummary = null;
-            JsonNode summaryNode = json.path("summary");
-            if (summaryNode != null && summaryNode.isObject()) {
-                judgeSummary = objectMapper.treeToValue(summaryNode, JudgeSummary.class);
-            }
-            return Optional.of(new JudgeProgress(status, message, progress, results, judgeSummary));
+            return readProgress(summaryFile(workDir));
         }
+    }
+
+    private Optional<JudgeProgress> readFinal(Path workDir, JudgeTask task) throws IOException {
+        Optional<JudgeProgress> snapshot = readProgress(finalFile(workDir));
+        if (snapshot.isPresent()) {
+            JudgeProgress progress = snapshot.get();
+            validateTerminalSnapshot(progress);
+            String attemptId = task.getSandboxRunHandle() == null ? null : task.getSandboxRunHandle().attemptId();
+            if (progress.getRevision() == null || progress.getRevision() < 1 || progress.getFinalizedAt() == null
+                    || !Objects.equals(attemptId, progress.getAttemptId())) {
+                throw new IOException("Invalid final snapshot identity or commit metadata");
+            }
+        }
+        return snapshot;
+    }
+
+    private void applyStoredTerminal(Path workDir, JudgeTask task) throws IOException {
+        Optional<JudgeProgress> snapshot = readFinal(workDir, task);
+        if (snapshot.isEmpty() && Files.isRegularFile(summaryFile(workDir), LinkOption.NOFOLLOW_LINKS)) {
+            snapshot = readProgress(summaryFile(workDir)).filter(this::isTerminal);
+            if (snapshot.isPresent()) {
+                validateTerminalSnapshot(snapshot.get());
+            }
+        }
+        snapshot.ifPresent(progress -> applyFinal(task, progress));
+    }
+
+    private Optional<JudgeProgress> readProgress(Path path) throws IOException {
+        if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
+            return Optional.empty();
+        }
+        validateRegularFile(path);
+        return Optional.of(readProgress(objectMapper.readTree(path.toFile())));
+    }
+
+    private JudgeProgress readProgress(JsonNode json) throws IOException {
+        if (json == null || !json.isObject()) {
+            throw new IOException("Invalid judge progress snapshot");
+        }
+        JudgeSummary summary = json.path("summary").isObject()
+                ? objectMapper.treeToValue(json.path("summary"), JudgeSummary.class) : null;
+        return new JudgeProgress(json.path("status").asText(), json.path("message").asText(null),
+                json.path("progress").asInt(), readResults(json.path("results")), summary,
+                json.path("attemptId").asText(null),
+                json.path("revision").isNull() || json.path("revision").isMissingNode()
+                        ? null : objectMapper.treeToValue(json.path("revision"), Long.class),
+                json.path("finalizedAt").isNull() || json.path("finalizedAt").isMissingNode()
+                        ? null : objectMapper.treeToValue(json.path("finalizedAt"), Instant.class));
+    }
+
+    private boolean isTerminal(JudgeProgress snapshot) {
+        return JudgeStatus.fromProgressStatus(snapshot.getStatus()).map(JudgeStatus::isTerminal).orElse(false);
+    }
+
+    private void validateTerminalSnapshot(JudgeProgress snapshot) throws IOException {
+        if (!isTerminal(snapshot) || snapshot.getProgress() < 0 || snapshot.getProgress() > 100) {
+            throw new IOException("Invalid final judge status or progress");
+        }
+        JudgeSummary summary = snapshot.getSummary();
+        if (summary == null) {
+            return;
+        }
+        long classified = (long) summary.getAc() + summary.getWa() + summary.getTle() + summary.getMle()
+                + summary.getRe() + summary.getSystemError() + summary.getOutputLimitExceeded();
+        if (summary.getTotalCases() < 0 || summary.getCompletedCases() < 0
+                || summary.getCompletedCases() > summary.getTotalCases() || summary.getAc() < 0
+                || summary.getWa() < 0 || summary.getTle() < 0 || summary.getMle() < 0 || summary.getRe() < 0
+                || summary.getSystemError() < 0 || summary.getOutputLimitExceeded() < 0
+                || classified != summary.getCompletedCases()
+                || (summary.getFirstFailedCase() != null && (summary.getFirstFailedCase() < 1
+                    || summary.getFirstFailedCase() > summary.getTotalCases()))) {
+            throw new IOException("Invalid final judge aggregate");
+        }
+    }
+
+    private void applyFinal(JudgeTask task, JudgeProgress snapshot) {
+        task.setStatus(JudgeStatus.fromProgressStatus(snapshot.getStatus()).orElseThrow());
+        task.setMessage(snapshot.getMessage());
+        if (snapshot.getFinalizedAt() != null) {
+            task.setFinishedAt(snapshot.getFinalizedAt());
+        }
+    }
+
+    private void repairFinalProjections(JudgeTask task, JudgeProgress snapshot,
+                                        TaskLifecycleGuard.Lease admission) throws IOException {
+        Path workDir = requireStoredTaskDirectory(task.getJudgeId(), task);
+        admission.requireTaskDirectory(workDir);
+        applyFinal(task, snapshot);
+        try {
+            if (!objectMapper.readValue(metadataFile(workDir).toFile(), JudgeTask.class).equals(task)) {
+                writeJsonAtomically(metadataFile(workDir), task);
+                appendEvent(workDir, event(task.getJudgeId(), task.getStatus(), task.getMessage()));
+            }
+            Path summaryPath = summaryFile(workDir);
+            boolean summaryMatches = false;
+            if (Files.exists(summaryPath, LinkOption.NOFOLLOW_LINKS)) {
+                validateRegularFile(summaryPath);
+                try {
+                    summaryMatches = objectMapper.valueToTree(snapshot).equals(objectMapper.readTree(summaryPath.toFile()));
+                } catch (JsonProcessingException invalidProjection) {
+                    log.warn("Repairing malformed summary projection for judgeId={}", task.getJudgeId());
+                }
+            }
+            if (!summaryMatches) {
+                writeJsonAtomically(summaryPath, snapshot);
+            }
+        } catch (IOException failure) {
+            log.warn("Final snapshot committed; projections require repair for judgeId={}: {}",
+                    task.getJudgeId(), failure.getMessage());
+        }
+        admission.requireTaskDirectory(workDir);
     }
 
     @Override
@@ -261,11 +578,36 @@ public class FileTaskStore implements TaskStore {
         List<JudgeTask> existingTasks;
         try (TaskLifecycleGuard.Lease admission = TaskLifecycleGuard.acquire(storageBase, true)) {
             existingTasks = loadAllTasks();
+            for (JudgeTask task : existingTasks) {
+                if (task.getStatus() == null) {
+                    throw new IOException("Task status is missing for judgeId: " + task.getJudgeId());
+                }
+                if (task.getSandboxRunHandle() == null) {
+                    Path directory = requireStoredTaskDirectory(task.getJudgeId(), task);
+                    try {
+                        ensureNoManagedAttemptEvidence(directory);
+                    } catch (IOException ex) {
+                        throw new IOException("Startup recovery requires trusted reconciliation for judgeId: "
+                                + task.getJudgeId(), ex);
+                    }
+                    if (!task.getStatus().isTerminal() || task.getStartedAt() != null) {
+                        throw new IOException("Execution stop is unconfirmed for judgeId: " + task.getJudgeId());
+                    }
+                }
+            }
+            for (JudgeTask task : existingTasks) {
+                Optional<JudgeProgress> snapshot = readFinal(taskDirectory(task.getJudgeId()), task);
+                if (snapshot.isPresent()) {
+                    forceFinalDirectory(taskDirectory(task.getJudgeId()));
+                    repairFinalProjections(task, snapshot.get(), admission);
+                }
+            }
         }
         List<JudgeTask> staleTasks = new ArrayList<>();
         for (JudgeTask task : existingTasks) {
-            if (task.getStatus() == JudgeStatus.RUNNING || task.getStatus() == JudgeStatus.QUEUED) {
-                staleTasks.add(updateStatus(task.getJudgeId(), JudgeStatus.STALE, "Task marked stale after service restart"));
+            if (!task.getStatus().isTerminal()) {
+                staleTasks.add(updateStatus(task.getJudgeId(), JudgeStatus.STALE,
+                        "RESTART_INTERRUPTED: Task marked stale after service restart"));
             }
         }
         return staleTasks;
@@ -275,6 +617,9 @@ public class FileTaskStore implements TaskStore {
         try {
             Files.move(tempFile, targetFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (AtomicMoveNotSupportedException ex) {
+            if (targetFile.getFileName().toString().equals("final.json")) {
+                throw ex;
+            }
             Files.move(tempFile, targetFile, StandardCopyOption.REPLACE_EXISTING);
         }
     }
@@ -284,12 +629,40 @@ public class FileTaskStore implements TaskStore {
         Path tempFile = target.getParent().resolve(target.getFileName() + "." + UUID.randomUUID() + ".tmp");
         boolean moved = false;
         try {
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), value);
+            boolean finalSnapshot = target.getFileName().toString().equals("final.json");
+            if (finalSnapshot) {
+                if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+                    validateRegularFile(target);
+                }
+                try (FileChannel channel = FileChannel.open(tempFile, StandardOpenOption.CREATE_NEW,
+                        StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS)) {
+                    ByteBuffer bytes = ByteBuffer.wrap(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(value));
+                    while (bytes.hasRemaining()) {
+                        channel.write(bytes);
+                    }
+                    channel.force(true);
+                }
+                validateTaskDirectory(target.getParent());
+                validateRegularFile(tempFile);
+            } else {
+                objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), value);
+            }
             moveAtomically(tempFile, target);
             moved = true;
+            if (finalSnapshot) {
+                forceFinalDirectory(target.getParent());
+            }
         } finally {
             if (!moved) {
                 Files.deleteIfExists(tempFile);
+            }
+        }
+    }
+
+    protected void forceFinalDirectory(Path directory) throws IOException {
+        if (Files.getFileStore(directory).supportsFileAttributeView("posix")) {
+            try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) {
+                channel.force(true);
             }
         }
     }
@@ -318,6 +691,18 @@ public class FileTaskStore implements TaskStore {
                     .peek(path -> {
                         try {
                             validateTaskDirectory(path);
+                            if (!Files.exists(metadataFile(path), LinkOption.NOFOLLOW_LINKS)) {
+                                if (Files.exists(finalFile(path), LinkOption.NOFOLLOW_LINKS)) {
+                                    throw new IOException("Orphan task directory with final snapshot requires trusted reconciliation: "
+                                            + path.getFileName());
+                                }
+                                try {
+                                    ensureNoManagedAttemptEvidence(path);
+                                } catch (IOException ex) {
+                                    throw new IOException("Orphan task directory requires trusted reconciliation: "
+                                            + path.getFileName(), ex);
+                                }
+                            }
                         } catch (IOException ex) {
                             throw new UnsafeTaskDirectoryException(ex);
                         }
@@ -335,7 +720,13 @@ public class FileTaskStore implements TaskStore {
                     .toList();
             List<JudgeTask> tasks = new ArrayList<>();
             for (Path metadata : metadataFiles) {
-                tasks.add(objectMapper.readValue(metadata.toFile(), JudgeTask.class));
+                JudgeTask task = objectMapper.readValue(metadata.toFile(), JudgeTask.class);
+                Path directory = requireStoredTaskDirectory(task.getJudgeId(), task);
+                if (!directory.equals(metadata.getParent())) {
+                    throw new IOException("Stored task identity does not match scanned directory");
+                }
+                applyStoredTerminal(directory, task);
+                tasks.add(task);
             }
             return tasks;
         } catch (UnsafeTaskDirectoryException ex) {
@@ -524,6 +915,10 @@ public class FileTaskStore implements TaskStore {
 
     private Path summaryFile(Path workDir) {
         return workDir.resolve("summary.json");
+    }
+
+    private Path finalFile(Path workDir) {
+        return workDir.resolve("final.json");
     }
 
     private Path eventsFile(Path workDir) {

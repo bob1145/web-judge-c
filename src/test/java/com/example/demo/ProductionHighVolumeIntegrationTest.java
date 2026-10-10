@@ -10,6 +10,7 @@ import com.example.demo.dto.JudgeProgress;
 import com.example.demo.dto.JudgeRequest;
 import com.example.demo.dto.JudgeSummary;
 import com.example.demo.dto.SandboxCapabilities;
+import com.example.demo.dto.SandboxExecutionManifest;
 import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.dto.SandboxTaskEvent;
 import com.example.demo.dto.SandboxTaskSpec;
@@ -376,6 +377,7 @@ class ProductionHighVolumeIntegrationTest {
         private int peakEventsPerPoll;
         private boolean sentHeaders;
         private boolean sentCompleted;
+        private long eventSequence;
 
         private StreamingHighVolumeSandboxRunner(int totalCases, int batchSize, Map<Integer, String> failures) {
             this.totalCases = totalCases;
@@ -406,6 +408,8 @@ class ProductionHighVolumeIntegrationTest {
                     .provider("streaming-high-volume-fake")
                     .startedAt(Instant.now())
                     .eventCursor("0")
+                    .protocolVersion(SandboxExecutionManifest.VERSION)
+                    .attemptId(UUID.randomUUID().toString())
                     .build();
         }
 
@@ -443,12 +447,21 @@ class ProductionHighVolumeIntegrationTest {
                 events.add(SandboxTaskEvent.of(handle.judgeId(), SandboxTaskEvent.Type.COMPLETED, "completed"));
             }
             peakEventsPerPoll = Math.max(peakEventsPerPoll, events.size());
-            return events;
+            return events.stream()
+                    .map(event -> new SandboxTaskEvent(event.judgeId(), event.type(), event.occurredAt(),
+                            event.caseNumber(), event.status(), event.message(), event.result(), event.summary(),
+                            handle.protocolVersion(), handle.attemptId(), ++eventSequence))
+                    .toList();
         }
 
         @Override
         public void cancel(SandboxRunHandle handle) {
             sentCompleted = true;
+        }
+
+        @Override
+        public void cleanupResidual(SandboxRunHandle handle) {
+            cancel(handle);
         }
 
         int batchSize() {

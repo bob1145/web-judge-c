@@ -137,6 +137,12 @@ public class JudgeController {
                     "accepted", true
             ));
             return ResponseEntity.ok("Judge task started");
+        } catch (JudgeScheduler.TaskAlreadyFinishedException e) {
+            return ResponseEntity.status(409).body(Map.of(
+                    "code", "JUDGE_TASK_FINISHED",
+                    "message", e.getMessage(),
+                    "status", e.getStatus().name()
+            ));
         } catch (JudgeScheduler.QueueFullException e) {
             return ResponseEntity.status(429).body(Map.of(
                     "code", "JUDGE_QUEUE_FULL",

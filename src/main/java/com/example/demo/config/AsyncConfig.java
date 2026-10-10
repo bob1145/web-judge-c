@@ -20,7 +20,7 @@ public class AsyncConfig {
         int taskConcurrency = Math.max(1, executionProperties.getMaxConcurrentTasks());
         executor.setCorePoolSize(taskConcurrency);
         executor.setMaxPoolSize(taskConcurrency);
-        executor.setQueueCapacity(0);
+        executor.setQueueCapacity(taskConcurrency);
         executor.setThreadNamePrefix("JudgeReq-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         executor.initialize();
@@ -30,7 +30,8 @@ public class AsyncConfig {
     @Bean(name = TEST_CASE_EXECUTOR)
     public ThreadPoolTaskExecutor testCaseExecutor(ExecutionProperties executionProperties) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        int caseConcurrency = Math.max(1, executionProperties.getMaxConcurrentCasesPerTask());
+        int caseConcurrency = Math.multiplyExact(Math.max(1, executionProperties.getMaxConcurrentTasks()),
+                Math.max(1, executionProperties.getMaxConcurrentCasesPerTask()));
         int queueCapacity = Math.max(1, executionProperties.getBatchSize());
         executor.setCorePoolSize(caseConcurrency);
         executor.setMaxPoolSize(caseConcurrency);

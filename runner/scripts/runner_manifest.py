@@ -6,9 +6,12 @@ from pathlib import Path
 
 
 PROTOCOL_VERSION = 2
+MAX_TOKEN_BYTES = 4096
+MAX_EXPONENT_MAGNITUDE = 1000
+DECIMAL_TOKEN = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
 CAPABILITIES = {
     "versions": [PROTOCOL_VERSION],
-    "comparisonModes": ["LEGACY_TEXT", "SPECIAL_JUDGE"],
+    "comparisonModes": ["LEGACY_TEXT", "DECIMAL_ABSOLUTE", "SPECIAL_JUDGE"],
     "features": ["relative-sources", "attempt-files", "explicit-limits", "retention"],
 }
 FIELDS = {
@@ -20,6 +23,30 @@ FIELDS = {
 
 class ManifestError(Exception):
     pass
+
+
+def validate_token(value: str) -> None:
+    if len(value) > MAX_TOKEN_BYTES or len(value.encode("utf-8")) > MAX_TOKEN_BYTES:
+        raise ValueError("comparison token exceeds 4096 UTF-8 bytes")
+    if not DECIMAL_TOKEN.fullmatch(value):
+        return
+    marker = max(value.find("e"), value.find("E"))
+    if marker < 0:
+        return
+    magnitude = 0
+    for digit in value[marker + 1:].lstrip("+-"):
+        magnitude = magnitude * 10 + ord(digit) - ord("0")
+        if magnitude > MAX_EXPONENT_MAGNITUDE:
+            raise ValueError("comparison exponent exceeds 1000")
+
+
+def parse_decimal(value: str) -> Decimal:
+    if not isinstance(value, str):
+        raise ValueError("precision must be a finite decimal string")
+    validate_token(value)
+    if not DECIMAL_TOKEN.fullmatch(value):
+        raise ValueError("precision must be a finite decimal string")
+    return Decimal(value)
 
 
 def require_fields(value, fields, name):
@@ -93,15 +120,13 @@ def validate_manifest(spec):
     comparison = spec["comparison"]
     require_fields(comparison, {"mode", "precision"}, "comparison")
     precision = comparison["precision"]
-    if not isinstance(precision, str) or not re.fullmatch(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?", precision):
-        raise ManifestError("precision must be a finite decimal string")
     try:
-        value = Decimal(precision)
+        value = parse_decimal(precision)
         if not value.is_finite() or value < 0:
             raise InvalidOperation()
-    except (InvalidOperation, ValueError):
+    except (InvalidOperation, ValueError, UnicodeError):
         raise ManifestError("precision must be finite and nonnegative") from None
-    if comparison["mode"] not in CAPABILITIES["comparisonModes"] or value != 0:
+    if comparison["mode"] not in CAPABILITIES["comparisonModes"] or (comparison["mode"] != "DECIMAL_ABSOLUTE" and value != 0):
         raise ManifestError("runner does not support the requested comparison or precision")
     sources = spec["sourcePaths"]
     expected_roles = {"GENERATOR", "USER", "SPECIAL_JUDGE" if comparison["mode"] == "SPECIAL_JUDGE" else "ORACLE"}

@@ -5,6 +5,7 @@ import com.example.demo.config.ExecutionProperties;
 import com.example.demo.dto.CancelJudgeResponse;
 import com.example.demo.dto.JudgeProgress;
 import com.example.demo.dto.JudgeSummary;
+import com.example.demo.model.JudgeOwnership;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
 import jakarta.annotation.PreDestroy;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -29,6 +31,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -36,6 +39,8 @@ public class JudgeScheduler {
 
     private static final String CANCELLED_MESSAGE = "Cancellation requested";
     private static final String BUDGET_MESSAGE = "Task runtime budget exceeded";
+    private static final String CREATED_EXPIRED_MESSAGE = "Created task expired before start";
+    private static final Duration CREATED_TASK_TTL = Duration.ofMinutes(15);
 
     private final ExecutionProperties executionProperties;
     private final TaskStore taskStore;
@@ -71,10 +76,11 @@ public class JudgeScheduler {
         ScheduledTask taskToStart = null;
         QueueSnapshot result;
         synchronized (monitor) {
+            rejectTerminalStart(judgeId);
             if (queuedTasks.containsKey(judgeId) || runningTasks.containsKey(judgeId)) {
                 return snapshotLocked();
             }
-            if (runningTasks.size() < maxConcurrentTasks()) {
+            if (canStartLocked(task)) {
                 persistStatus(judgeId, JudgeStatus.QUEUED, "Judge task queued for execution");
                 runningTasks.put(judgeId, task);
                 peakRunningCount = Math.max(peakRunningCount, runningTasks.size());
@@ -97,37 +103,54 @@ public class JudgeScheduler {
         return result;
     }
 
+    public void requireScheduled(String judgeId) {
+        Objects.requireNonNull(judgeId, "judgeId must not be null");
+        synchronized (monitor) {
+            rejectTerminalStart(judgeId);
+            if (!queuedTasks.containsKey(judgeId) && !runningTasks.containsKey(judgeId)) {
+                throw new IllegalArgumentException("Judge task is not scheduled: " + judgeId);
+            }
+        }
+    }
+
     public CancelJudgeResponse cancel(String judgeId) {
         Objects.requireNonNull(judgeId, "judgeId must not be null");
-        ScheduledTask queuedTask = null;
         ScheduledTask runningTask = null;
-        QueueSnapshot snapshot;
         synchronized (monitor) {
-            queuedTask = queuedTasks.remove(judgeId);
+            expireCreatedTaskIfNeeded(judgeId);
+            ScheduledTask queuedTask = queuedTasks.get(judgeId);
             if (queuedTask != null) {
+                queuedTask.context.cancellationToken().cancel();
+                persistCancelled(queuedTask);
+                queuedTasks.remove(judgeId);
                 queue.remove(queuedTask);
+                return new CancelJudgeResponse(
+                        judgeId,
+                        true,
+                        JudgeStatus.CANCELLED.name(),
+                        CANCELLED_MESSAGE,
+                        false,
+                        true,
+                        queuedTask.context.completedCases()
+                );
             } else {
                 runningTask = runningTasks.get(judgeId);
+                if (runningTask == null) {
+                    Optional<JudgeTask> storedTask = findTask(judgeId);
+                    if (storedTask.isPresent() && storedTask.get().getStatus() == JudgeStatus.CREATED) {
+                        TaskContext context = contextFor(judgeId);
+                        persistStoppedSummary(judgeId, context, JudgeStatus.CANCELLED, CANCELLED_MESSAGE);
+                        return new CancelJudgeResponse(judgeId, true, JudgeStatus.CANCELLED.name(),
+                                CANCELLED_MESSAGE, false, false, 0);
+                    }
+                }
             }
-            snapshot = snapshotLocked();
-        }
-
-        if (queuedTask != null) {
-            queuedTask.context.cancellationToken().cancel();
-            persistCancelled(queuedTask);
-            return new CancelJudgeResponse(
-                    judgeId,
-                    true,
-                    JudgeStatus.CANCELLED.name(),
-                    CANCELLED_MESSAGE,
-                    false,
-                    true,
-                    queuedTask.context.completedCases()
-            );
         }
 
         if (runningTask != null) {
-            Optional<JudgeStatus> terminalStatus = terminalStatus(runningTask.judgeId);
+            Optional<JudgeTask> storedTask = findTask(runningTask.judgeId);
+            Optional<JudgeStatus> terminalStatus = storedTask.map(JudgeTask::getStatus)
+                    .filter(JudgeStatus::isTerminal);
             if (terminalStatus.isPresent()) {
                 return new CancelJudgeResponse(
                         judgeId,
@@ -140,17 +163,10 @@ public class JudgeScheduler {
                 );
             }
             runningTask.context.cancellationToken().cancel();
-            if (runningTask.context.cancellationToken().isBudgetExceeded()) {
-                persistBudgetExceeded(runningTask);
-            } else {
-                persistCancelled(runningTask);
-            }
             return new CancelJudgeResponse(
                     judgeId,
                     true,
-                    runningTask.context.cancellationToken().isBudgetExceeded()
-                            ? JudgeStatus.BUDGET_EXCEEDED.name()
-                            : JudgeStatus.CANCELLED.name(),
+                    storedTask.map(JudgeTask::getStatus).orElse(JudgeStatus.RUNNING).name(),
                     runningTask.context.cancellationToken().isBudgetExceeded()
                             ? BUDGET_MESSAGE
                             : CANCELLED_MESSAGE,
@@ -169,8 +185,8 @@ public class JudgeScheduler {
                 false,
                 status,
                 "Task is not queued or running",
-                snapshot.runningCount() > 0,
-                snapshot.queuedCount() > 0,
+                false,
+                false,
                 0
         );
     }
@@ -178,6 +194,15 @@ public class JudgeScheduler {
     public QueueSnapshot snapshot() {
         synchronized (monitor) {
             return snapshotLocked();
+        }
+    }
+
+    Set<String> runningTaskIdsForOwner(String ownerUserId) {
+        synchronized (monitor) {
+            return runningTasks.values().stream()
+                    .filter(task -> task.context.ownerUserId.equals(ownerUserId))
+                    .map(ScheduledTask::judgeId)
+                    .collect(Collectors.toUnmodifiableSet());
         }
     }
 
@@ -191,21 +216,27 @@ public class JudgeScheduler {
             executor.execute(() -> runTask(task));
         } catch (RejectedExecutionException e) {
             log.error("Judge executor rejected task {}", task.judgeId, e);
-            synchronized (monitor) {
-                runningTasks.remove(task.judgeId);
+            try {
+                persistSystemError(task, "Judge executor rejected the task");
+            } finally {
+                releaseAndStartNextQueuedTask(task);
             }
-            persistStatus(task.judgeId, JudgeStatus.SYSTEM_ERROR, "Judge executor rejected the task");
-            startNextQueuedTask();
             throw e;
         }
     }
 
     private void runTask(ScheduledTask task) {
-        ScheduledFuture<?> budgetFuture = scheduleBudget(task);
+        ScheduledFuture<?> budgetFuture = new CompletedScheduledFuture();
         try {
-            task.context.markStarted();
-            persistStatus(task.judgeId, JudgeStatus.RUNNING, "Judge task is running");
-            task.job.run(task.context);
+            task.context.budgetStartedNanos = System.nanoTime();
+            budgetFuture = scheduleBudget(task);
+            if (!task.context.cancellationToken().isCancellationRequested()) {
+                task.context.markStarted();
+                persistStatus(task.judgeId, JudgeStatus.PENDING, "Judge task preparation started");
+                if (!task.context.cancellationToken().isCancellationRequested()) {
+                    task.job.run(task.context);
+                }
+            }
             completeIfNeeded(task);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -216,14 +247,11 @@ public class JudgeScheduler {
             if (task.context.cancellationToken().isCancellationRequested()) {
                 completeIfNeeded(task);
             } else {
-                persistStatus(task.judgeId, JudgeStatus.SYSTEM_ERROR, "Judge task failed unexpectedly");
+                persistSystemError(task, "Judge task failed unexpectedly");
             }
         } finally {
             budgetFuture.cancel(false);
-            synchronized (monitor) {
-                runningTasks.remove(task.judgeId);
-            }
-            startNextQueuedTask();
+            releaseAndStartNextQueuedTask(task);
         }
     }
 
@@ -232,26 +260,48 @@ public class JudgeScheduler {
         if (budget == null || budget.isZero() || budget.isNegative()) {
             return new CompletedScheduledFuture();
         }
-        return budgetExecutor.schedule(() -> {
-            if (task.context.cancellationToken().cancelForBudgetExceeded()) {
-                persistBudgetExceeded(task);
-            }
-        }, budget.toMillis(), TimeUnit.MILLISECONDS);
+        return budgetExecutor.schedule(
+                () -> task.context.cancellationToken().cancelForBudgetExceeded(),
+                budget.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    private void startNextQueuedTask() {
+    private void releaseAndStartNextQueuedTask(ScheduledTask completedTask) {
         ScheduledTask nextTask = null;
         synchronized (monitor) {
-            if (runningTasks.size() < maxConcurrentTasks() && !queue.isEmpty()) {
-                nextTask = queue.removeFirst();
-                queuedTasks.remove(nextTask.judgeId);
-                runningTasks.put(nextTask.judgeId, nextTask);
-                peakRunningCount = Math.max(peakRunningCount, runningTasks.size());
+            if (completedTask.context.cleanupPending) {
+                log.warn("Retaining execution permits for judge task {} because sandbox cleanup is pending",
+                        completedTask.judgeId);
+                return;
+            }
+            if (!runningTasks.remove(completedTask.judgeId, completedTask)) {
+                return;
+            }
+            var candidates = queue.iterator();
+            while (candidates.hasNext()) {
+                ScheduledTask candidate = candidates.next();
+                if (canStartLocked(candidate)) {
+                    candidates.remove();
+                    queuedTasks.remove(candidate.judgeId);
+                    runningTasks.put(candidate.judgeId, candidate);
+                    peakRunningCount = Math.max(peakRunningCount, runningTasks.size());
+                    nextTask = candidate;
+                    break;
+                }
             }
         }
         if (nextTask != null) {
             execute(nextTask);
         }
+    }
+
+    private boolean canStartLocked(ScheduledTask task) {
+        if (runningTasks.size() >= maxConcurrentTasks()) {
+            return false;
+        }
+        long ownerRunning = runningTasks.values().stream()
+                .filter(running -> running.context.ownerUserId.equals(task.context.ownerUserId))
+                .count();
+        return ownerRunning < Math.max(0, executionProperties.getMaxRunningTasksPerUser());
     }
 
     private TaskContext contextFor(String judgeId) {
@@ -260,7 +310,9 @@ public class JudgeScheduler {
         Duration maxTaskRuntime = task.getPolicy() != null && task.getPolicy().maxTaskRuntime() != null
                 ? task.getPolicy().maxTaskRuntime()
                 : executionProperties.getMaxTaskRuntime();
-        return new TaskContext(judgeId, task.getRequestedCases(), maxTaskRuntime);
+        String ownerUserId = JudgeOwnership.owner(
+                task.getOwnership() == null ? null : task.getOwnership().getUserId(), null).getUserId();
+        return new TaskContext(judgeId, task.getRequestedCases(), maxTaskRuntime, ownerUserId);
     }
 
     private Optional<JudgeTask> findTask(String judgeId) {
@@ -272,6 +324,9 @@ public class JudgeScheduler {
     }
 
     private void completeIfNeeded(ScheduledTask task) {
+        if (isTerminal(task.judgeId)) {
+            return;
+        }
         if (task.context.cancellationToken().isBudgetExceeded()) {
             persistBudgetExceeded(task);
             return;
@@ -281,7 +336,7 @@ public class JudgeScheduler {
             return;
         }
         if (!isTerminal(task.judgeId)) {
-            persistStatus(task.judgeId, JudgeStatus.COMPLETED, "Judge task completed");
+            persistStoppedSummary(task.judgeId, task.context, JudgeStatus.COMPLETED, "Judge task completed");
         }
     }
 
@@ -295,57 +350,83 @@ public class JudgeScheduler {
                 .filter(JudgeStatus::isTerminal);
     }
 
+    private void rejectTerminalStart(String judgeId) {
+        expireCreatedTaskIfNeeded(judgeId);
+        terminalStatus(judgeId).ifPresent(status -> {
+            throw new TaskAlreadyFinishedException(status);
+        });
+    }
+
+    public Optional<JudgeStatus> expireCreatedTask(String judgeId, Instant now) {
+        Objects.requireNonNull(judgeId, "judgeId must not be null");
+        Objects.requireNonNull(now, "now must not be null");
+        synchronized (monitor) {
+            expireCreatedTaskIfNeeded(judgeId, now);
+            return terminalStatus(judgeId);
+        }
+    }
+
+    private void expireCreatedTaskIfNeeded(String judgeId) {
+        expireCreatedTaskIfNeeded(judgeId, Instant.now());
+    }
+
+    private void expireCreatedTaskIfNeeded(String judgeId, Instant now) {
+        Optional<JudgeTask> stored = findTask(judgeId);
+        if (stored.isEmpty() || queuedTasks.containsKey(judgeId) || runningTasks.containsKey(judgeId)) {
+            return;
+        }
+        JudgeTask created = stored.get();
+        if (created.getStatus() != JudgeStatus.CREATED || created.getCreatedAt() == null
+                || created.getStartedAt() != null || created.getSandboxRunHandle() != null
+                || created.getCreatedAt().plus(CREATED_TASK_TTL).isAfter(now)) {
+            return;
+        }
+        TaskContext context = contextFor(judgeId);
+        persistStoppedSummary(judgeId, context, JudgeStatus.STALE, CREATED_EXPIRED_MESSAGE);
+    }
+
+    private void persistSystemError(ScheduledTask task, String message) {
+        persistStoppedSummary(task.judgeId, task.context, JudgeStatus.SYSTEM_ERROR, message);
+    }
+
     private void persistCancelled(ScheduledTask task) {
-        if (hasDifferentTerminalStatus(task.judgeId, JudgeStatus.CANCELLED)) {
+        if (isTerminal(task.judgeId)) {
             return;
         }
-        persistStatus(task.judgeId, JudgeStatus.CANCELLED, CANCELLED_MESSAGE);
-        if (hasDifferentTerminalStatus(task.judgeId, JudgeStatus.CANCELLED)) {
-            return;
-        }
-        persistStoppedSummary(task, JudgeStatus.CANCELLED, CANCELLED_MESSAGE);
+        persistStoppedSummary(task.judgeId, task.context, JudgeStatus.CANCELLED, CANCELLED_MESSAGE);
     }
 
     private void persistBudgetExceeded(ScheduledTask task) {
-        if (hasDifferentTerminalStatus(task.judgeId, JudgeStatus.BUDGET_EXCEEDED)) {
+        if (isTerminal(task.judgeId)) {
             return;
         }
-        persistStatus(task.judgeId, JudgeStatus.BUDGET_EXCEEDED, BUDGET_MESSAGE);
-        if (hasDifferentTerminalStatus(task.judgeId, JudgeStatus.BUDGET_EXCEEDED)) {
-            return;
-        }
-        persistStoppedSummary(task, JudgeStatus.BUDGET_EXCEEDED, BUDGET_MESSAGE);
+        persistStoppedSummary(task.judgeId, task.context, JudgeStatus.BUDGET_EXCEEDED, BUDGET_MESSAGE);
     }
 
-    private boolean hasDifferentTerminalStatus(String judgeId, JudgeStatus status) {
-        return terminalStatus(judgeId)
-                .map(existing -> existing != status)
-                .orElse(false);
-    }
-
-    private void persistStoppedSummary(ScheduledTask task, JudgeStatus status, String message) {
-        JudgeSummary summary = new JudgeSummary(
-                task.context.totalCases(),
-                task.context.completedCases(),
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                null,
-                List.of(),
-                List.of(),
-                message
-        );
-        int progress = task.context.totalCases() == 0
-                ? 100
-                : Math.min(100, (int) ((double) task.context.completedCases() / task.context.totalCases() * 100));
+    private void persistStoppedSummary(String judgeId, TaskContext context, JudgeStatus status, String message) {
         try {
-            taskStore.saveSummary(task.judgeId, new JudgeProgress(status.name(), message, progress, null, summary));
+            Optional<JudgeProgress> persisted = taskStore.findSummary(judgeId);
+            if (persisted.filter(snapshot -> JudgeStatus.fromProgressStatus(snapshot.getStatus())
+                    .map(JudgeStatus::isTerminal).orElse(false)).isPresent()) {
+                taskStore.finalizeTask(judgeId, persisted.get());
+                return;
+            }
+            JudgeSummary existing = persisted.map(JudgeProgress::getSummary).orElse(null);
+            if (existing == null && context.completedCases() > 0) {
+                throw new IOException("Cannot reconstruct stopped summary: completed cases have no persisted aggregate");
+            }
+            JudgeSummary summary = existing == null
+                    ? new JudgeSummary(context.totalCases(), 0, 0, 0, 0, 0, 0, 0, 0,
+                            null, List.of(), List.of(), message)
+                    : new JudgeSummary(existing.getTotalCases(), existing.getCompletedCases(),
+                            existing.getAc(), existing.getWa(), existing.getTle(), existing.getMle(),
+                            existing.getRe(), existing.getSystemError(), existing.getOutputLimitExceeded(),
+                            existing.getFirstFailedCase(), existing.getFailureSamples(),
+                            existing.getSlowSamples(), message);
+            int progress = persisted.map(JudgeProgress::getProgress).orElse(context.totalCases() == 0 ? 100 : 0);
+            taskStore.finalizeTask(judgeId, new JudgeProgress(status.name(), message, progress, null, summary));
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to save stopped judge summary for " + task.judgeId, e);
+            throw new IllegalStateException("Failed to save stopped judge summary for " + judgeId, e);
         }
     }
 
@@ -401,14 +482,18 @@ public class JudgeScheduler {
         private final String judgeId;
         private final int totalCases;
         private final Duration maxTaskRuntime;
+        private final String ownerUserId;
         private final CancellationToken cancellationToken = new CancellationToken();
         private final AtomicInteger completedCases = new AtomicInteger();
         private volatile Instant startedAt;
+        private volatile long budgetStartedNanos;
+        private boolean cleanupPending;
 
-        private TaskContext(String judgeId, int totalCases, Duration maxTaskRuntime) {
+        private TaskContext(String judgeId, int totalCases, Duration maxTaskRuntime, String ownerUserId) {
             this.judgeId = judgeId;
             this.totalCases = totalCases;
             this.maxTaskRuntime = maxTaskRuntime;
+            this.ownerUserId = ownerUserId;
         }
 
         public String judgeId() {
@@ -423,8 +508,17 @@ public class JudgeScheduler {
             return maxTaskRuntime;
         }
 
+        public Duration remainingRuntime() {
+            long elapsed = budgetStartedNanos == 0 ? 0 : System.nanoTime() - budgetStartedNanos;
+            return Duration.ofNanos(Math.max(0, maxTaskRuntime.toNanos() - elapsed));
+        }
+
         public CancellationToken cancellationToken() {
             return cancellationToken;
+        }
+
+        void markCleanupPending() {
+            cleanupPending = true;
         }
 
         public void recordCompletedCase() {
@@ -441,6 +535,20 @@ public class JudgeScheduler {
 
         private void markStarted() {
             startedAt = Instant.now();
+        }
+    }
+
+    public static class TaskAlreadyFinishedException extends IllegalStateException {
+
+        private final JudgeStatus status;
+
+        public TaskAlreadyFinishedException(JudgeStatus status) {
+            super("Judge task is already finished: " + status.name());
+            this.status = status;
+        }
+
+        public JudgeStatus getStatus() {
+            return status;
         }
     }
 

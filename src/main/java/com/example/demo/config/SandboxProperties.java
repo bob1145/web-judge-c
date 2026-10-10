@@ -10,11 +10,18 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "judge.sandbox.production")
 public class SandboxProperties {
 
+    public static final int DEFAULT_EVENT_BATCH_LIMIT_BYTES = 256 * 1024;
+    public static final int DEFAULT_EVENT_BATCH_LIMIT_COUNT = 256;
+    public static final int DEFAULT_EVENT_LINE_LIMIT_BYTES = 128 * 1024;
+
     private Provider provider = Provider.DIRECT;
     private Isolation isolation = Isolation.PROCESS;
     private String securityProfile = "";
     private boolean capabilityProbeRequired = false;
     private boolean capabilityProbePassed = false;
+    private int eventBatchLimitBytes = DEFAULT_EVENT_BATCH_LIMIT_BYTES;
+    private int eventBatchLimitCount = DEFAULT_EVENT_BATCH_LIMIT_COUNT;
+    private int eventLineLimitBytes = DEFAULT_EVENT_LINE_LIMIT_BYTES;
     private Worker worker = new Worker();
     private LinuxContainer linuxContainer = new LinuxContainer();
     private WindowsContainer windowsContainer = new WindowsContainer();

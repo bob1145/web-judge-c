@@ -16,6 +16,7 @@ import java.time.Instant;
 public class JudgeTask {
 
     private String judgeId;
+    private String quotaChargeId;
     private JudgeStatus status;
     private int requestedCases;
     private String mode;

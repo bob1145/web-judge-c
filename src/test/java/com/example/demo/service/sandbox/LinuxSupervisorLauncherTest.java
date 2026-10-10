@@ -88,6 +88,53 @@ class LinuxSupervisorLauncherTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void executionStateUsesTrustedRetainedIdentityAndRemainingCallBudget(boolean active) throws Exception {
+        LinuxSupervisorLauncher.Launch launch = launcher.start(spec("trusted-local"));
+        ObjectNode before = retained().deepCopy();
+        runtime.running.put("supervisor", active);
+        runtime.cancellationTimeoutChecks = true;
+        Duration remaining = Duration.ofMillis(25);
+        assertEquals(active ? SandboxRunner.ExecutionState.ACTIVE : SandboxRunner.ExecutionState.EXITED,
+                launcher.executionState(launch.handle(), workDir, remaining));
+        assertEquals(remaining, runtime.timeouts.get(runtime.timeouts.size() - 1));
+        assertEquals(before, retained());
+        assertFalse(Files.exists(attemptDirectory().resolve("cancel.requested")));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Image", "User", "extraMount"})
+    void executionStateRejectsChangedRuntimeIdentityWithoutChangingTrustedJournal(String mismatch) throws Exception {
+        LinuxSupervisorLauncher.Launch launch = launcher.start(spec("trusted-local"));
+        ObjectNode before = retained().deepCopy();
+        runtime.mismatch = mismatch;
+        assertThrows(IOException.class, () -> launcher.executionState(launch.handle(), workDir, options.commandTimeout()));
+        assertEquals(before, retained());
+        assertFalse(Files.exists(attemptDirectory().resolve("cancel.requested")));
+        assertTrue(runtime.commands.get(runtime.commands.size() - 1).contains("inspect"));
+    }
+
+    @Test
+    void executionStateDoesNotTrustFalseRunningWithNonzeroPid() throws Exception {
+        LinuxSupervisorLauncher.Launch launch = launcher.start(spec("trusted-local"));
+        runtime.fastExit = true;
+        assertThrows(IOException.class, () -> launcher.executionState(launch.handle(), workDir, options.commandTimeout()));
+    }
+
+    @Test
+    void startupDeadlineDoesNotResetAcrossImageChecksOrCreateResourcesAfterExpiry() throws Exception {
+        runtime.cancellationTimeoutChecks = true;
+        LinuxSupervisorLauncher bounded = new LinuxSupervisorLauncher(options, (command, timeout) -> {
+            Thread.sleep(220);
+            return runtime.run(command, timeout);
+        }, mapper);
+        assertThrows(IOException.class, () -> bounded.start(spec("trusted-local"), Duration.ofMillis(200)));
+        assertEquals(1, runtime.commands.size());
+        assertTrue(runtime.createIntents.isEmpty());
+        assertTrue(runtime.timeouts.get(0).compareTo(Duration.ofMillis(200)) <= 0);
+    }
+
     @Test
     void runnerStartsOnlyJournaledResourcesAndReturnsRealSupervisorHandle() throws Exception {
         LinuxContainerRunner runner = new LinuxContainerRunner(
@@ -869,15 +916,42 @@ class LinuxSupervisorLauncherTest {
         runtime.cancellationTimeoutChecks = true;
         runtime.commands.clear();
         long started = System.nanoTime();
-        assertTimeout(Duration.ofSeconds(7), () -> launcher.cancelAndStop(handle, workDir));
+        IOException failure = assertTimeout(Duration.ofSeconds(1), () -> assertThrows(IOException.class,
+                () -> launcher.cancelAndStop(handle, workDir, Duration.ofMillis(200))));
         long elapsed = System.nanoTime() - started;
-        assertTrue(elapsed >= options.commandTimeout().toNanos());
+        assertTrue(elapsed >= Duration.ofMillis(200).toNanos());
+        assertTrue(failure.getMessage().contains("cleanup deadline exceeded"));
         assertFalse(runtime.cancellationObserved);
         assertEquals(0, runtime.supervisorExitCode);
         assertTrue(Files.exists(attemptDirectory().resolve("cancel.requested")));
+        assertEquals("STOP_REQUESTED", retained().path("supervisor").path("state").textValue());
+        assertEquals("CLEANUP_PENDING", retained().path("state").textValue());
+        assertTrue(runtime.running.get("supervisor"));
+        assertTrue(runtime.running.get("holder"));
+        assertEquals(0, runtime.commands.stream().filter(command -> command.contains("stop")).count());
+        assertTrue(runtime.commands.stream().noneMatch(command -> command.contains("rm")));
+    }
+
+    @Test
+    void stopObservationAndConfirmationShareOneRemainingCleanupBudget() throws Exception {
+        SandboxRunHandle handle = launcher.start(spec("trusted-local")).handle();
+        runtime.cancellationTimeoutChecks = true;
+        runtime.cooperativeCancellation = true;
+        runtime.commands.clear();
+        runtime.timeouts.clear();
+        LinuxSupervisorLauncher bounded = new LinuxSupervisorLauncher(options, (command, timeout) -> {
+            Thread.sleep(20);
+            return runtime.run(command, timeout);
+        }, mapper);
+        bounded.cancelAndStop(handle, workDir, Duration.ofMillis(500));
+        assertEquals(4, runtime.timeouts.size());
+        assertTrue(runtime.timeouts.get(0).compareTo(Duration.ofMillis(500)) <= 0);
+        for (int index = 1; index < runtime.timeouts.size(); index++) {
+            assertTrue(runtime.timeouts.get(index).compareTo(runtime.timeouts.get(index - 1).minusMillis(10)) < 0);
+        }
         assertEquals("STOPPED", retained().path("supervisor").path("state").textValue());
         assertEquals("CLEANUP_PENDING", retained().path("state").textValue());
-        assertEquals(1, runtime.commands.stream().filter(command -> command.contains("stop")).count());
+        assertTrue(runtime.running.get("holder"));
         assertTrue(runtime.commands.stream().noneMatch(command -> command.contains("rm")));
     }
 
@@ -920,11 +994,11 @@ class LinuxSupervisorLauncherTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"shortReply", "stderr", "noEffect"})
-    void cancellationRetainsIntentWhenStopAcknowledgementOrEffectIsUntrusted(String failure) throws Exception {
+    @ValueSource(strings = {"shortReply", "stderr"})
+    void cancellationRetainsIntentWhenStopAcknowledgementIsUntrusted(String failure) throws Exception {
         SandboxRunHandle handle = launcher.start(spec("trusted-local")).handle();
         runtime.cancellationTimeoutChecks = true;
-        runtime.cooperativeCancellation = !failure.equals("noEffect");
+        runtime.cooperativeCancellation = true;
         runtime.cancellationStopFailure = failure;
         runtime.commands.clear();
         assertThrows(IOException.class, () -> launcher.cancelAndStop(handle, workDir));
@@ -933,9 +1007,33 @@ class LinuxSupervisorLauncherTest {
         assertEquals("CLEANUP_PENDING", retained().path("state").textValue());
         assertEquals(1, runtime.commands.stream().filter(command -> command.contains("stop")).count());
         assertTrue(runtime.commands.stream().noneMatch(command -> command.contains("rm")));
-        if (failure.equals("noEffect")) {
-            assertTrue(runtime.running.get("supervisor"));
+        assertTrue(runtime.cancellationObserved);
+        assertEquals(20, runtime.supervisorExitCode);
+        assertFalse(runtime.running.get("supervisor"));
+        assertTrue(runtime.running.get("holder"));
+    }
+
+    @Test
+    void forcedStopWithoutConfirmedEffectRetainsPublishedCancellationIntentAndResourceRecoveryBoundary() throws Exception {
+        SandboxRunHandle handle = launcher.start(spec("trusted-local")).handle();
+        runtime.cancellationTimeoutChecks = true;
+        runtime.cancellationStopFailure = "noEffect";
+        try (LinuxRuntimeJournal journal = LinuxRuntimeJournal.openExisting(attemptDirectory(), handle.judgeId(),
+                handle.attemptId(), mapper, options.configWriterUid(), options.configWriterGid())) {
+            journal.requestCancellation();
         }
+        runtime.commands.clear();
+
+        IOException failure = assertThrows(IOException.class, () -> launcher.stop(handle, workDir));
+
+        assertTrue(failure.getMessage().contains("supervisor stop was not confirmed"));
+        assertTrue(Files.exists(attemptDirectory().resolve("cancel.requested")));
+        assertEquals("STOP_REQUESTED", retained().path("supervisor").path("state").textValue());
+        assertEquals("CLEANUP_PENDING", retained().path("state").textValue());
+        assertEquals(1, runtime.commands.stream().filter(command -> command.contains("stop")).count());
+        assertTrue(runtime.running.get("supervisor"));
+        assertTrue(runtime.running.get("holder"));
+        assertTrue(runtime.commands.stream().noneMatch(command -> command.contains("rm")));
     }
 
     @Test
@@ -1111,6 +1209,7 @@ class LinuxSupervisorLauncherTest {
 
     private final class RecordingRuntime implements LinuxContainerRunner.CommandExecutor {
         private final List<List<String>> commands = new ArrayList<>();
+        private final List<Duration> timeouts = new ArrayList<>();
         private final List<String> createIntents = new ArrayList<>();
         private final Map<String, List<String>> creates = new LinkedHashMap<>();
         private final Map<String, Boolean> running = new LinkedHashMap<>();
@@ -1150,13 +1249,10 @@ class LinuxSupervisorLauncherTest {
                 assertThrows(java.nio.channels.OverlappingFileLockException.class, channel::tryLock);
             }
             commands.add(command);
+            timeouts.add(timeout);
             assertEquals(List.of(options.hostRuntimeCommand(), "--host", options.hostRuntimeEndpoint()), command.subList(0, 3));
-            if (cancellationTimeoutChecks) {
-                assertFalse(timeout.isNegative() || timeout.isZero());
-                assertTrue(timeout.compareTo(options.commandTimeout()) <= 0);
-            } else {
-                assertEquals(options.commandTimeout(), timeout);
-            }
+            assertFalse(timeout.isNegative() || timeout.isZero());
+            assertTrue(timeout.compareTo(options.commandTimeout()) <= 0);
             String kind = command.get(3);
             String action = command.get(4);
             if (action.equals("ls")) {

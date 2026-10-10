@@ -26,6 +26,8 @@ public class UserSession {
      */
     private String userId;
 
+    private String accountUsername;
+
     /**
      * Whether this session may inspect or operate on any judge task.
      */

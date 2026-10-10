@@ -2,6 +2,7 @@ package com.example.demo.config;
 
 import com.example.demo.dto.SandboxCapabilities;
 import com.example.demo.service.sandbox.SandboxRunner;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -41,6 +42,14 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
         validateNow();
     }
 
+    @PostConstruct
+    public void rejectUnverifiedProvidersBeforeRecovery() {
+        String profile = normalizedProfile();
+        if (!TRUSTED_LOCAL.equals(profile) && isUnverifiedProductionProvider(profile)) {
+            validateNow();
+        }
+    }
+
     public void validateNow() {
         String profile = normalizedProfile();
         List<String> risks = baseRisks();
@@ -55,10 +64,19 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
         }
         risks.addAll(authenticationRisks);
 
+        if (isUnverifiedProductionProvider(profile)) {
+            if (WINDOWS_PROD.equals(profile)) {
+                validateWindowsProd(risks);
+            }
+            if (WORKER_PROD.equals(profile)) {
+                validateWorkerProd(risks);
+            }
+            risks.add("windows-container and remote-worker are DISABLED_UNVERIFIED in production");
+            throw new IllegalStateException("Insecure " + profile + " configuration: " + String.join("; ", risks));
+        }
+
         switch (profile) {
-            case WINDOWS_PROD -> validateWindowsProd(risks);
             case LINUX_PROD -> validateLinuxProd(risks);
-            case WORKER_PROD -> validateWorkerProd(risks);
             default -> {
                 if (executionProperties.isRequireSandbox() && !sandboxConfiguration.isEnabled()) {
                     throw new IllegalStateException("Insecure " + profile + " configuration: sandbox is disabled while required");
@@ -71,12 +89,17 @@ public class ProductionSecurityStartupValidator implements SmartInitializingSing
         }
     }
 
+    private boolean isUnverifiedProductionProvider(String profile) {
+        return sandboxProperties.getProvider() == SandboxProperties.Provider.WINDOWS_CONTAINER
+                || sandboxProperties.getProvider() == SandboxProperties.Provider.REMOTE_WORKER
+                || WINDOWS_PROD.equals(profile) || WORKER_PROD.equals(profile);
+    }
+
     private void validateWindowsProd(List<String> risks) {
         requireProvider(SandboxProperties.Provider.WINDOWS_CONTAINER, "windows-container", risks);
         if (sandboxProperties.getIsolation() != SandboxProperties.Isolation.HYPER_V) {
             risks.add("isolation must be hyper-v");
         }
-        validateContainerRunner(risks, "windows-container", "hyperv");
     }
 
     private void validateLinuxProd(List<String> risks) {

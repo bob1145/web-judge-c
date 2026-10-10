@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.ExecutionProperties;
 import com.example.demo.dto.AuthRequest;
 import com.example.demo.dto.AuthResponse;
 import com.example.demo.dto.LogoutRequest;
@@ -9,6 +10,7 @@ import com.example.demo.model.UserAccount;
 import com.example.demo.model.UserSession;
 import com.example.demo.security.SessionCredentialResolver;
 import com.example.demo.security.SessionAuditId;
+import com.example.demo.security.ClientAddressResolver;
 import com.example.demo.service.AccessCodeService;
 import com.example.demo.service.SessionManagementService;
 import com.example.demo.service.UserAccountService;
@@ -17,11 +19,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.security.web.util.matcher.IpAddressMatcher;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.StandardCharsets;
+import java.util.regex.Pattern;
 
 /**
  * 认证控制器
@@ -35,9 +46,21 @@ public class AuthenticationController {
     private final AccessCodeService accessCodeService;
     private final SessionManagementService sessionManagementService;
     private final UserAccountService userAccountService;
+    private final ExecutionProperties executionProperties;
+    private final CsrfTokenRepository csrfTokenRepository;
+    private final ClientAddressResolver clientAddressResolver;
     
     private static final String SESSION_COOKIE_NAME = SessionCredentialResolver.COOKIE_NAME;
+    private static final Pattern NESTED_PERCENT_ESCAPE = Pattern.compile("%[0-9a-fA-F]{2}");
+    private static final IpAddressMatcher LOOPBACK_IPV4 = new IpAddressMatcher("127.0.0.0/8");
+    private static final IpAddressMatcher LOOPBACK_IPV6 = new IpAddressMatcher("::1/128");
     private static final int COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30天
+
+    @ExceptionHandler(AccessCodeService.SessionCapacityExceededException.class)
+    @ResponseBody
+    public ResponseEntity<AuthResponse> sessionCapacityExceeded(AccessCodeService.SessionCapacityExceededException exception) {
+        return ResponseEntity.status(503).body(AuthResponse.failure(exception.getMessage()));
+    }
     
     /**
      * 显示认证页面
@@ -45,16 +68,17 @@ public class AuthenticationController {
     @GetMapping("/auth")
     public String showAuthPage(Model model, HttpServletRequest request,
                               @RequestParam(value = "redirect", required = false) String redirectUrl) {
+        String targetUrl = safeRedirect(redirectUrl);
         // 检查是否已经认证
         String sessionId = getSessionIdFromRequest(request);
-        if (sessionId != null && accessCodeService.isSessionValid(sessionId)) {
+        if (sessionId != null && isRequestSessionValid(sessionId, request)) {
             log.debug("用户已认证，重定向到目标页面");
-            String targetUrl = (redirectUrl != null && !redirectUrl.isEmpty()) ? redirectUrl : "/";
             return "redirect:" + targetUrl;
         }
         
         model.addAttribute("title", "身份验证");
-        model.addAttribute("redirectUrl", redirectUrl);
+        model.addAttribute("redirectUrl", targetUrl);
+        model.addAttribute("accountAuthRequired", userAccountService.requiresAccountAuthentication());
         return "auth";
     }
     
@@ -90,15 +114,12 @@ public class AuthenticationController {
                     request.isRememberMe(),
                     ipAddress,
                     userAgent,
-                    account.getUserId(),
-                    account.isAdmin()
+                    account
             );
-            setSessionCookie(httpResponse, session.getSessionId(), request.isRememberMe());
+            setSessionCookie(httpResponse, httpRequest, session.getSessionId(), request.isRememberMe());
+            rotateCsrfToken(httpRequest, httpResponse);
 
-            String redirectUrl = httpRequest.getParameter("redirect");
-            if (redirectUrl == null || redirectUrl.isEmpty()) {
-                redirectUrl = "/";
-            }
+            String redirectUrl = safeRedirect(httpRequest.getParameter("redirect"));
 
             return ResponseEntity.ok(AuthResponse.success(session.getSessionId(), redirectUrl));
         }
@@ -111,13 +132,11 @@ public class AuthenticationController {
                     request.isRememberMe(), ipAddress, userAgent);
             
             // 设置会话Cookie
-            setSessionCookie(httpResponse, session.getSessionId(), request.isRememberMe());
+            setSessionCookie(httpResponse, httpRequest, session.getSessionId(), request.isRememberMe());
+            rotateCsrfToken(httpRequest, httpResponse);
             
             // 获取重定向URL
-            String redirectUrl = httpRequest.getParameter("redirect");
-            if (redirectUrl == null || redirectUrl.isEmpty()) {
-                redirectUrl = "/";
-            }
+            String redirectUrl = safeRedirect(httpRequest.getParameter("redirect"));
             
             return ResponseEntity.ok(AuthResponse.success(session.getSessionId(), redirectUrl));
         } else {
@@ -143,7 +162,8 @@ public class AuthenticationController {
         }
         
         // 清除Cookie
-        clearSessionCookie(response);
+        clearSessionCookie(response, request);
+        rotateCsrfToken(request, response);
         
         return ResponseEntity.ok(AuthResponse.success(null, "/auth"));
     }
@@ -156,7 +176,7 @@ public class AuthenticationController {
     public ResponseEntity<SessionInfo> getSessionInfo(HttpServletRequest request) {
         String sessionId = getSessionIdFromRequest(request);
         
-        if (sessionId == null) {
+        if (sessionId == null || !isRequestSessionValid(sessionId, request)) {
             return ResponseEntity.ok(SessionInfo.invalid());
         }
         
@@ -172,7 +192,7 @@ public class AuthenticationController {
     public ResponseEntity<AuthResponse> checkAuthStatus(HttpServletRequest request) {
         String sessionId = getSessionIdFromRequest(request);
         
-        if (sessionId != null && accessCodeService.isSessionValid(sessionId)) {
+        if (sessionId != null && isRequestSessionValid(sessionId, request)) {
             return ResponseEntity.ok(AuthResponse.success(sessionId, null));
         } else {
             return ResponseEntity.ok(AuthResponse.failure("未认证"));
@@ -185,15 +205,25 @@ public class AuthenticationController {
     private String getSessionIdFromRequest(HttpServletRequest request) {
         return SessionCredentialResolver.resolve(request);
     }
+
+    private boolean isRequestSessionValid(String sessionId, HttpServletRequest request) {
+        return sessionManagementService.validateSessionWithSecurity(
+                sessionId, getClientIpAddress(request), request.getHeader("User-Agent"));
+    }
+
+    private void rotateCsrfToken(HttpServletRequest request, HttpServletResponse response) {
+        csrfTokenRepository.saveToken(null, request, response);
+        if (request.getSession(false) != null) {
+            request.changeSessionId();
+        }
+    }
     
     /**
      * 设置会话Cookie
      */
-    private void setSessionCookie(HttpServletResponse response, String sessionId, boolean rememberMe) {
-        Cookie cookie = new Cookie(SESSION_COOKIE_NAME, sessionId);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(false); // 建议true（需要HTTPS）
-        cookie.setPath("/");
+    private void setSessionCookie(HttpServletResponse response, HttpServletRequest request, String sessionId,
+                                  boolean rememberMe) {
+        Cookie cookie = sessionCookie(request, sessionId);
         
         if (rememberMe) {
             cookie.setMaxAge(COOKIE_MAX_AGE); // 30天
@@ -208,31 +238,70 @@ public class AuthenticationController {
     /**
      * 清除会话Cookie
      */
-    private void clearSessionCookie(HttpServletResponse response) {
-        Cookie cookie = new Cookie(SESSION_COOKIE_NAME, "");
-        cookie.setHttpOnly(true);
-        cookie.setSecure(false);
-        cookie.setPath("/");
+    private void clearSessionCookie(HttpServletResponse response, HttpServletRequest request) {
+        Cookie cookie = sessionCookie(request, "");
         cookie.setMaxAge(0); // 立即过期
         
         response.addCookie(cookie);
         log.debug("清除会话Cookie");
     }
+
+    private Cookie sessionCookie(HttpServletRequest request, String value) {
+        Cookie cookie = new Cookie(SESSION_COOKIE_NAME, value);
+        String profile = executionProperties.getProfile();
+        boolean trustedLocal = profile != null && "trusted-local".equalsIgnoreCase(profile.trim());
+        cookie.setSecure(request.isSecure() || !trustedLocal
+                || !(LOOPBACK_IPV4.matches(request) || LOOPBACK_IPV6.matches(request)));
+        cookie.setHttpOnly(true);
+        cookie.setAttribute("SameSite", "Lax");
+        cookie.setPath("/");
+        return cookie;
+    }
     
     /**
      * 获取客户端真实IP地址
      */
+    private static String safeRedirect(String redirect) {
+        if (redirect == null || !redirect.startsWith("/") || redirect.startsWith("//")) {
+            return "/";
+        }
+        try {
+            URI target = URI.create(redirect);
+            String ascii = target.toASCIIString();
+            byte[] decodedBytes = new byte[ascii.length()];
+            int byteCount = 0;
+            for (int offset = 0; offset < ascii.length(); offset++) {
+                char character = ascii.charAt(offset);
+                if (character == '%') {
+                    decodedBytes[byteCount++] = (byte) Integer.parseInt(ascii.substring(offset + 1, offset + 3), 16);
+                    offset += 2;
+                } else {
+                    decodedBytes[byteCount++] = (byte) character;
+                }
+            }
+            String decoded = StandardCharsets.UTF_8.newDecoder()
+                    .decode(ByteBuffer.wrap(decodedBytes, 0, byteCount)).toString();
+            String path = target.getPath();
+            if (target.isAbsolute() || target.getRawAuthority() != null || path == null || path.contains("//")
+                    || NESTED_PERCENT_ESCAPE.matcher(path).find()
+                    || decoded.chars().anyMatch(character -> character == '\\' || Character.isISOControl(character))) {
+                return "/";
+            }
+            URI normalized = new URI(null, null, path, null, null).normalize();
+            String normalizedPath = normalized.getPath();
+            if (!normalizedPath.startsWith("/") || normalizedPath.startsWith("/../") || normalizedPath.equals("/..")
+                    || normalizedPath.equals("/auth") || normalizedPath.equals("/auth/")) {
+                return "/";
+            }
+            String query = target.getRawQuery() == null ? "" : "?" + target.getRawQuery();
+            String fragment = target.getRawFragment() == null ? "" : "#" + target.getRawFragment();
+            return URI.create(normalized.toASCIIString() + query + fragment).toASCIIString();
+        } catch (IllegalArgumentException | URISyntaxException | CharacterCodingException exception) {
+            return "/";
+        }
+    }
+
     private String getClientIpAddress(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty() && !"unknown".equalsIgnoreCase(xForwardedFor)) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-        
-        String xRealIp = request.getHeader("X-Real-IP");
-        if (xRealIp != null && !xRealIp.isEmpty() && !"unknown".equalsIgnoreCase(xRealIp)) {
-            return xRealIp;
-        }
-        
-        return request.getRemoteAddr();
+        return clientAddressResolver.resolve(request);
     }
 }

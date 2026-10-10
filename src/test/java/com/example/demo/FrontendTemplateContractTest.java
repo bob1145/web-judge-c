@@ -1,6 +1,8 @@
 package com.example.demo;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -19,6 +21,49 @@ class FrontendTemplateContractTest {
     }
 
     @Test
+    void progressThrottleCancelsPendingFramesAndBypassesDelayForTerminalProgress() {
+        String normalizedHtml = html.replace("\r\n", "\n");
+        int stopOffset = normalizedHtml.indexOf("function stopProgressTracking()");
+        String stopBlock = normalizedHtml.substring(stopOffset,
+                normalizedHtml.indexOf("window.addEventListener('beforeunload'", stopOffset));
+        int throttleOffset = normalizedHtml.indexOf("function createProgressThrottle(func, limit)");
+        String throttleBlock = normalizedHtml.substring(throttleOffset,
+                normalizedHtml.indexOf("async function parseCreateResponse", throttleOffset));
+
+        assertThat(stopBlock).contains("throttledHandleProgress.cancel();");
+        assertThat(throttleBlock)
+                .contains("clearTimeout(timeoutId);\n                timeoutId = null;")
+                .contains("if (isTerminalProgress(args[0]) || now - lastCall >= limit)")
+                .contains("throttled.cancel = function ()", "lastCall = 0;", "return throttled;");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"success", "error"})
+    void toastNodesAreParsedBeforePageScriptCapturesThem(String toastKind) {
+        int initializationOffset = html.indexOf("const " + toastKind + "Toast = toastAvailable ? new bootstrap.Toast(");
+        int toastOffset = html.indexOf("id=\"" + toastKind + "-toast\"");
+        int messageOffset = html.indexOf("id=\"" + toastKind + "-message\"");
+
+        assertThat(initializationOffset).isPositive();
+        assertThat(toastOffset).isBetween(0, initializationOffset - 1);
+        assertThat(messageOffset).isBetween(0, initializationOffset - 1);
+    }
+
+    @Test
+    void authenticationPreservesServerModeCsrfAndDistinctErrorsWithoutDuplicateEnterSubmission() throws Exception {
+        String auth = Files.readString(Path.of("src/main/resources/templates/auth.html"), StandardCharsets.UTF_8);
+        assertThat(auth).contains("th:if=\"${accountAuthRequired}\"", "th:unless=\"${accountAuthRequired}\"")
+                .contains("credentials.username = usernameInput.value.trim()", "credentials.password = passwordInput.value")
+                .contains("credentials.accessCode = accessCodeInput.value.trim()", "JSON.stringify(credentials)")
+                .contains("'X-CSRF-TOKEN': csrfToken", "response.status === 401", "response.status === 429")
+                .contains("response.status === 403", "response.status >= 500", "result.success === true")
+                .contains("document.createTextNode(message)", "if (submitBtn.disabled)")
+                .contains("<div class=\"auth-container\">")
+                .doesNotContain("<div class=\"auth-container fade-in\">", "form.dispatchEvent(new Event('submit'))",
+                        "credentials.password = passwordInput.value.trim()");
+    }
+
+    @Test
     void createResponseUsesStructuredJsonAndStillKeepsJudgeIdForStartAndPolling() {
         assertThat(html).contains("async function parseCreateResponse(response)");
         assertThat(html).contains("const createResponse = await parseCreateResponse(response)");
@@ -27,6 +72,101 @@ class FrontendTemplateContractTest {
         assertThat(html).contains("renderCreatePolicy(createResponse)");
         assertThat(html).contains("createResponse.maxOutputBytesPerCase");
         assertThat(html).contains("function formatByteLimit(bytes)");
+    }
+
+    @Test
+    void startChecksHttpAcceptanceAndWebSocketReadinessDoesNotSendAnotherStart() {
+        assertThat(html).contains("const startResponse = await fetch('/judge/start/' + judgeId")
+                .contains("if (!startResponse.ok)")
+                .contains("if (pollAfterStart)")
+                .contains("setResultsBadge('准备中', 'idle')")
+                .contains("正在提交...");
+        int startOffset = html.indexOf("const startResponse = await fetch(");
+        int rejectionOffset = html.indexOf("if (!startResponse.ok)");
+        int pollingOffset = html.indexOf("if (pollAfterStart)");
+        assertThat(rejectionOffset).isGreaterThan(startOffset);
+        assertThat(pollingOffset).isGreaterThan(rejectionOffset);
+        int connectionOffset = html.indexOf("function connectAndSubscribeAsync(judgeId)");
+        int connectionEndOffset = html.indexOf("function smoothProgressUpdate()", connectionOffset);
+        assertThat(html.substring(connectionOffset, connectionEndOffset))
+                .contains("resolve();", "client.debug = () => {};", "client.connect({ 'X-CSRF-TOKEN': csrfToken },")
+                .doesNotContain("/judge/start/", "client.connect({},");
+    }
+
+    @Test
+    void retryReconcilesTheOriginalJudgeBeforeStartWithoutCreatingAnotherTask() {
+        int retryOffset = html.indexOf("if (pendingStart && currentJudgeId)");
+        int retryEndOffset = html.indexOf("saveWorkspaceState();", retryOffset);
+        String retryBlock = html.substring(retryOffset, retryEndOffset);
+        assertThat(retryBlock).contains("await reconcileKnownJudge()", "await startKnownJudge()", "return;")
+                .doesNotContain("fetch('/judge'", "forgetLatestJudgeResult()");
+        assertThat(retryBlock.indexOf("await reconcileKnownJudge()"))
+                .isLessThan(retryBlock.indexOf("await startKnownJudge()"));
+        assertThat(html).contains("pendingStart = true", "重试启动原任务")
+                .contains("if (startButton.disabled)", "headers: { 'Accept': 'application/json' }")
+                .contains("if (!isActiveProgress(progress) && !isTerminalProgress(progress))");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 403, 404, 409, 429})
+    void submissionHttpErrorsAreDistinguishedWithoutReflectingServerText(int status) {
+        assertThat(html).contains("error.httpStatus === " + status)
+                .contains("failure.httpStatus = response.status")
+                .contains("failure.requestPhase = requestPhase", "error.requestPhase === 'start'")
+                .contains("error.requestPhase !== 'status'")
+                .contains("error.httpStatus >= 500")
+                .contains("创建结果未知且未取得任务ID；未自动重新提交")
+                .doesNotContain("showError(error.message)", "parseInt(error.retryAfter", "Number(error.retryAfter");
+    }
+
+    @Test
+    void restoredCreatedTaskIsRetryableAndDoesNotStartRunningOrPolling() {
+        assertThat(html).contains("normalizeStatus(progressData.status) === 'CREATED'")
+                .contains("restorePendingStartUi('任务已创建但尚未启动，可重试启动原任务。')")
+                .contains("else if (!isTerminalProgress(progressData))")
+                .contains("['QUEUED', 'PENDING', 'COMPILING', 'RUNNING'].includes(normalizeStatus(progress.status))")
+                .contains("if (pendingStart) {", "setResultsBadge('已接受/排队', 'running')");
+    }
+
+    @Test
+    void cancellationUsesTheOriginalIdAndReconcilesWithoutSynthesizingCompletion() {
+        int cancelOffset = html.indexOf("cancelStartButton.addEventListener('click'");
+        int cancelEndOffset = html.indexOf("function judgeHttpError(", cancelOffset);
+        String cancelBlock = html.substring(cancelOffset, cancelEndOffset);
+        assertThat(cancelBlock).contains("fetch('/judge/cancel/' + judgeId", "'X-CSRF-TOKEN': csrfToken")
+                .contains("typeof cancelResult.accepted !== 'boolean'", "await reconcileKnownJudge()")
+                .contains("最终状态以任务查询为准")
+                .doesNotContain("fetch('/judge'", "status: 'CANCELLED'", "status: 'COMPLETED'");
+        assertThat(html).contains("id=\"cancel-start-button\"", "cancelStartButton.hidden = true")
+                .contains("cancelStartButton.disabled = true");
+        int acceptedOffset = html.indexOf("if (isActiveProgress(progress) || isTerminalProgress(progress))");
+        int acceptedEndOffset = html.indexOf("rememberJudgeProgress(progress);", acceptedOffset);
+        assertThat(html.substring(acceptedOffset, acceptedEndOffset))
+                .contains("pendingStart = false;", "cancelStartButton.hidden = true;");
+    }
+
+    @Test
+    void progressChannelsStopAndRejectLateResponsesWithoutOverlappingPolls() {
+        assertThat(html).contains("function stopProgressTracking()", "progressPollController.abort()")
+                .contains("clearTimeout(progressPollTimer)", "clearTimeout(reconnectTimer)", "socket.close()")
+                .contains("window.addEventListener('beforeunload', stopProgressTracking)")
+                .contains("stompClient !== client || currentJudgeId !== judgeId")
+                .contains("progressPollController !== controller || currentJudgeId !== judgeId")
+                .contains("signal: controller.signal", "failures >= maxReconnectAttempts")
+                .contains("setTimeout(poll, failures ? 3000 * failures : 1000)")
+                .contains("currentJudgeId && error.requestPhase === 'status'")
+                .contains("网络或响应异常，任务状态暂时未知；已保留原任务，重试前会先查询状态。")
+                .doesNotContain("setInterval(async () =>");
+    }
+
+    @Test
+    void missingToastComponentHasEscapedVisibleAndDismissibleFallback() {
+        assertThat(html).contains("typeof bootstrap.Toast === 'function'")
+                .contains("showFallbackToast('success', message)", "showFallbackToast('error', message)")
+                .contains("document.querySelector('#error-toast [data-bs-dismiss=\"toast\"]')?.click()")
+                .contains("body.textContent = message", "toast.style.display = 'block'")
+                .contains("closeButton.onclick", "toast.style.display = 'none'")
+                .doesNotContain("body.innerHTML = message");
     }
 
     @Test
@@ -89,9 +229,17 @@ class FrontendTemplateContractTest {
         assertThat(html)
                 .contains("localStorage.setItem(LAST_JUDGE_ID_KEY, currentJudgeId)")
                 .contains("localStorage.setItem(LAST_PROGRESS_KEY, JSON.stringify(progress))")
-                .contains("const response = await fetch(`/judge/status/${currentJudgeId}`)")
-                .contains("handleProgress(cachedProgress, { silent: true, switchView: false })")
+                .contains("const response = await fetch(`/judge/status/${currentJudgeId}`,")
+                .contains("handleProgress(progressData, { silent: true, switchView: false })")
                 .contains("await restoreLatestJudgeResult();");
+        String restoration = html.substring(html.indexOf("async function restoreLatestJudgeResult()"),
+                html.indexOf("generatorEditor.on('change', saveWorkspaceState)"));
+        assertThat(restoration).doesNotContain("cachedProgress", "JSON.parse(cachedRaw)");
+        assertThat(restoration.indexOf("if (!response.ok)"))
+                .isNotNegative()
+                .isLessThan(restoration.indexOf("handleProgress(progressData"));
+        assertThat(restoration).contains("if (currentJudgeId !== judgeId)",
+                "throw judgeHttpError(response)", "await showJudgeSubmissionFailure(error)");
         assertThat(html)
                 .contains("saveWorkspaceState();")
                 .contains("document.getElementById('time-limit').value")
@@ -107,7 +255,12 @@ class FrontendTemplateContractTest {
         assertThat(normalizedHtml)
                 .contains("function isActiveProgress(progress)")
                 .contains("function restoreRunningUiState(options = {})")
-                .contains("if (isActiveProgress(progress)) {\n                restoreRunningUiState({ switchView: options.switchView === true });\n            }");
+                .contains("if (isActiveProgress(progress)) {\n"
+                        + "                restoreRunningUiState({ switchView: options.switchView === true });\n"
+                        + "                if (normalizeStatus(progress.status) === 'QUEUED') {\n"
+                        + "                    setResultsBadge('排队中', 'running');\n"
+                        + "                    startButton.innerHTML = '<i class=\"fas fa-spinner fa-spin\"></i> 排队中...';\n"
+                        + "                }\n            }");
         assertThat(normalizedHtml)
                 .contains("window.addEventListener('beforeunload', saveWorkspaceState)")
                 .contains("window.addEventListener('pagehide', saveWorkspaceState)")
@@ -141,7 +294,6 @@ class FrontendTemplateContractTest {
                 .contains("localStorage.setItem(ACTIVE_WORKSPACE_VIEW_KEY, viewName)")
                 .contains("const initialView = loadWorkspaceState();\n            showWorkspaceView(initialView, { persist: false });");
         assertThat(normalizedHtml)
-                .contains("handleProgress(cachedProgress, { silent: true, switchView: false })")
                 .contains("handleProgress(progressData, { silent: true, switchView: false })")
                 .contains("startPollingProgress(currentJudgeId, { switchView: false })")
                 .contains("restoreRunningUiState({ switchView: options.switchView === true })");

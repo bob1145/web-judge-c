@@ -13,6 +13,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.util.Map;
@@ -156,8 +157,38 @@ class LinuxRuntimeJournalTest {
                     switch (shape) {
                         case "contents" -> Files.writeString(marker, "unsafe");
                         case "mode" -> Files.setPosixFilePermissions(marker, PosixFilePermissions.fromString("rw-r--r--"));
-                        case "uid" -> Files.setAttribute(marker, "unix:uid", uid + 1);
-                        case "gid" -> Files.setAttribute(marker, "unix:gid", gid + 1);
+                        case "uid", "gid" -> {
+                            String fixtureDirectory = System.getProperty("judge.test.foreign-identity-directory");
+                            if (fixtureDirectory == null) {
+                                Files.setAttribute(marker, "unix:" + shape, shape.equals("uid") ? uid + 1 : gid + 1);
+                            } else {
+                                Path fixtureBase = Path.of(fixtureDirectory);
+                                assertTrue(fixtureBase.isAbsolute());
+                                assertEquals(fixtureBase.normalize(), fixtureBase);
+                                Path foreign = fixtureBase.resolve(shape + ".marker");
+                                Map<String, Object> ownership = Files.readAttributes(foreign,
+                                        "unix:uid,gid,mode,nlink,size,fileKey,isRegularFile", java.nio.file.LinkOption.NOFOLLOW_LINKS);
+                                assertEquals(true, ownership.get("isRegularFile"));
+                                assertFalse(Files.isSymbolicLink(foreign));
+                                if (shape.equals("uid")) {
+                                    assertNotEquals(uid, ((Number) ownership.get("uid")).intValue());
+                                    assertEquals(gid, ((Number) ownership.get("gid")).intValue());
+                                } else {
+                                    assertEquals(uid, ((Number) ownership.get("uid")).intValue());
+                                    assertNotEquals(gid, ((Number) ownership.get("gid")).intValue());
+                                }
+                                assertEquals(0600, ((Number) ownership.get("mode")).intValue() & 07777);
+                                assertEquals(1, ((Number) ownership.get("nlink")).intValue());
+                                assertEquals(0L, ((Number) ownership.get("size")).longValue());
+                                Files.move(foreign, marker, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                                Map<String, Object> installed = Files.readAttributes(marker,
+                                        "unix:uid,gid,mode,nlink,size,fileKey,isRegularFile", java.nio.file.LinkOption.NOFOLLOW_LINKS);
+                                assertEquals(ownership, installed);
+                                System.out.printf("Journal %s negative: actual uid=%d/gid=%d, expected writer uid=%d/gid=%d, native inode retained%n",
+                                        shape, ((Number) installed.get("uid")).intValue(),
+                                        ((Number) installed.get("gid")).intValue(), uid, gid);
+                            }
+                        }
                         default -> throw new AssertionError("unknown marker shape");
                     }
                 }

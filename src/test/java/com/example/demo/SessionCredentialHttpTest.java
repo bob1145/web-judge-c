@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.example.demo.support.CsrfTestSupport.withCsrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -134,9 +135,9 @@ class SessionCredentialHttpTest {
 
     @Test
     void logoutCannotChooseBetweenConflictingCredentials() throws Exception {
-        mockMvc.perform(post("/auth/logout").accept(MediaType.APPLICATION_JSON)
+        mockMvc.perform(withCsrf(mockMvc, post("/auth/logout").accept(MediaType.APPLICATION_JSON)
                         .cookie(new Cookie("JUDGE_SESSION", session.getSessionId()))
-                        .header("X-Session-ID", otherSession.getSessionId()))
+                        .header("X-Session-ID", otherSession.getSessionId())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sessionId").isEmpty());
         assertThat(accessCodeService.isSessionValid(session.getSessionId())).isTrue();

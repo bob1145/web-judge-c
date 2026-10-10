@@ -8,15 +8,24 @@ import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.dto.SandboxTaskEvent;
 import com.example.demo.dto.SandboxTaskSpec;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -26,9 +35,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Component
 @ConditionalOnProperty(name = "judge.sandbox.production.provider", havingValue = "windows-container")
@@ -39,8 +52,10 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
     private final Options options;
     private final CommandExecutor commandExecutor;
     private final ObjectMapper objectMapper;
+    private final ObjectReader eventReader;
     private final Map<String, RunState> runs = new ConcurrentHashMap<>();
 
+    @Autowired
     public WindowsHyperVContainerRunner(SandboxProperties sandboxProperties, ObjectMapper objectMapper) {
         this(Options.fromProperties(sandboxProperties), new ProcessCommandExecutor(), objectMapper);
     }
@@ -49,6 +64,7 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
         this.options = options == null ? Options.builder().build() : options;
         this.commandExecutor = commandExecutor == null ? new ProcessCommandExecutor() : commandExecutor;
         this.objectMapper = objectMapper == null ? new ObjectMapper().findAndRegisterModules() : objectMapper;
+        this.eventReader = SandboxTaskEvent.jsonReader(this.objectMapper);
     }
 
     public static WindowsHyperVContainerRunner withDefaults(ObjectMapper objectMapper) {
@@ -165,6 +181,16 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
 
     @Override
     public SandboxRunHandle start(SandboxTaskSpec spec) {
+        return start(spec, spec.maxTaskRuntime());
+    }
+
+    @Override
+    public SandboxRunHandle start(SandboxTaskSpec spec, Duration timeout) {
+        if (timeout == null || timeout.isZero() || timeout.isNegative()) {
+            throw new IllegalArgumentException("Sandbox startup requires a positive timeout");
+        }
+        long started = System.nanoTime();
+        long budgetNanos = timeout.toNanos();
         if (!"trusted-local".equals(spec.profile())) {
             throw new IllegalStateException("Windows execution outside trusted-local requires control-plane isolation");
         }
@@ -175,11 +201,12 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
                 throw new IllegalArgumentException("host workDir cannot contain a mount delimiter");
             }
             SandboxExecutionManifest manifest = prepared.manifest();
-            probeProtocol().require(manifest);
+            probeProtocol(remainingStartupBudget(started, budgetNanos)).require(manifest);
             prepared.write(objectMapper);
 
             String containerName = containerName(spec.judgeId());
-            CommandResult result = commandExecutor.run(startCommand(spec, workDir, containerName, manifest), options.commandTimeout());
+            CommandResult result = commandExecutor.run(startCommand(spec, workDir, containerName, manifest),
+                    remainingStartupBudget(started, budgetNanos));
             if (!result.succeeded()) {
                 throw new IllegalStateException("windows hyper-v container start failed: " + compact(result.combinedOutput()));
             }
@@ -207,44 +234,177 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
 
     @Override
     public List<SandboxTaskEvent> pollEvents(SandboxRunHandle handle) {
+        if (handle == null || !PROVIDER.equals(handle.provider())) {
+            throw new IllegalArgumentException("Sandbox run handle provider does not match " + PROVIDER);
+        }
         RunState state = runs.get(handle.runId());
         if (state == null) {
             return List.of();
         }
-        Path eventFile = state.workDir().resolve(state.eventFile());
-        if (!Files.exists(eventFile)) {
-            return List.of();
+        synchronized (state) {
+            Path eventFile = state.workDir().resolve(state.eventFile());
+            try {
+                BasicFileAttributes previous = state.fileAttributes().get();
+                BasicFileAttributes attributes;
+                try {
+                    attributes = checkedEventFileAttributes(eventFile, previous);
+                } catch (NoSuchFileException e) {
+                    if (previous == null) {
+                        return List.of();
+                    }
+                    throw e;
+                }
+                long cursor = state.cursor().get();
+                byte[] previousLine = state.pendingLine().get();
+                long readOffset = Math.addExact(cursor, previousLine.length);
+                if (readOffset > attributes.size()) {
+                    throw new IOException("Runner event file lost previously observed bytes");
+                }
+                long completedOffset = cursor;
+                List<SandboxTaskEvent> events = new ArrayList<>();
+                byte[] remainingLine;
+                try (FileChannel channel = FileChannel.open(eventFile, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+                    channel.position(cursor);
+                    ByteBuffer buffer = ByteBuffer.allocate(Math.min(8192, options.eventBatchLimitBytes()));
+                    int verifiedBytes = 0;
+                    while (verifiedBytes < previousLine.length) {
+                        buffer.clear();
+                        buffer.limit(Math.min(buffer.capacity(), previousLine.length - verifiedBytes));
+                        if (channel.read(buffer) <= 0) {
+                            throw new IOException("Runner event file lost its cached pending prefix");
+                        }
+                        buffer.flip();
+                        while (buffer.hasRemaining()) {
+                            if (buffer.get() != previousLine[verifiedBytes]) {
+                                throw new IOException("Runner event file changed its cached pending prefix");
+                            }
+                            verifiedBytes++;
+                        }
+                    }
+                    ByteArrayOutputStream pendingLine = new ByteArrayOutputStream();
+                    pendingLine.writeBytes(previousLine);
+                    int readBytes = previousLine.length;
+                    while (readBytes < options.eventBatchLimitBytes() && events.size() < options.eventBatchLimitCount()) {
+                        buffer.clear();
+                        buffer.limit(Math.min(buffer.capacity(), options.eventBatchLimitBytes() - readBytes));
+                        int blockBytes = channel.read(buffer);
+                        if (blockBytes <= 0) {
+                            break;
+                        }
+                        readBytes += blockBytes;
+                        buffer.flip();
+                        while (buffer.hasRemaining() && events.size() < options.eventBatchLimitCount()) {
+                            byte nextByte = buffer.get();
+                            readOffset++;
+                            if (nextByte != '\n') {
+                                if (pendingLine.size() == options.eventLineLimitBytes()) {
+                                    throw new IOException("Runner event line exceeds byte limit");
+                                }
+                                pendingLine.write(nextByte);
+                                continue;
+                            }
+                            byte[] lineBytes = pendingLine.toByteArray();
+                            int length = lineBytes.length;
+                            if (length > 0 && lineBytes[length - 1] == '\r') {
+                                length--;
+                            }
+                            String line = StandardCharsets.UTF_8.newDecoder()
+                                    .decode(ByteBuffer.wrap(lineBytes, 0, length)).toString();
+                            if (StringUtils.hasText(line)) {
+                                SandboxTaskEvent event = eventReader.readValue(line);
+                                if (event == null || event.type() == null) {
+                                    throw new IOException("Runner event record has no valid type");
+                                }
+                                events.add(event);
+                            }
+                            completedOffset = readOffset;
+                            pendingLine.reset();
+                        }
+                    }
+                    remainingLine = pendingLine.toByteArray();
+                }
+                state.fileAttributes().set(checkedEventFileAttributes(eventFile, attributes));
+                state.cursor().set(completedOffset);
+                state.pendingLine().set(remainingLine);
+                return events;
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to read windows container events", e);
+            }
+        }
+    }
+
+    private static BasicFileAttributes checkedEventFileAttributes(Path eventFile, BasicFileAttributes previous) throws IOException {
+        BasicFileAttributes attributes = Files.readAttributes(eventFile, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        if (!attributes.isRegularFile() || attributes.fileKey() == null) {
+            throw new IOException("Runner event file must have a regular, identifiable file identity");
+        }
+        if (previous != null && (!previous.fileKey().equals(attributes.fileKey()) || attributes.size() < previous.size())) {
+            throw new IOException("Runner event file was replaced or shortened");
+        }
+        return attributes;
+    }
+
+    @Override
+    public ExecutionState executionState(SandboxRunHandle handle, Duration timeout) {
+        if (handle == null || !PROVIDER.equals(handle.provider())) {
+            throw new IllegalArgumentException("Sandbox run handle provider does not match " + PROVIDER);
+        }
+        if (timeout == null || timeout.isZero() || timeout.isNegative()) {
+            throw new IllegalArgumentException("Execution state observation requires a positive timeout");
+        }
+        RunState state = runs.get(handle.runId());
+        if (state == null) {
+            return ExecutionState.UNKNOWN;
         }
         try {
-            List<String> lines = Files.readAllLines(eventFile, StandardCharsets.UTF_8);
-            int cursor = state.cursor().get();
-            if (cursor >= lines.size()) {
-                return List.of();
+            CommandResult result = commandExecutor.run(List.of(options.runtimeCommand(), "inspect", "--format",
+                    "{{.State.Running}}|{{.State.Pid}}", handle.runId()),
+                    timeout.compareTo(options.commandTimeout()) < 0 ? timeout : options.commandTimeout());
+            if (result.exitCode() != 0 || StringUtils.hasText(result.stderr())) {
+                return ExecutionState.UNKNOWN;
             }
-            List<SandboxTaskEvent> events = new ArrayList<>();
-            for (int i = cursor; i < lines.size(); i++) {
-                String line = lines.get(i);
-                if (StringUtils.hasText(line)) {
-                    events.add(objectMapper.readValue(line, SandboxTaskEvent.class));
-                }
+            String[] status = firstLine(result.stdout()).split("\\|", -1);
+            if (status.length != 2) {
+                return ExecutionState.UNKNOWN;
             }
-            state.cursor().set(lines.size());
-            if (events.stream().anyMatch(event -> terminal(event.type()))) {
-                cleanupContainer(handle.runId());
+            long pid;
+            try {
+                pid = Long.parseLong(status[1]);
+            } catch (NumberFormatException invalid) {
+                return ExecutionState.UNKNOWN;
             }
-            return events;
-        } catch (Exception e) {
-            return List.of(SandboxTaskEvent.of(
-                    handle.judgeId(),
-                    SandboxTaskEvent.Type.SYSTEM_ERROR,
-                    "Failed to read windows container events: " + e.getMessage()
-            ));
+            if ("true".equals(status[0]) && pid > 0) {
+                return ExecutionState.ACTIVE;
+            }
+            return "false".equals(status[0]) && pid == 0 ? ExecutionState.EXITED : ExecutionState.UNKNOWN;
+        } catch (IOException | InterruptedException failure) {
+            if (failure instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new IllegalStateException("Failed to observe Windows container execution state", failure);
         }
     }
 
     @Override
     public void cancel(SandboxRunHandle handle) {
-        cleanupContainer(handle.runId());
+        cancel(handle, options.commandTimeout());
+    }
+
+    @Override
+    public void cancel(SandboxRunHandle handle, Duration timeout) {
+        if (handle == null || !PROVIDER.equals(handle.provider())) {
+            throw new IllegalArgumentException("Sandbox run handle provider does not match " + PROVIDER);
+        }
+        if (timeout == null || timeout.isZero() || timeout.isNegative()) {
+            throw new IllegalArgumentException("Sandbox cancellation requires a positive timeout");
+        }
+        cleanupContainer(handle.runId(), timeout.compareTo(options.commandTimeout()) < 0 ? timeout : options.commandTimeout());
+    }
+
+    @Override
+    public void cleanupResidual(SandboxRunHandle handle, Duration timeout) {
+        cancel(handle, timeout);
+        throw new IllegalStateException("Sandbox execution domain stop is not confirmed");
     }
 
     private SandboxCapabilities unavailable(String reason, String details) {
@@ -262,19 +422,32 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
     }
 
     private RunnerProtocolCapabilities probeProtocol() throws IOException, InterruptedException {
+        return probeProtocol(options.commandTimeout());
+    }
+
+    private RunnerProtocolCapabilities probeProtocol(Duration timeout) throws IOException, InterruptedException {
         List<String> command = baseRunCommand(containerName("protocol"), options.probeMemoryBytes());
         command.remove("-d");
         command.add("--rm");
         command.add(options.image());
         command.add(options.runnerCommand());
         command.add("--capabilities");
-        CommandResult result = commandExecutor.run(command, options.commandTimeout());
+        CommandResult result = commandExecutor.run(command, timeout);
         if (!result.succeeded()) {
             throw new IllegalStateException("runner protocol capability probe failed");
         }
         RunnerProtocolCapabilities protocol = objectMapper.readValue(result.stdout(), RunnerProtocolCapabilities.class);
         protocol.requireVersion2();
         return protocol;
+    }
+
+    private Duration remainingStartupBudget(long started, long budgetNanos) throws IOException {
+        long remaining = budgetNanos - (System.nanoTime() - started);
+        if (remaining <= 0) {
+            throw new IOException("Sandbox startup deadline exceeded");
+        }
+        Duration timeout = Duration.ofNanos(remaining);
+        return timeout.compareTo(options.commandTimeout()) < 0 ? timeout : options.commandTimeout();
     }
 
     private List<String> runtimeVersionCommand() {
@@ -356,13 +529,17 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
     }
 
     private boolean cleanupContainer(String containerId) {
+        return cleanupContainer(containerId, options.commandTimeout());
+    }
+
+    private boolean cleanupContainer(String containerId, Duration timeout) {
         if (!StringUtils.hasText(containerId)) {
             return false;
         }
         try {
             CommandResult result = commandExecutor.run(
                     List.of(options.runtimeCommand(), "rm", "-f", containerId),
-                    options.commandTimeout()
+                    timeout
             );
             return result.succeeded();
         } catch (IOException | InterruptedException e) {
@@ -376,15 +553,6 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
     }
 
 
-
-    private boolean terminal(SandboxTaskEvent.Type type) {
-        return type == SandboxTaskEvent.Type.COMPLETED
-                || type == SandboxTaskEvent.Type.CANCELLED
-                || type == SandboxTaskEvent.Type.BUDGET_EXCEEDED
-                || type == SandboxTaskEvent.Type.SECURITY_VIOLATION
-                || type == SandboxTaskEvent.Type.SYSTEM_ERROR
-                || type == SandboxTaskEvent.Type.SANDBOX_UNAVAILABLE;
-    }
 
     private String containerName(String judgeId) {
         String safeJudgeId = judgeId == null ? "unknown" : judgeId.replaceAll("[^a-zA-Z0-9_.-]", "-");
@@ -442,6 +610,9 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
         private final String probeCommand;
         private final String taskSpecFile;
         private final String eventFile;
+        private final int eventBatchLimitBytes;
+        private final int eventBatchLimitCount;
+        private final int eventLineLimitBytes;
         private final double cpus;
         private final long probeMemoryBytes;
         private final String securityProfile;
@@ -464,6 +635,13 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
             if (builder.cpus <= 0) {
                 throw new IllegalArgumentException("cpus must be positive");
             }
+            if (builder.eventLineLimitBytes <= 0 || builder.eventBatchLimitBytes <= builder.eventLineLimitBytes
+                    || builder.eventBatchLimitCount <= 0) {
+                throw new IllegalArgumentException("event limits must be positive and batch bytes must exceed line bytes");
+            }
+            this.eventBatchLimitBytes = builder.eventBatchLimitBytes;
+            this.eventBatchLimitCount = builder.eventBatchLimitCount;
+            this.eventLineLimitBytes = builder.eventLineLimitBytes;
             if (builder.probeMemoryBytes <= 0) {
                 throw new IllegalArgumentException("probeMemoryBytes must be positive");
             }
@@ -487,6 +665,9 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
                     .probeCommand(windows.getProbeCommand())
                     .taskSpecFile(windows.getTaskSpecFile())
                     .eventFile(windows.getEventFile())
+                    .eventBatchLimitBytes(properties.getEventBatchLimitBytes())
+                    .eventBatchLimitCount(properties.getEventBatchLimitCount())
+                    .eventLineLimitBytes(properties.getEventLineLimitBytes())
                     .cpus(windows.getCpus())
                     .probeMemoryBytes(windows.getProbeMemoryBytes())
                     .securityProfile(StringUtils.hasText(properties.getSecurityProfile())
@@ -532,6 +713,18 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
             return eventFile;
         }
 
+        public int eventBatchLimitBytes() {
+            return eventBatchLimitBytes;
+        }
+
+        public int eventBatchLimitCount() {
+            return eventBatchLimitCount;
+        }
+
+        public int eventLineLimitBytes() {
+            return eventLineLimitBytes;
+        }
+
         public double cpus() {
             return cpus;
         }
@@ -557,6 +750,9 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
             private String probeCommand = "C:\\judge-runner\\probe.cmd";
             private String taskSpecFile = SandboxExecutionManifest.SPEC_FILE;
             private String eventFile = SandboxExecutionManifest.EVENT_FILE;
+            private int eventBatchLimitBytes = SandboxProperties.DEFAULT_EVENT_BATCH_LIMIT_BYTES;
+            private int eventBatchLimitCount = SandboxProperties.DEFAULT_EVENT_BATCH_LIMIT_COUNT;
+            private int eventLineLimitBytes = SandboxProperties.DEFAULT_EVENT_LINE_LIMIT_BYTES;
             private double cpus = 1.0;
             private long probeMemoryBytes = 268435456L;
             private String securityProfile = "hyper-v;job-object";
@@ -604,6 +800,21 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
 
             public Builder cpus(double cpus) {
                 this.cpus = cpus;
+                return this;
+            }
+
+            public Builder eventBatchLimitBytes(int eventBatchLimitBytes) {
+                this.eventBatchLimitBytes = eventBatchLimitBytes;
+                return this;
+            }
+
+            public Builder eventBatchLimitCount(int eventBatchLimitCount) {
+                this.eventBatchLimitCount = eventBatchLimitCount;
+                return this;
+            }
+
+            public Builder eventLineLimitBytes(int eventLineLimitBytes) {
+                this.eventLineLimitBytes = eventLineLimitBytes;
                 return this;
             }
 
@@ -700,24 +911,55 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
         }
     }
 
-    private record RunState(Path workDir, String eventFile, AtomicInteger cursor) {
+    private record RunState(Path workDir, String eventFile, AtomicLong cursor,
+                            AtomicReference<BasicFileAttributes> fileAttributes, AtomicReference<byte[]> pendingLine) {
         RunState(Path workDir, String eventFile) {
-            this(workDir, eventFile, new AtomicInteger(0));
+            this(workDir, eventFile, new AtomicLong(0), new AtomicReference<>(), new AtomicReference<>(new byte[0]));
         }
     }
 
     private static final class ProcessCommandExecutor implements CommandExecutor {
         @Override
         public CommandResult run(List<String> command, Duration timeout) throws IOException, InterruptedException {
+            if (timeout == null || timeout.isZero() || timeout.isNegative()) {
+                throw new IllegalArgumentException("Runtime command requires a positive timeout");
+            }
+            long started = System.nanoTime();
+            long budgetNanos = timeout.toNanos();
             Process process = new ProcessBuilder(command).start();
             CompletableFuture<String> stdout = readAsync(process.getInputStream());
             CompletableFuture<String> stderr = readAsync(process.getErrorStream());
-            boolean finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
-            if (!finished) {
-                process.destroyForcibly();
-                return new CommandResult(124, stdout.join(), "command timed out after " + timeout);
+            boolean completed = false;
+            try {
+                process.getOutputStream().close();
+                long remaining = budgetNanos - (System.nanoTime() - started);
+                if (remaining <= 0 || !process.waitFor(remaining, TimeUnit.NANOSECONDS)) {
+                    throw new TimeoutException();
+                }
+                String output = awaitOutput(stdout, started, budgetNanos);
+                String error = awaitOutput(stderr, started, budgetNanos);
+                completed = true;
+                return new CommandResult(process.exitValue(), output, error);
+            } catch (TimeoutException deadline) {
+                throw new IOException("Runtime command deadline exceeded; completion is not confirmed", deadline);
+            } catch (ExecutionException failure) {
+                throw new IOException("Runtime command output could not be read", failure.getCause());
+            } finally {
+                if (!completed) {
+                    stdout.cancel(true);
+                    stderr.cancel(true);
+                    process.destroyForcibly();
+                }
             }
-            return new CommandResult(process.exitValue(), stdout.join(), stderr.join());
+        }
+
+        private static String awaitOutput(CompletableFuture<String> output, long started, long budgetNanos)
+                throws InterruptedException, ExecutionException, TimeoutException {
+            long remaining = budgetNanos - (System.nanoTime() - started);
+            if (remaining <= 0) {
+                throw new TimeoutException();
+            }
+            return output.get(remaining, TimeUnit.NANOSECONDS);
         }
 
         private static CompletableFuture<String> readAsync(InputStream inputStream) {
@@ -725,7 +967,7 @@ public class WindowsHyperVContainerRunner implements SandboxRunner {
                 try (InputStream stream = inputStream) {
                     return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
                 } catch (IOException e) {
-                    return e.getMessage();
+                    throw new CompletionException(e);
                 }
             });
         }

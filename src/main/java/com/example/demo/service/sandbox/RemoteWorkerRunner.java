@@ -8,8 +8,11 @@ import com.example.demo.dto.RunnerProtocolCapabilities;
 import com.example.demo.dto.SandboxRunHandle;
 import com.example.demo.dto.SandboxTaskEvent;
 import com.example.demo.dto.SandboxTaskSpec;
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -24,13 +27,23 @@ import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.nio.charset.CodingErrorAction;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Flow;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Component
 @ConditionalOnProperty(name = "judge.sandbox.production.provider", havingValue = "remote-worker")
@@ -41,8 +54,9 @@ public class RemoteWorkerRunner implements SandboxRunner {
 
     private final Options options;
     private final ObjectMapper objectMapper;
+    private final ObjectReader eventReader;
     private final HttpClient httpClient;
-    private final Map<String, List<SandboxTaskEvent>> localEvents = new ConcurrentHashMap<>();
+    private final Map<SandboxRunHandle, List<SandboxTaskEvent>> localEvents = new ConcurrentHashMap<>();
 
     @Autowired
     public RemoteWorkerRunner(
@@ -64,6 +78,8 @@ public class RemoteWorkerRunner implements SandboxRunner {
     RemoteWorkerRunner(Options options, ObjectMapper objectMapper, SSLContext sslContext) {
         this.options = options == null ? Options.builder().build() : options;
         this.objectMapper = objectMapper == null ? new ObjectMapper().findAndRegisterModules() : objectMapper;
+        this.eventReader = SandboxTaskEvent.jsonReader(this.objectMapper)
+                .without(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
         HttpClient.Builder builder = HttpClient.newBuilder()
                 .connectTimeout(this.options.connectTimeout())
                 .followRedirects(HttpClient.Redirect.NEVER);
@@ -75,8 +91,12 @@ public class RemoteWorkerRunner implements SandboxRunner {
 
     @Override
     public SandboxCapabilities probe() {
+        return probe(options.requestTimeout());
+    }
+
+    private SandboxCapabilities probe(Duration timeout) {
         try {
-            HttpResponse<String> response = send("GET", "/api/v1/capabilities", "");
+            HttpResponse<byte[]> response = send("GET", "/api/v1/capabilities", "", timeout);
             if (!isSuccess(response.statusCode())) {
                 return unavailableCapabilities("worker unavailable: status " + response.statusCode());
             }
@@ -87,16 +107,30 @@ public class RemoteWorkerRunner implements SandboxRunner {
             capabilities.protocol().requireVersion2();
             return capabilities;
         } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             return unavailableCapabilities("worker unavailable: " + e.getMessage());
         }
     }
 
     @Override
     public SandboxRunHandle start(SandboxTaskSpec spec) {
+        return start(spec, spec.maxTaskRuntime());
+    }
+
+    @Override
+    public SandboxRunHandle start(SandboxTaskSpec spec, Duration timeout) {
+        if (timeout == null || timeout.isZero() || timeout.isNegative()) {
+            throw new IllegalArgumentException("Worker startup requires a positive timeout");
+        }
+        long started = System.nanoTime();
+        long budgetNanos = timeout.toNanos();
+        boolean createRequested = false;
         try {
             SandboxManifestFactory.Prepared prepared = SandboxManifestFactory.prepare(spec);
             SandboxExecutionManifest manifest = prepared.manifest();
-            SandboxCapabilities capabilities = probe();
+            SandboxCapabilities capabilities = probe(remainingStartupBudget(started, budgetNanos));
             if (capabilities.protocol() == null) {
                 return unavailableHandle(spec.judgeId(), "worker unavailable: does not support the requested runner protocol");
             }
@@ -105,57 +139,129 @@ public class RemoteWorkerRunner implements SandboxRunner {
                 return unavailableHandle(spec.judgeId(), "worker does not support inline task sources");
             }
             String body = objectMapper.writeValueAsString(new StartRequest(manifest, prepared.sourceContentsBase64()));
-            HttpResponse<String> response = send("POST", "/api/v1/runs", body);
+            Duration remaining = remainingStartupBudget(started, budgetNanos);
+            createRequested = true;
+            HttpResponse<byte[]> response = send("POST", "/api/v1/runs", body, remaining);
             if (!isSuccess(response.statusCode())) {
-                return unavailableHandle(spec.judgeId(), "worker unavailable: status " + response.statusCode());
+                throw new IllegalStateException("worker returned an unsuccessful start acknowledgement");
             }
             var acknowledgement = objectMapper.readTree(response.body());
             var version = acknowledgement.path("protocolVersion");
             if (!version.isIntegralNumber() || !version.canConvertToInt()) {
-                return unavailableHandle(spec.judgeId(), "worker returned an incompatible run acknowledgement");
+                throw new IllegalStateException("worker returned an incompatible run acknowledgement");
             }
             SandboxRunHandle handle = objectMapper.treeToValue(acknowledgement, SandboxRunHandle.class);
             if (handle.protocolVersion() != manifest.protocolVersion()
                     || !manifest.attemptId().equals(handle.attemptId())
                     || !manifest.judgeId().equals(handle.judgeId())
-                    || !PROVIDER.equals(handle.provider()) || !StringUtils.hasText(handle.runId())) {
-                return unavailableHandle(spec.judgeId(), "worker returned an incompatible run acknowledgement");
+                    || !PROVIDER.equals(handle.provider()) || !StringUtils.hasText(handle.runId())
+                    || UNAVAILABLE_RUN_ID.equals(handle.runId())) {
+                throw new IllegalStateException("worker returned an incompatible run acknowledgement");
             }
             return handle;
         } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            if (createRequested) {
+                throw new IllegalStateException("Worker startup outcome is unconfirmed; trusted recovery is required", e);
+            }
             return unavailableHandle(spec.judgeId(), "worker unavailable: " + e.getMessage());
         }
     }
 
+    private Duration remainingStartupBudget(long started, long budgetNanos) throws IOException {
+        long remaining = budgetNanos - (System.nanoTime() - started);
+        if (remaining <= 0) {
+            throw new IOException("Worker startup deadline exceeded");
+        }
+        return Duration.ofNanos(remaining);
+    }
+
     @Override
     public List<SandboxTaskEvent> pollEvents(SandboxRunHandle handle) {
-        List<SandboxTaskEvent> local = localEvents.remove(handle.runId());
+        return pollEvents(handle, options.requestTimeout());
+    }
+
+    @Override
+    public List<SandboxTaskEvent> pollEvents(SandboxRunHandle handle, Duration timeout) {
+        if (handle == null || !PROVIDER.equals(handle.provider())) {
+            throw new IllegalArgumentException("Sandbox run handle provider does not match " + PROVIDER);
+        }
+        if (timeout == null || timeout.isNegative() || timeout.isZero()) {
+            throw new IllegalArgumentException("Worker event poll requires a positive timeout");
+        }
+        List<SandboxTaskEvent> local = localEvents.remove(handle);
         if (local != null) {
             return local;
         }
+        if (UNAVAILABLE_RUN_ID.equals(handle.runId())) {
+            return List.of();
+        }
         String path = "/api/v1/runs/" + encode(handle.runId()) + "/events?cursor=" + encode(handle.eventCursor());
         try {
-            HttpResponse<String> response = send("GET", path, "");
+            HttpResponse<byte[]> response = send("GET", path, "", timeout);
             if (!isSuccess(response.statusCode())) {
-                return List.of(unavailableEvent(handle.judgeId(), "worker unavailable: status " + response.statusCode()));
+                throw new IllegalStateException("worker event poll failed: status " + response.statusCode());
             }
-            return objectMapper.readValue(response.body(), new TypeReference<>() {
-            });
-        } catch (Exception e) {
-            return List.of(unavailableEvent(handle.judgeId(), "worker unavailable: " + e.getMessage()));
+            List<SandboxTaskEvent> events = new ArrayList<>();
+            try (JsonParser parser = eventReader.getFactory().createParser(response.body())) {
+                if (parser.nextToken() != JsonToken.START_ARRAY) {
+                    throw new IllegalStateException("worker event poll failed: invalid event batch");
+                }
+                while (parser.nextToken() != JsonToken.END_ARRAY) {
+                    if (events.size() >= options.eventBatchLimitCount()) {
+                        throw new IOException("Worker response exceeds event batch count limit");
+                    }
+                    if (parser.currentToken() != JsonToken.START_OBJECT) {
+                        throw new IllegalStateException("worker event poll failed: invalid event batch");
+                    }
+                    long started = parser.getTokenLocation().getByteOffset();
+                    SandboxTaskEvent event = eventReader.readValue(parser);
+                    if (parser.getCurrentLocation().getByteOffset() - started > options.eventLineLimitBytes()) {
+                        throw new IOException("Worker response exceeds event byte limit");
+                    }
+                    if (event == null || event.type() == null) {
+                        throw new IllegalStateException("worker event poll failed: invalid event batch");
+                    }
+                    events.add(event);
+                }
+                if (parser.nextToken() != null) {
+                    throw new IllegalStateException("worker event poll failed: trailing event payload");
+                }
+            }
+            return events;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("worker event poll interrupted", e);
+        } catch (IOException e) {
+            throw new IllegalStateException("worker event poll failed", e);
         }
     }
 
     @Override
     public void cancel(SandboxRunHandle handle) {
+        cancel(handle, options.requestTimeout());
+    }
+
+    @Override
+    public void cancel(SandboxRunHandle handle, Duration timeout) {
+        if (handle == null || !PROVIDER.equals(handle.provider())) {
+            throw new IllegalArgumentException("Sandbox run handle provider does not match " + PROVIDER);
+        }
+        if (timeout == null || timeout.isZero() || timeout.isNegative()) {
+            throw new IllegalArgumentException("Worker cancellation requires a positive timeout");
+        }
         if (UNAVAILABLE_RUN_ID.equals(handle.runId())) {
+            localEvents.remove(handle);
             return;
         }
         try {
-            HttpResponse<String> response = send(
+            HttpResponse<byte[]> response = send(
                     "POST",
                     "/api/v1/runs/" + encode(handle.runId()) + "/cancel",
-                    ""
+                    "",
+                    timeout
             );
             if (isSuccess(response.statusCode()) || response.statusCode() == 404 || response.statusCode() == 409) {
                 return;
@@ -169,14 +275,38 @@ public class RemoteWorkerRunner implements SandboxRunner {
         }
     }
 
+    @Override
+    public void cleanupResidual(SandboxRunHandle handle) {
+        cleanupResidual(handle, options.requestTimeout());
+    }
+
+    @Override
+    public void cleanupResidual(SandboxRunHandle handle, Duration timeout) {
+        cancel(handle, timeout);
+        if (UNAVAILABLE_RUN_ID.equals(handle.runId())) {
+            return;
+        }
+        throw new IllegalStateException("Sandbox execution domain stop is not confirmed");
+    }
+
     private record StartRequest(SandboxExecutionManifest manifest, Map<String, String> sourceContentsBase64) {
     }
 
-    private HttpResponse<String> send(String method, String pathAndQuery, String body)
+    private HttpResponse<byte[]> send(String method, String pathAndQuery, String body)
             throws IOException, InterruptedException {
+        return send(method, pathAndQuery, body, options.requestTimeout());
+    }
+
+    private HttpResponse<byte[]> send(String method, String pathAndQuery, String body, Duration timeout)
+            throws IOException, InterruptedException {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new InterruptedException("Worker request interrupted");
+        }
+        long started = System.nanoTime();
+        Duration requestBudget = timeout.compareTo(options.requestTimeout()) < 0 ? timeout : options.requestTimeout();
         String requestBody = body == null ? "" : body;
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri(pathAndQuery))
-                .timeout(options.requestTimeout())
+                .timeout(requestBudget)
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json");
         addAuthenticationHeaders(builder, method, pathAndQuery, requestBody);
@@ -184,7 +314,79 @@ public class RemoteWorkerRunner implements SandboxRunner {
                 ? HttpRequest.BodyPublishers.noBody()
                 : HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8);
         HttpRequest request = builder.method(method, publisher).build();
-        return httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        var response = httpClient.sendAsync(request, ignored -> boundedResponseBody());
+        try {
+            long remaining = requestBudget.toNanos() - (System.nanoTime() - started);
+            if (remaining <= 0) {
+                throw new HttpTimeoutException("Worker HTTP request deadline exceeded");
+            }
+            HttpResponse<byte[]> received = response.get(remaining, TimeUnit.NANOSECONDS);
+            StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(received.body()));
+            return received;
+        } catch (TimeoutException exception) {
+            throw new HttpTimeoutException("Worker HTTP request deadline exceeded");
+        } catch (ExecutionException exception) {
+            if (exception.getCause() instanceof IOException failure) {
+                throw failure;
+            }
+            throw new IOException("Worker HTTP request failed", exception.getCause());
+        } finally {
+            if (!response.isDone()) {
+                response.cancel(true);
+            }
+        }
+    }
+
+    private HttpResponse.BodySubscriber<byte[]> boundedResponseBody() {
+        var delegate = HttpResponse.BodySubscribers.ofByteArray();
+        return new HttpResponse.BodySubscriber<>() {
+            private Flow.Subscription subscription;
+            private long received;
+            private boolean failed;
+
+            @Override
+            public CompletionStage<byte[]> getBody() {
+                return delegate.getBody();
+            }
+
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                this.subscription = subscription;
+                delegate.onSubscribe(subscription);
+            }
+
+            @Override
+            public void onNext(List<ByteBuffer> buffers) {
+                if (failed) {
+                    return;
+                }
+                for (ByteBuffer buffer : buffers) {
+                    if (buffer.remaining() > options.eventBatchLimitBytes() - received) {
+                        failed = true;
+                        delegate.onError(new IOException("Worker response exceeds event batch byte limit"));
+                        subscription.cancel();
+                        return;
+                    }
+                    received += buffer.remaining();
+                }
+                delegate.onNext(buffers);
+            }
+
+            @Override
+            public void onError(Throwable failure) {
+                if (!failed) {
+                    delegate.onError(failure);
+                }
+            }
+
+            @Override
+            public void onComplete() {
+                if (!failed) {
+                    delegate.onComplete();
+                }
+            }
+        };
     }
 
     private void addAuthenticationHeaders(
@@ -236,19 +438,20 @@ public class RemoteWorkerRunner implements SandboxRunner {
     }
 
     private SandboxRunHandle unavailableHandle(String judgeId, String reason) {
-        SandboxTaskEvent event = unavailableEvent(judgeId, reason);
-        localEvents.put(UNAVAILABLE_RUN_ID, List.of(event));
-        return SandboxRunHandle.builder()
+        String attemptId = UUID.randomUUID().toString();
+        SandboxTaskEvent event = new SandboxTaskEvent(judgeId, SandboxTaskEvent.Type.SANDBOX_UNAVAILABLE,
+                Instant.now(), null, null, reason, null, null, SandboxExecutionManifest.VERSION, attemptId, 1L);
+        SandboxRunHandle handle = SandboxRunHandle.builder()
                 .judgeId(judgeId)
                 .runId(UNAVAILABLE_RUN_ID)
                 .provider(PROVIDER)
                 .startedAt(Instant.now())
                 .eventCursor("0")
+                .protocolVersion(SandboxExecutionManifest.VERSION)
+                .attemptId(attemptId)
                 .build();
-    }
-
-    private SandboxTaskEvent unavailableEvent(String judgeId, String reason) {
-        return SandboxTaskEvent.of(judgeId, SandboxTaskEvent.Type.SANDBOX_UNAVAILABLE, reason);
+        localEvents.put(handle, List.of(event));
+        return handle;
     }
 
     private boolean isSuccess(int statusCode) {
@@ -266,6 +469,9 @@ public class RemoteWorkerRunner implements SandboxRunner {
         private final String mtlsCertificate;
         private final Duration connectTimeout;
         private final Duration requestTimeout;
+        private final int eventBatchLimitBytes;
+        private final int eventBatchLimitCount;
+        private final int eventLineLimitBytes;
 
         private Options(Builder builder) {
             WorkerProperties settings = new WorkerProperties();
@@ -281,13 +487,17 @@ public class RemoteWorkerRunner implements SandboxRunner {
             this.mtlsCertificate = valueOrEmpty(builder.mtlsCertificate);
             this.connectTimeout = builder.connectTimeout;
             this.requestTimeout = builder.requestTimeout;
+            if (builder.eventLineLimitBytes <= 0 || builder.eventBatchLimitBytes <= builder.eventLineLimitBytes
+                    || builder.eventBatchLimitCount <= 0) {
+                throw new IllegalArgumentException("event limits must be positive and batch bytes must exceed line bytes");
+            }
+            this.eventBatchLimitBytes = builder.eventBatchLimitBytes;
+            this.eventBatchLimitCount = builder.eventBatchLimitCount;
+            this.eventLineLimitBytes = builder.eventLineLimitBytes;
         }
 
         static Options from(SandboxProperties sandboxProperties, WorkerProperties workerProperties) {
-            return from(workerProperties.withFallback(sandboxProperties.getWorker()));
-        }
-
-        static Options from(WorkerProperties workerProperties) {
+            workerProperties = workerProperties.withFallback(sandboxProperties.getWorker());
             return builder()
                     .endpoint(workerProperties.getEndpoint())
                     .authToken(workerProperties.getAuthToken())
@@ -295,7 +505,14 @@ public class RemoteWorkerRunner implements SandboxRunner {
                     .mtlsCertificate(workerProperties.getMtlsCertificate())
                     .connectTimeout(workerProperties.getConnectTimeout())
                     .requestTimeout(workerProperties.getRequestTimeout())
+                    .eventBatchLimitBytes(sandboxProperties.getEventBatchLimitBytes())
+                    .eventBatchLimitCount(sandboxProperties.getEventBatchLimitCount())
+                    .eventLineLimitBytes(sandboxProperties.getEventLineLimitBytes())
                     .build();
+        }
+
+        static Options from(WorkerProperties workerProperties) {
+            return from(new SandboxProperties(), workerProperties);
         }
 
         public static Builder builder() {
@@ -326,6 +543,18 @@ public class RemoteWorkerRunner implements SandboxRunner {
             return requestTimeout;
         }
 
+        public int eventBatchLimitBytes() {
+            return eventBatchLimitBytes;
+        }
+
+        public int eventBatchLimitCount() {
+            return eventBatchLimitCount;
+        }
+
+        public int eventLineLimitBytes() {
+            return eventLineLimitBytes;
+        }
+
         public static final class Builder {
             private String endpoint = "";
             private String authToken = "";
@@ -333,6 +562,9 @@ public class RemoteWorkerRunner implements SandboxRunner {
             private String mtlsCertificate = "";
             private Duration connectTimeout = Duration.ofSeconds(5);
             private Duration requestTimeout = Duration.ofSeconds(30);
+            private int eventBatchLimitBytes = SandboxProperties.DEFAULT_EVENT_BATCH_LIMIT_BYTES;
+            private int eventBatchLimitCount = SandboxProperties.DEFAULT_EVENT_BATCH_LIMIT_COUNT;
+            private int eventLineLimitBytes = SandboxProperties.DEFAULT_EVENT_LINE_LIMIT_BYTES;
 
             public Builder endpoint(String endpoint) {
                 this.endpoint = endpoint;
@@ -361,6 +593,21 @@ public class RemoteWorkerRunner implements SandboxRunner {
 
             public Builder requestTimeout(Duration requestTimeout) {
                 this.requestTimeout = requestTimeout;
+                return this;
+            }
+
+            public Builder eventBatchLimitBytes(int eventBatchLimitBytes) {
+                this.eventBatchLimitBytes = eventBatchLimitBytes;
+                return this;
+            }
+
+            public Builder eventBatchLimitCount(int eventBatchLimitCount) {
+                this.eventBatchLimitCount = eventBatchLimitCount;
+                return this;
+            }
+
+            public Builder eventLineLimitBytes(int eventLineLimitBytes) {
+                this.eventLineLimitBytes = eventLineLimitBytes;
                 return this;
             }
 
