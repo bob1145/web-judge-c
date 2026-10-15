@@ -1,6 +1,8 @@
 package com.example.demo;
 
 import com.example.demo.config.ExecutionProperties;
+import com.example.demo.dto.JudgeProgress;
+import com.example.demo.dto.TestCaseResult;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
 import com.example.demo.service.FileTaskStore;
@@ -20,6 +22,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -95,6 +98,9 @@ class JudgeFileServiceProductionTest {
         Path workDir = createTask("streaming-only", 2);
         Files.writeString(workDir.resolve("1.in"), "input-1");
         Files.writeString(workDir.resolve("2.in"), "input-2");
+        taskStore.saveSummary("streaming-only", new JudgeProgress("COMPLETED", "", 100, List.of(
+                new TestCaseResult(1, "AC", 1, 1), new TestCaseResult(2, "AC", 1, 1)
+        )));
 
         StreamingResponseBody body = service.streamAllTestCasesArchive("streaming-only");
         ByteArrayOutputStream testBuffer = new ByteArrayOutputStream();

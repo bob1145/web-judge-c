@@ -1,7 +1,9 @@
 package com.example.demo;
 
 import com.example.demo.config.ExecutionProperties;
+import com.example.demo.dto.JudgeProgress;
 import com.example.demo.dto.JudgeRequest;
+import com.example.demo.dto.TestCaseResult;
 import com.example.demo.model.JudgeOwnership;
 import com.example.demo.model.JudgeStatus;
 import com.example.demo.model.JudgeTask;
@@ -27,12 +29,17 @@ import org.springframework.http.MediaType;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,11 +49,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = "judge.auth.access-code=task02-test-only-access-material")
@@ -300,6 +312,58 @@ class QuotaAndAuthorizationTest {
                         .header("X-Session-ID", otherSession)
                         .header("User-Agent", TEST_USER_AGENT))
                 .andExpect(status().isNotFound());
+        for (String downloadPath : List.of("1/archive", "all", "failed")) {
+            mockMvc.perform(get("/download/{judgeId}/" + downloadPath, judgeId)
+                            .header("X-Session-ID", otherSession)
+                            .header("User-Agent", TEST_USER_AGENT))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1/archive, 1.zip", "all, testcases-%s.zip", "failed, failed-testcases-%s.zip"})
+    void ownerCanDownloadArchivesWithDistinctOutputsAndAnswers(String downloadPath, String filenamePattern) throws Exception {
+        String ownerSession = session(uniqueUser("archive-owner"), false);
+        String judgeId = createJudgeId(ownerSession, 2);
+        Path workDir = Path.of(taskStore.find(judgeId).orElseThrow().getWorkDir());
+        Files.writeString(workDir.resolve("1.in"), "input");
+        Files.writeString(workDir.resolve("1.out"), "wrong-output");
+        Files.writeString(workDir.resolve("1.ans"), "correct-answer");
+        Files.writeString(workDir.resolve("2.in"), "unrecorded-input");
+        taskStore.saveSummary(judgeId, new JudgeProgress("WA", "WA on Test Case #1", 100,
+                List.of(new TestCaseResult(1, "WA", 1, 1))));
+
+        MvcResult started = mockMvc.perform(get("/download/{judgeId}/" + downloadPath, judgeId)
+                        .header("X-Session-ID", ownerSession)
+                        .header("User-Agent", TEST_USER_AGENT))
+                .andExpect(MockMvcResultMatchers.request().asyncStarted())
+                .andReturn();
+        MvcResult completed = mockMvc.perform(asyncDispatch(started))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/zip"))
+                .andExpect(header().string("Content-Disposition",
+                        "attachment; filename=\"" + filenamePattern.formatted(judgeId) + "\""))
+                .andReturn();
+
+        Map<String, String> files = new LinkedHashMap<>();
+        try (ZipInputStream archive = new ZipInputStream(new ByteArrayInputStream(completed.getResponse().getContentAsByteArray()))) {
+            ZipEntry entry;
+            while ((entry = archive.getNextEntry()) != null) {
+                files.put(entry.getName(), new String(archive.readAllBytes(), StandardCharsets.UTF_8));
+                archive.closeEntry();
+            }
+        }
+        assertThat(files).containsExactly(
+                Map.entry("1.in", "input"),
+                Map.entry("1.out", "wrong-output"),
+                Map.entry("1.ans", "correct-answer")
+        );
+        mockMvc.perform(get("/download/{judgeId}/1", judgeId)
+                        .header("X-Session-ID", ownerSession)
+                        .header("User-Agent", TEST_USER_AGENT))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"1.in\""))
+                .andExpect(content().string("input"));
     }
 
     @Test
@@ -314,6 +378,10 @@ class QuotaAndAuthorizationTest {
                 .andReturn();
 
         assertThat(rejected.getResponse().getContentAsString()).doesNotContain(judgeId);
+        mockMvc.perform(get("/download/{judgeId}/1/archive", judgeId)
+                        .header("User-Agent", TEST_USER_AGENT)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

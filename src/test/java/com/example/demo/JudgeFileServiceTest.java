@@ -26,7 +26,9 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -146,22 +148,123 @@ class JudgeFileServiceTest {
     }
 
     @Test
+    void singleCaseArchiveKeepsInputUserOutputAndAnswerDistinct() throws Exception {
+        Path workDir = createTask("single-archive", 2, false, 4);
+        Files.writeString(workDir.resolve("1.in"), "full-input");
+        Files.writeString(workDir.resolve("1.out"), "wrong-output");
+        Files.writeString(workDir.resolve("1.ans"), "correct-answer");
+        Files.writeString(workDir.resolve("2.in"), "other-input");
+
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        service.streamTestCaseArchive("single-archive", 1).writeTo(buffer);
+
+        assertThat(zipContents(buffer.toByteArray())).containsExactly(
+                Map.entry("1.in", "full-input"),
+                Map.entry("1.out", "wrong-output"),
+                Map.entry("1.ans", "correct-answer")
+        );
+    }
+
+    @Test
+    void singleCaseArchiveDoesNotInventMissingOutputsOrAnswers() throws Exception {
+        Path workDir = createTask("partial-archive", 2, false, 64);
+        Files.writeString(workDir.resolve("1.in"), "input-1");
+        Files.writeString(workDir.resolve("1.out"), "user-output");
+        Files.writeString(workDir.resolve("2.in"), "input-2");
+
+        ByteArrayOutputStream firstBuffer = new ByteArrayOutputStream();
+        service.streamTestCaseArchive("partial-archive", 1).writeTo(firstBuffer);
+        assertThat(zipContents(firstBuffer.toByteArray())).containsExactly(
+                Map.entry("1.in", "input-1"), Map.entry("1.out", "user-output")
+        );
+        ByteArrayOutputStream secondBuffer = new ByteArrayOutputStream();
+        service.streamTestCaseArchive("partial-archive", 2).writeTo(secondBuffer);
+        assertThat(zipContents(secondBuffer.toByteArray())).containsExactly(Map.entry("2.in", "input-2"));
+    }
+
+    @Test
+    void highVolumeTasksStillAllowSingleCaseArchive() throws Exception {
+        Path workDir = createTask("high-volume-single", 100_000, true, 64);
+        Files.writeString(workDir.resolve("100000.in"), "input");
+        Files.writeString(workDir.resolve("100000.ans"), "answer");
+
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        service.streamTestCaseArchive("high-volume-single", 100_000).writeTo(buffer);
+
+        assertThat(zipContents(buffer.toByteArray())).containsExactly(
+                Map.entry("100000.in", "input"), Map.entry("100000.ans", "answer")
+        );
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 0, 3, Integer.MAX_VALUE})
+    void singleCaseArchiveRejectsCaseNumbersOutsideTaskRange(int caseNumber) throws Exception {
+        createTask("archive-range", 2, false, 64);
+
+        assertThatThrownBy(() -> service.streamTestCaseArchive("archive-range", caseNumber))
+                .isInstanceOf(IOException.class).hasMessageContaining("caseNumber");
+    }
+
+    @Test
+    void singleCaseArchiveRejectsMissingInputBeforeStreaming() throws Exception {
+        createTask("missing-archive-input", 1, false, 64);
+
+        assertThatThrownBy(() -> service.streamTestCaseArchive("missing-archive-input", 1))
+                .isInstanceOf(IOException.class).hasMessageContaining("Input file not found");
+    }
+
+    @Test
     void streamsAllCaseDownloadAsSafeZipEntries() throws Exception {
         Path workDir = createTask("download-all", 2, false, 64);
         Files.writeString(workDir.resolve("1.in"), "input-1");
         Files.writeString(workDir.resolve("1.ans"), "answer-1");
+        Files.writeString(workDir.resolve("1.out"), "user-1");
         Files.writeString(workDir.resolve("2.in"), "input-2");
-        Files.writeString(workDir.resolve("2.out"), "answer-2");
+        Files.writeString(workDir.resolve("2.out"), "user-2");
+        taskStore.saveSummary("download-all", new JudgeProgress("COMPLETED", "", 100, List.of(
+                new TestCaseResult(1, "WA", 1, 1), new TestCaseResult(2, "RE", 1, 1)
+        )));
 
         StreamingResponseBody body = service.streamAllTestCasesArchive("download-all");
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         body.writeTo(buffer);
 
         List<String> names = zipEntryNames(buffer.toByteArray());
-        assertThat(names).containsExactly("1.in", "1.out", "2.in", "2.out");
+        assertThat(names).containsExactly("1.in", "1.out", "1.ans", "2.in", "2.out");
+        assertThat(zipContents(buffer.toByteArray())).containsEntry("1.out", "user-1")
+                .containsEntry("1.ans", "answer-1").containsEntry("2.out", "user-2").doesNotContainKey("2.ans");
         assertThat(names).allSatisfy(name -> assertThat(name).doesNotContain("..", "/", "\\"));
         assertThat(Files.readString(Path.of("src/main/java/com/example/demo/service/JudgeFileService.java")))
                 .doesNotContain("ByteArrayOutputStream");
+    }
+
+    @Test
+    void excludesUnrecordedConcurrentArtifactsFromAllCaseArchive() throws Exception {
+        Path workDir = createTask("stopped-concurrent", 100, false, 64);
+        for (int caseNumber = 1; caseNumber <= 4; caseNumber++) {
+            Files.writeString(workDir.resolve(caseNumber + ".in"), "input-" + caseNumber);
+            Files.writeString(workDir.resolve(caseNumber + ".out"), "user-" + caseNumber);
+            Files.writeString(workDir.resolve(caseNumber + ".ans"), "answer-" + caseNumber);
+        }
+        taskStore.saveSummary("stopped-concurrent", new JudgeProgress("WA", "WA on Test Case #2", 100,
+                List.of(new TestCaseResult(2, "WA", 40, 0))));
+
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        service.streamAllTestCasesArchive("stopped-concurrent").writeTo(buffer);
+
+        assertThat(zipEntryNames(buffer.toByteArray())).containsExactly("2.in", "2.out", "2.ans");
+        assertThat(zipContents(buffer.toByteArray())).containsEntry("2.in", "input-2")
+                .containsEntry("2.out", "user-2").containsEntry("2.ans", "answer-2");
+    }
+
+    @Test
+    void doesNotTreatFilesWithoutResultsAsCompletedCases() throws Exception {
+        Path workDir = createTask("unrecorded-input", 1, false, 64);
+        Files.writeString(workDir.resolve("1.in"), "unrecorded-input");
+        taskStore.saveSummary("unrecorded-input", new JudgeProgress("CANCELLED", "", 0, List.of()));
+
+        assertThatThrownBy(() -> service.streamAllTestCasesArchive("unrecorded-input"))
+                .isInstanceOf(IOException.class).hasMessageContaining("completed");
     }
 
     @Test
@@ -204,6 +307,18 @@ class JudgeFileServiceTest {
         assertThatThrownBy(() -> service.streamAllTestCasesArchive("large-download"))
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("high-volume");
+    }
+
+    private Map<String, String> zipContents(byte[] archiveBytes) throws IOException {
+        Map<String, String> contents = new LinkedHashMap<>();
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(archiveBytes))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                contents.put(entry.getName(), new String(zip.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+        }
+        return contents;
     }
 
     private List<String> zipEntryNames(byte[] archiveBytes) throws IOException {

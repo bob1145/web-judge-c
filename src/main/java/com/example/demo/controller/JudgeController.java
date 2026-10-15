@@ -243,6 +243,31 @@ public class JudgeController {
         }
     }
 
+    @GetMapping("/download/{judgeId}/{caseNumber}/archive")
+    public ResponseEntity<StreamingResponseBody> downloadTestCaseArchive(
+            @PathVariable String judgeId,
+            @PathVariable int caseNumber,
+            HttpServletRequest request) {
+        UserSession session = currentSession(request);
+        if (!canAccess(judgeId, session)) {
+            auditSecurityDenied(session, judgeId, "task.download-case");
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            StreamingResponseBody archive = judgeFileService.streamTestCaseArchive(judgeId, caseNumber);
+            auditService.record("task.download", session, judgeId, executionProperties.getProfile(), Map.of(
+                    "caseNumber", caseNumber,
+                    "archive", true
+            ));
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType("application/zip"))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + caseNumber + ".zip\"")
+                    .body(archive);
+        } catch (IOException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @GetMapping("/download/{judgeId}/failed")
     public ResponseEntity<StreamingResponseBody> downloadFailedTestCases(
             @PathVariable String judgeId,

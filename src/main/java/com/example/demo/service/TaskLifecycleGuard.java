@@ -1,10 +1,17 @@
 package com.example.demo.service;
 
+import com.sun.jna.Platform;
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.WinBase;
+import com.sun.jna.platform.win32.WinDef;
+import com.sun.jna.platform.win32.WinNT;
+
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
@@ -15,6 +22,7 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
+import java.util.HexFormat;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -161,9 +169,10 @@ public final class TaskLifecycleGuard {
     private static BasicFileAttributes requireDirectory(Path directory) throws IOException {
         BasicFileAttributes attributes = Files.readAttributes(
                 directory, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-        if (!attributes.isDirectory() || attributes.isSymbolicLink() || attributes.fileKey() == null) {
-            throw new IOException("Task lifecycle path is not an identifiable directory");
+        if (!attributes.isDirectory() || attributes.isSymbolicLink()) {
+            throw new IOException("Task lifecycle path is not an identifiable directory: " + directory);
         }
+        fileKey(directory, attributes);
         return attributes;
     }
 
@@ -177,7 +186,7 @@ public final class TaskLifecycleGuard {
                 throw new IOException("Task lifecycle root permits untrusted writes");
             }
         }
-        return new Identity(attributes.fileKey(), Files.getOwner(directory, LinkOption.NOFOLLOW_LINKS));
+        return new Identity(fileKey(directory, attributes), Files.getOwner(directory, LinkOption.NOFOLLOW_LINKS));
     }
 
     private static Identity lockIdentity(Path lockPath, UserPrincipal rootOwner) throws IOException {
@@ -185,9 +194,10 @@ public final class TaskLifecycleGuard {
                 lockPath, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         UserPrincipal owner = Files.getOwner(lockPath, LinkOption.NOFOLLOW_LINKS);
         if (!attributes.isRegularFile() || attributes.isSymbolicLink() || attributes.size() != 0
-                || attributes.fileKey() == null || !rootOwner.equals(owner)) {
+                || !rootOwner.equals(owner)) {
             throw new IOException("Invalid task lifecycle lock identity");
         }
+        Object key = fileKey(lockPath, attributes);
         if (posix(lockPath) && !Files.getPosixFilePermissions(lockPath, LinkOption.NOFOLLOW_LINKS)
                 .equals(PRIVATE_FILE)) {
             throw new IOException("Task lifecycle lock must have private permissions");
@@ -198,7 +208,65 @@ public final class TaskLifecycleGuard {
                 throw new IOException("Task lifecycle lock must have one link");
             }
         }
-        return new Identity(attributes.fileKey(), owner);
+        return new Identity(key, owner);
+    }
+
+    private static Object fileKey(Path path, BasicFileAttributes attributes) throws IOException {
+        if (attributes.fileKey() != null) {
+            return attributes.fileKey();
+        }
+        if (!Platform.isWindows() || !path.getFileSystem().equals(FileSystems.getDefault())) {
+            throw new IOException("Task lifecycle filesystem identity is unavailable: " + path);
+        }
+        Kernel32 kernel = Kernel32.INSTANCE;
+        WinNT.HANDLE handle = kernel.CreateFile(path.toString(), WinNT.FILE_READ_ATTRIBUTES,
+                WinNT.FILE_SHARE_READ | WinNT.FILE_SHARE_WRITE | WinNT.FILE_SHARE_DELETE,
+                null, WinNT.OPEN_EXISTING,
+                WinNT.FILE_FLAG_BACKUP_SEMANTICS | WinNT.FILE_FLAG_OPEN_REPARSE_POINT, null);
+        if (handle == null || WinBase.INVALID_HANDLE_VALUE.equals(handle)) {
+            throw new IOException("Cannot open Windows task lifecycle path " + path
+                    + ": error " + kernel.GetLastError());
+        }
+        try {
+            WinBase.FILE_ATTRIBUTE_TAG_INFO tag = new WinBase.FILE_ATTRIBUTE_TAG_INFO();
+            WinBase.FILE_ID_INFO identity = new WinBase.FILE_ID_INFO();
+            if (!kernel.GetFileInformationByHandleEx(handle, WinBase.FileAttributeTagInfo,
+                    tag.getPointer(), new WinDef.DWORD(tag.size()))
+                    || !kernel.GetFileInformationByHandleEx(handle, WinBase.FileIdInfo,
+                    identity.getPointer(), new WinDef.DWORD(identity.size()))) {
+                throw new IOException("Cannot identify Windows task lifecycle path " + path
+                        + ": error " + kernel.GetLastError());
+            }
+            tag.read();
+            identity.read();
+            if ((tag.FileAttributes & WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0
+                    || ((tag.FileAttributes & WinNT.FILE_ATTRIBUTE_DIRECTORY) != 0)
+                    != attributes.isDirectory()) {
+                throw new IOException("Invalid Windows task lifecycle path: " + path);
+            }
+            if (attributes.isRegularFile()) {
+                WinBase.FILE_STANDARD_INFO standard = new WinBase.FILE_STANDARD_INFO();
+                if (!kernel.GetFileInformationByHandleEx(handle, WinBase.FileStandardInfo,
+                        standard.getPointer(), new WinDef.DWORD(standard.size()))) {
+                    throw new IOException("Cannot inspect Windows task lifecycle lock " + path
+                            + ": error " + kernel.GetLastError());
+                }
+                standard.read();
+                if (standard.NumberOfLinks != 1) {
+                    throw new IOException("Task lifecycle lock must have one link");
+                }
+            }
+            return new WindowsFileKey(identity.VolumeSerialNumber, HexFormat.of().formatHex(
+                    identity.FileId.getPointer().getByteArray(0, identity.FileId.size())));
+        } finally {
+            if (!kernel.CloseHandle(handle)) {
+                throw new IOException("Cannot close Windows task lifecycle handle: error "
+                        + kernel.GetLastError());
+            }
+        }
+    }
+
+    private record WindowsFileKey(long volumeSerialNumber, String fileId) {
     }
 
     private static boolean posix(Path path) throws IOException {

@@ -1,0 +1,23 @@
+{
+  "index.html": {
+    "file": "app.js",
+    "name": "index",
+    "src": "index.html",
+    "isEntry": true,
+    "dynamicImports": [
+      "src/components/CodeEditor.tsx"
+    ],
+    "css": [
+      "assets/index-DyBVIbuj.css"
+    ]
+  },
+  "src/components/CodeEditor.tsx": {
+    "file": "chunks/CodeEditor-B-N8_q6g.js",
+    "name": "CodeEditor",
+    "src": "src/components/CodeEditor.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
+    ]
+  }
+}

@@ -311,3 +311,11 @@
 - 预检非法-extra后缀未拒绝的R05红保留，修后R06双入口93/93；失败前保存四份原始快照并新增一项回归后R07双入口94/94。R14严格容器快照漂移未定位，不放宽断言或以R15重跑覆盖失败。
 - R15 unit1/108.029503秒真实旧产品红测：JVM3901取消后USER stage仍Running/Pid4910，marker/CANCELLED/目录清理缺失；只有supervisor stop，pending语义正确。94+13+7辅助通过不是产品取消通过，完整证据见`docs/acceptance/TASK-10/active-cancellation.md`。
 - 下一修复为可信marker、合作退出、Runner接入及Discovery严格marker发现，新产品必须新测试/包/真实域。生产参数不臆造，原预算不提高，共享daemon不操作。Goal仍active/5/30、TASK-10未提交，不关闭DEF-05/N2，不发删除凭据。
+
+## 2026-10-11 — 修复已完成本地任务阻止后端重启
+
+- 修正 `FileTaskStore` 将非空 `startedAt` 一律视为停止未确认的问题。仅当任务模式及策略均为 `trusted-local`、已取得合法不可变终态且无受管执行残留时允许启动恢复；复用现有 `readFinal` 校验，不伪造沙箱停止证明。
+- 未完成任务、其他执行模式缺少句柄、缺失或损坏的终态、受管执行证据和不安全路径仍保留原拒绝行为。既有终态投影修复和审计追加行为不变；HTTP 契约、用户配置及数据格式不变，无需迁移或删除历史任务。
+- 新增 `TrustedLocalStartupTest` 23 项回归全部通过，涵盖四种本地终态、二次恢复幂等、未完成任务、非本地模式、非法终态、残留证据和投影修复。三组定向测试共 71 项，64 通过、7 项平台条件跳过，无失败或错误。
+- 扩展四组回归共 161 项：150 通过、10 项平台条件跳过；`FileTaskStoreTest.aFailedOrUnsafeChargeWriteCannotDeleteTheTask` 在创建符号链接时因当前 Windows 账户缺少权限报错，未修改或绕过该用例，不能据此宣称全套回归通过。日志见 `target/trusted-local-startup-regression.log`。
+- 使用 IDEA 同一 JDK 21 和当前应用配置，对两条真实历史 WA 任务的副本执行完整 Spring Boot 启动及 `/auth/bootstrap` HTTP 200 验证，随后关闭临时实例。仅在副本中重定位 `workDir`，启动后 44 个副本文件保持不变；原目录 44 个文件及 `application.yml` 的 SHA-256 前后完全一致。首次探针因工具账户与 Java 账户不同触发锁所有者校验，改为同账户创建新副本后通过，未放宽身份校验；成功日志见 `target/trusted-local-startup-native.log`。

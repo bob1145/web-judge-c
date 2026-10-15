@@ -95,15 +95,12 @@ public class CaseBatchRunner {
                 }
             }
 
-            if (cancellationToken.isCancellationRequested()) {
+            if (cancellationToken.isCancellationRequested() || stoppedAfterResult) {
                 completedCases += drainSubmittedCases(
                         completionService,
                         submittedInBatch - completedInBatch,
                         resultConsumer
                 );
-                break;
-            }
-            if (stoppedAfterResult) {
                 break;
             }
         }

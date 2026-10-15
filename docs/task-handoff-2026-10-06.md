@@ -1,16 +1,16 @@
 # 任务交接：2026-10-06
 
-本文件是当前接续入口，10-04交接保留为历史。更新时间2026-10-06（Asia/Shanghai）；第15节为最新断点。旧产品R19/R15取消红测已完成，当前已新增显式占位入口与取消契约测试，尚未编译/运行。上次修mock和建有界脚本的调用在解析阶段失败，二者未执行；现在从契约红测准备继续，而非重做Probe或直接宣称产品修复。
+恢复入口已于2026-10-07（Asia/Shanghai）按用户要求纠偏：执行docs/project-goal-2026-10-04.md第3/6节及docs/task.md第1.1节，以最新源码、task/work和真实提交定位当前任务。第2～15节及10-04交接仅保留历史事实，旧“第一动作”“接续”与全量/冻结步骤不再是当前执行指令。
 
-整体仍5/30、TASK-10 IN_PROGRESS/未提交、DEF-05/N2未关闭、生产门禁关闭。历史R07两入口94/94，R15辅助94+13+7通过但真实产品红测退出1；当前源码已不同于R19，尚无新Java契约测试、取消绿测或新全量。本次仅整理文档，未启动实验；完整Goal保持active。
+TASK-10已经以a9d2e11768972977fec03e512a9dc02bd91f3ae7交付，不重开、不重复旧Probe/红测。原Goal和30任务/31缺陷结论要求不变；已完成切片与有效证据直接复用。必要核对后直接继续实际修复，局部定向回归、必要真实绿测，日常简短记录，不以文档更新增加完成数或发布许可。
 
 ## 1. 目标与状态
 
-- 原始目标：C:/Users/29901/.codex/attachments/81b9031d-c4de-4390-8bd6-cd9f1d304db1/pasted-text-1.txt；完整目标说明：docs/project-goal-2026-10-04.md。
+- 当前目标及执行约束：docs/project-goal-2026-10-04.md；原始目标附件仅保留历史目标与审批上下文，不覆盖用户后续执行策略。
 - 先读适用AGENTS.md、需求/设计、docs/task.md和docs/work.md；本快照不能替代开工时的HEAD/status/证据核验。
-- 工作目录C:/Users/29901/Documents/dp/web-judge-c；HEAD为5f672c2faa9d02e2e3cd95c832ef4623bc222301（TASK-09-C01）。
-- 整体5/30：TASK-00、01、02、08、09已完成；TASK-10仍IN_PROGRESS，未提交，DEF-05/N2未关闭，不可发布。TASK-03和15仍有具体参数待确认；其他任务依赖以task.md为准。
-- Goal保持active。逐任务验收后独立本地提交，禁止push/amend/擅自建分支/reset或绕过钩子；本轮不具备TASK-10提交条件。
+- 工作目录C:/Users/29901/Documents/dp/web-judge-c；当前HEAD、工作区和完成数以恢复时的实际核对为准，不复用历史HEAD作为当前基线。
+- TASK-10已交付；其他任务的实际切片、参数/环境阻断及剩余验收以最新task/work为准，不从旧快照重启任务，不擅自裁剪平台或业务范围。
+- Goal未满足整体门槛不得complete。逐任务验收后沿用原本地提交授权，禁止push/amend/擅自建分支/reset或绕过钩子；本次执行纠偏不替代业务任务验收与交付。
 - 保留.idea/jarRepositories.xml和.idea/misc.xml，不提交；不读取或清理.mimosa/、.playwright-mcp/。
 
 ## 2. 已实现且不要重复的工作
@@ -296,7 +296,7 @@ Python已有合作取消协议：`task_runner`检查attempt目录的`cancel.requ
 
 > 从原始完整项目Goal继续。先核验本节与active-cancellation.md的R19/R15证据。真实旧产品活跃取消红测已成立；第一安全动作是按第7项补产品可信marker/合作退出/Runner与Discovery严格发现及测试，而不是再次造Probe或重复R15红测。保留R14未定位漂移和所有失败/skip，按原预算完成新定向/全量、新包和真实绿测；完整任务闭环前Goal仍active、TASK-10仍IN_PROGRESS，禁止push。
 
-## 15. 当前接续：TASK-10隔离交付与TASK-11（2026-10-06）
+## 15. TASK-10隔离交付与TASK-11接续快照（历史，2026-10-06）
 
 - 沿用原active Goal和完整30任务/31缺陷；TASK-10-C01真实提交a9d2e11768972977fec03e512a9dc02bd91f3ae7已核验，10为DONE、进度6/30。09/10前置满足，继续11；不得push或提前complete。
 - 当前可信取消不是占位：Journal/Launcher/Runner/Discovery均接入，锁内marker时序竞态已修。最新定向CANCEL-CONTROL-R03为470项/469过/0失败错误/1旧镜像skip、核心零skip；R28 Java2400过/1既有TASK-18失败/2环境skip、Python142/142。

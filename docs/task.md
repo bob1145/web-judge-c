@@ -10,6 +10,14 @@
 - 初始规划只制定任务与日志，全部任务初始NOT_STARTED；后续实施、实际测试及提交以work和Git联合核验。此前文档交付不算TASK-00完成，所有阶段不推送。
 - 保留单实例文件存储和现有框架/API；不做数据库/分布式改造，不重写前端，不自动重跑历史代码。未验收 provider 不生产启用，不回退 direct。
 
+### 1.1 当前执行策略（2026-10-07纠偏）
+
+- 沿用原Goal和TASK-00～29全部适用任务，使31个缺陷有明确结论及有效证据；不新建Goal、不重启项目、不擅自删减平台或需求。本节及project-goal第3/6节替代旧附件/任务卡的重复测试、冻结与文档频次要求，不降低AC、安全底线或原交付门槛。
+- 最小必要实现，复用现有接口、锁、状态机、校验、超时和测试设施。充分红测已有则直接修复；新问题按归属登记，不扩当前任务，不重开已交付TASK-10，不另建通用管理器或验证框架。
+- 局部改动只跑受影响套件及缺陷回归；任务交付一次必要全量及相关真实验收；最终集中验证跨模块、适用平台、资源上界和回滚，复用未失效证据。仅相关源码、配置、依赖或环境变化才复验受影响部分；文档只检查文档，不重建、重测或重新冻结产品。
+- 采用现有测试报告和参数化边界用例，确认关键套件实际执行、失败正确传播、非预期跳过被发现；不扩固定测试总数门禁。已知无关失败归对应任务，不反复重跑，不放宽业务/安全断言；关键真实验收不能用mock替代。
+- 日常仅简短记录修改、验证和剩余阻断，不新增重复Goal/交接/总结。阶段必须有实际修复、关键验证或明确阻断；连续两阶段无功能进展时检查方法并报告真正阻断，不用文档或测试工具建设代替推进。必要验收、记录一致及原约定交付完成后才DONE，整个Goal不提前complete。
+
 ## 2. 每个任务必须执行的闭环
 
 ### 2.1 状态、依赖与角色
@@ -24,9 +32,9 @@
 
 1. **读取与核查**：阅读任务卡、R/D、work、适用 AGENTS，检查 HEAD/工作区、前置真实提交和批准 DEC。不能只信表格勾选。
 2. **开工汇报**：报告任务、角色、目标、文件、风险、测试，日志记录 IN_PROGRESS；新增需求先记录偏差，不默默扩大范围。
-3. **先测后修**：最小回归证明原问题，保存预期失败；文档/审计任务用静态检查代替并说明。不得为复现向生产运行攻击。
+3. **先测后修**：已有充分红测直接复用，否则用现有设施补最小回归并保存预期失败，不为同一问题建立第二套复现；文档/审计任务只做相关静态检查。不得为复现向生产运行攻击。
 4. **实现**：最小改动、复用现有契约，不以建议值替代批准值，不用 stub 冒充真实安全能力。拟新增测试先实际创建再写执行命令。
-5. **严格测试**：执行本卡与 §3 的正负例、边界、异常、并发和回归，保留命令、环境、退出码、通过/失败/跳过数、脱敏证据。
+5. **风险分层测试**：依 §1.1 和 §3 执行受影响回归及本项必要验收，复用未失效证据；保留命令、环境、退出码、通过/失败/跳过数，不重复无关全量或同一真实实验。
 6. **严格验收**：逐 AC 对照代码/契约/证据，检查安全、迁移和回滚；没做的明确未做，不能写应该通过。通过后才 VERIFIED_PENDING_COMMIT。
 7. **先更新实际记录**：work 追加实做/未做、文件、测试、偏差、审核和提交定位键，task 更新候选状态；实现、测试、必要文档和 task/work 同次提交。
 8. **仅本地提交**：依 §2.3 确认、显式暂存、审核、commit、核验真实 SHA。不得 push、自动建分支、amend、reset 或绕过钩子。
@@ -95,14 +103,12 @@ Git：真实 SHA、主题，仅本地，未推送
 ```powershell
 .\mvnw.cmd "-Dtest=单测集" test
 if ($LASTEXITCODE -ne 0) { throw "定向测试失败" }
-.\mvnw.cmd test
-if ($LASTEXITCODE -ne 0) { throw "全量回归失败" }
 git diff --check
 ```
 
-Linux 为 `./mvnw '-Dtest=单测集' test`、`./mvnw test`，每步非零失败。记录 Surefire XML 的总数/失败/错误/跳过，不能只截 BUILD SUCCESS，不使用 skipTests 或禁用失败测试。
+Linux 定向为 `./mvnw '-Dtest=单测集' test`，每步非零失败。任务交付或最终验收需要全量时使用 `.\mvnw.cmd test` / `./mvnw test`，非零退出必须传播。记录 Surefire XML 的总数/失败/错误/跳过，不能只截 BUILD SUCCESS，不使用 skipTests 或禁用失败测试。
 
-TASK-00 可准确记录历史红基线，不得声称通过；TASK-01 必须建立绿基线。之后每个代码任务执行定向测试及全量 Maven；纯文档任务至少静态引用/结构/契约检查，涉及配置/生成逻辑仍跑相关测试。TASK-29 重新全量执行。
+TASK-00 可准确记录历史红基线，不得声称通过；TASK-01 必须建立绿基线。局部代码改动只执行受影响定向测试和缺陷回归；任务交付执行一次必要全量及相关真实验收，结果未失效不重复。纯文档改动只检查文档；配置/生成逻辑改变则验证受影响行为。TASK-29 集中最终全量及跨模块验收，复用仍有效的阶段证据。
 
 Python/浏览器/容器脚本由相应任务实际创建并记录版本与命令，不虚构现有 npm/脚本入口。依赖安装尤其全局或核心依赖变更遵守审批。无环境则 BLOCKED，不能跳过关键测试声称通过。
 
@@ -205,7 +211,8 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-03：可信代理与有界认证限流
 
-- **状态/角色**：BLOCKED；安全/并发工程师。TASK-02已提交；按TASK-00批准的延期门槛，可信代理CIDR、来源/账户阈值、状态容量/TTL及代理头上限仍待批准，不擅自补业务默认。可继续不依赖这些参数的TASK-08。
+- **状态/角色**：BLOCKED；安全/并发工程师。默认直连来源切片已修复并验证[TASK-03-R01]：两认证路径仅取socket地址，关闭框架转发头解析，两模式真实HTTP含伪XFF/X-Real-IP/Forwarded仍绑定回环来源；定向45/45、零失败/错误/skip。可信代理CIDR、来源/账户阈值、状态容量/TTL及代理头上限仍待具体批准；未提交，不代表完整限流验收，不擅自采用业务默认。
+- **原子尝试记录**：[TASK-03-ATTEMPT-ATOMIC-R02]；两服务仅合并原失败次数/时间记录，在原ConcurrentHashMap.compute内完成同键重置、锁定检查、凭据判断及成功清零；保持既有key、maxAttempts/attemptResetHours、返回值和日志，不加管理器或默认数值。受控并发两参数先红，修复后六套110/110、零失败错误skip；同键后继锁定、不同来源可继续、成功只清自身记录均通过，真实HTTP/TLS及63项认证回归有效。独立账户/来源限制、容量/主动TTL及代理批准仍缺，不代表完整03或DEF-09/10关闭。
 - **需求/设计**：RQ-A03/AC-A03a、AC-A03b/T-A04、T-A05；DEF-09、DEF-10；D §3.4、§9.1/9.3。
 - **依赖**：02；可信代理与容量阈值批准。
 - **设计目标/预期效果**：伪XFF不改变来源，换IP/账户不能绕过独立限制，认证状态规模有界。
@@ -217,7 +224,8 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-04：Cookie、重定向与CSRF
 
-- **状态/角色**：NOT_STARTED；应用安全工程师。
+- **状态/角色**：BLOCKED；应用安全工程师。站内重定向、Cookie属性及HTTP会话绑定CSRF已修复；复用Spring设施，登录前token、成功登录/登出轮换、两模板POST接入；仅无任何Cookie且有效X-Session-ID认证的请求豁免。R04 Cookie/TLS客户端63/63；R06受影响11套145/145，R08当前CSRF真实HTTP14/14，均零失败/错误/skip，实际Cookie创建→启动→良性C++ AC、登出/旧token拒绝及CORS通过。R07 CREATED取消accepted=false归18，成功断言原样保留，不放宽04或重做TASK-10。03整体前置、生产TLS启动/代理及完整任务验收仍未闭环；不冒称生产整体/隔离provider通过，未提交不标DONE，DEF-19/20及N7最终关闭留24/29。
+- **真实HTTPS浏览器**：[TASK-04-HTTPS-BROWSER-R01]；复用原浏览器入口及WorkerTlsCertificates，临时NSS库仅信任本次CA，不忽略证书错误。R01五项全PASS、pageErrors0、退出0：未信任CA真实拒绝；受信TLS1.3登录，实际Cookie为Secure/HttpOnly/SameSite=Lax及30天remember；HTTPS创建/启动携带Cookie、真实C++一例AC、WSS/HTTP整终态一致；登出Cookie按原安全属性删除、保护查询401；原实际Secure Cookie不改标志复制到无HSTS新浏览器，同host真实HTTP请求未发送该Cookie。target/task04-https-browser-r01.json及completed图；仅临时工具/夹具，无产品或核心依赖改动，不重跑原有效回归。该浏览器环境阻断解除，但不代表生产TLS/代理或隔离provider验收。
 - **需求/设计**：RQ-A04/AC-A04b/T-A07、RQ-A05/AC-A05a/T-A09、RQ-A06/AC-A06b/T-A12；DEF-19、DEF-20、N7；D §3.2、§8.1。
 - **依赖**：02、03；DEC-06批准。
 - **设计目标/预期效果**：会话安全传输、登录只回本站、Cookie状态变更防伪，合法页面仍可用。
@@ -229,7 +237,9 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-05：双认证模式登录页面
 
-- **状态/角色**：NOT_STARTED；前端工程师。
+- **状态/角色**：BLOCKED（04整体前置与必要交付回归未完成）；前端工程师。双认证表单、HTTP/业务错误、CSRF、rememberMe与文本提示已实现；既有75项回归有效，现有浏览器能力不再阻断。实际源码修复与分轮真实验证见[TASK-05-BROWSER-VISIBILITY-R04]；未C01、不标DONE，DEF-01完整关闭仍待交付。
+- **真实浏览器与可见性修复**：[TASK-05-BROWSER-VISIBILITY-R04]；R02两模式14项业务/DOM检查通过，真实401/429、历史200失败、旧CSRF403、站内redirect、密码前后空格与30天Cookie、登出及未认证均验；503仅故障呈现注入，断网为请求abort，不冒充服务端503。截图揭示表单被根级fade-in与现有GSAP/错误shake叠加淡化，故R02不作为完整可见性通过。只移除auth-container上的fade-in，保留原动效入口、错误DOM与安全语义；原模板认证测试加根因断言，受影响套件33/33、零失败错误skip、退出0。真实双模式×普通/减少动效/无GSAP六组合分轮绿，父级合成不透明度≥0.95且截图实看：账号R03三项绿，后因交互等待达外层预算被KILL，无完整JSON/正常退出证明；去掉不必要暂停后仅补验访问码R04三项绿、退出0、pageErrors0、应用SIGTERM143，无强杀。R01非2xx响应体读取卡住的124及R03超时均保留；复用未受影响14项业务与后端证据，不重跑全矩阵。证据target/task05-browser-r01/r02.json、R02反例截图、R03账号三截图/实际输出、target/task05-browser-visibility-r04.json及三截图；旧IAB/Edge失败历史不重试。
+
 - **需求/设计**：RQ-A01/AC-A01/T-A01；DEF-01；D §3.1、§3.2、§8.1。
 - **依赖**：04。
 - **设计目标/预期效果**：账号/访问码模式均能真实登录、可见提示、站内跳转，页面不自行决定认证模式。
@@ -241,7 +251,12 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-06：WebSocket握手、STOMP授权与撤销
 
-- **状态/角色**：NOT_STARTED；实时通信安全工程师。
+- **状态/角色**：BLOCKED（03/04完整前置、空闲连接主动撤销、连接/订阅预算及真实浏览器未闭环）；实时通信安全工程师。完成SEND、身份/精确订阅、CONNECT CSRF、账户状态复核及发送前撤销切片，未C01、不标DONE。
+- **SEND最小修复**：[TASK-06-SEND-R02]；原WebSocketConfig用标准入站ChannelInterceptor拒绝客户端MESSAGE/SEND，topic/queue/未开放app一律失败关闭，服务器发布通道不受影响；无新管理器、依赖或生产参数。R01真实六参数5通过/1夹具共用owner触发原429，隔离参数身份且不改配额/断言后，原生WS、SockJS WS、XHR streaming/polling四入口×三目的地12/12，零失败错误skip、退出0。真实ERROR拒绝及服务器进度DTO推送已验，未代替匿名握手、owner/admin订阅、CSRF/Principal或既有订阅撤销验收，不关闭DEF-04/N1整体。
+- **身份/订阅最小修复**：[TASK-06-IDENTITY-R06]；原安全链后置WebSocketSessionGuard，/ws及全部transport复用SessionCredentialResolver/getSession绑定服务端Principal，禁重复Servlet注册；CONNECT/SUBSCRIBE复核活会话，精确进度主题复用canAccessTask和原TaskStore ID校验，客户端ADMIN声明无效，Principal仅公开审计指纹。四入口owner/同owner新会话/admin实际推送、无效凭据HTTP拒绝及XHR跨会话读/发送拒绝已验；R02其余29项与R01认证/授权/启动61项有效结果复用，R06定向订阅28/28，零失败错误skip、退出0。26项真实ERROR、2项轮询3000/Go away!关闭，按原ERROR/断开契约验收，普通传输异常/超时仍失败，原SEND的ERROR断言不变。该轮未证明真实账户登录、Header全协议矩阵、CONNECT CSRF、既有订阅主动撤销或资源上界，不关闭整缺陷、不交付C01。
+- **CONNECT CSRF最小修复**：[TASK-06-CSRF-R02]；复用原HTTP CSRF仓库，标准握手/XOR入站拦截器校验native token，前端CONNECT携带原meta token并关闭帧debug；只对三类SockJS POST窄适配，REST与Origin不放宽。新增受Boot管理的messaging 6.5.1模块、核心版本未升级。R01 152项148通过/4关闭证据竞态；仅修future选择并独立保留越权数据断言，R02定向40/40、零失败错误skip、退出0，复用其余112项。四入口缺失/错误/跨会话token拒绝，Cookie/Header正例无HTTP CSRF Header仍推送，Header正例以JSESSIONID绑定CSRF、不宣称完全无Cookie；非transport POST和未批准Origin仍403。完整真实账户->WS撤销及浏览器/资源验收仍未完成。
+- **账户状态最小修复**：[TASK-06-ACCOUNT-R02]；真实账户登录在发布会话前绑定账户来源，原getSession/isSessionValid复用当前账户查询，禁用/移除、稳定ID替换及管理员撤权即失效并删除旧会话；恢复账户不复活，旧普通会话不自动提权，访问码模式保留。R01受影响五套168/168、R02仅新增协议8/8，均零失败错误skip、Maven退出0；真实Cookie登录及四入口下一次订阅/新握手拒绝已验。两轮退出阶段仍有XHR流读取超时与Surefire 30秒强杀fork，显式客户端断连未解决；不作为无帧主动关闭或资源回收通过证据，不继续扩测试工具。剩余主动撤销、批准的关闭时限/连接与订阅预算及完整验收仍阻断。
+- **出站撤销 [TASK-06-OUTGOING-REVOKE-R03]**：复用原会话复核与Spring传输装饰器，每次实际发送前检查服务端Principal；会话失效则丢弃数据并POLICY_VIOLATION关闭，无新连接表/调度器/预算。四transport×禁用/管理员撤权/真实登出/测试会话实际到期16项通过，已订阅连接无需新客户端帧，受保护消息零送达、框架用户索引回落；轮询1006仅在实测HTTP401且索引回落时认可，普通传输错误仍失败。R02协议106项82过/24因管理员负例CSRF请求UA错误而302；两行修正夹具后仅R03订阅28/28，复用其余78项，106项断言分轮有效通过。R01/R02仍有旧XHR退出读取超时及Surefire30秒强杀dump，不当资源/完整退出验收；无任何发送的空闲主动关闭及批准时限/容量仍阻断。
 - **需求/设计**：RQ-A02/AC-A02a、AC-A02b/T-A02、T-A03；RQ-A04/AC-A04c；DEF-04、N1、N3；D §3.1～3.3。
 - **依赖**：03、04。
 - **设计目标/预期效果**：匿名不可连、越权不可订、客户端不可造进度，已失效连接不能继续接收。
@@ -253,7 +268,8 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-07：会话环境绑定策略
 
-- **状态/角色**：NOT_STARTED；后端认证工程师。
+- **状态/角色**：BLOCKED；后端认证工程师。按2026-10-02 DEC-04落实管理员STRICT与普通默认AUDIT/可配置STRICT；03/06整体、代理/UA规范化及完整撤销验收仍缺，未交付不DONE。
+- **实际切片 [TASK-07-POLICY-R04]**：复用原配置/校验服务，STRICT删除会话并真实false，HTTP拦截器不再忽略拒绝，auth页面/check/session和WS握手共用；管理员不被普通AUDIT配置降级。AUDIT仅记录指纹/变化布尔量，无新索引、通知框架或资源默认值；当前沿用原来源/UA值比较，OFF未启用且原要求未删。15项真实账号Cookie/直连来源变化与原生Upgrade全过；其余有效回归复用共113项，失败及最小夹具修正见work。四transport正常owner/admin、TLS与CSRF有效；不冒称无帧关闭、生产代理、规范化或全N6关闭。
 - **需求/设计**：RQ-A06/AC-A06a/T-A11；N6、DEC-04；D §3.5。
 - **依赖**：03、06；管理员/普通用户策略已批准。
 - **设计目标/预期效果**：严格模式真正拒绝环境变化，告警模式不被误称阻断，移动网络行为可预期。
@@ -303,7 +319,15 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-11：有界增量事件读取与验真
 
-- **状态/角色**：NOT_STARTED；流式协议/安全工程师。
+- **状态/角色**：BLOCKED（有界reader预算前置未批准）；流式协议/安全工程师。09/10真实提交已满足；已完成不依赖待定阈值的协议验真切片，未交付、未标DONE。
+- **实际修复**：真实handle绑定v2/attempt、连续sequence验真及重复去重；case范围/字段一致性/唯一性；SUMMARY只验证而不覆盖宿主聚合、不提前终结，COMPLETED不得补造缺失结果；提前停止仅沿用原请求授权。复用既有Session/聚合器、参数化测试和Python emitter，无新通用框架。
+- **最近验证（2026-10-06）**：R04两套43/43；v2接线后R05四套90/90（Ingestor53、Orchestration8、Artifact9、Remote20），均零失败/错误/skip；真实Python/C++正常AC及首个WA停止→Java验真/入库通过。统一case范围检查后R06仅重验Ingestor55/55及改过的Python单例1/1；标准Surefire/unittest结果保留，不把切片当完整11/生产provider验收。
+- **JSON解码补齐（R08）**：复用Jackson ObjectReader及内置类型约束，三个provider不再将小数/字符串截为整数，不接受枚举序号、文本强转、重复键或尾随JSON；应用ObjectMapper保持原配置。R07b新契约18项17失败证明缺陷，最小修复后R08五套92项90过/0失败错误/2已解释环境skip；协议27及真实Runner9零skip，正常AC/首错停止→Java入库仍通过。
+- **必填字段补齐（R10）**：仅在现有事件Mapper内添加Jackson构造字段约束，缺失摘要计数不得静默补零、缺失结果状态拒绝解码，显式零值与可选首错/停止原因仍正常；不改变应用DTO解析。R09b新参数化回归13项10失败，R10受影响契约41、三个provider各1及真实Runner2，共46/46、零失败/错误/skip；未带入旧Probe。标准证据及失败历史见work [TASK-11-R10]，预算/reader门槛不变，未提交不标DONE。
+- **文件身份切片**：[TASK-11-FILE-IDENTITY-R02]；原RunState记录已见文件身份/长度，同状态内串行校验与游标提交；只读常规且可识别的文件，NOFOLLOW打开，读取后再核对。已见文件消失、身份更换、缩短或丢失已见行走原宿主异常，不伪造Runner事件、不重置游标。两provider同类五参数覆盖启动前缺文件、正常追加及截断/替换/移走/符链；R01新10项2过8红，R02四套160项158过/零失败错误/2既有环境skip，十个新参数均实际通过。真实临时文件系统、外部容器命令替身，不冒称容器/Windows验收；未新增reader框架、数值或权限。
+- **编译状态验真 [TASK-11-COMPILE-STATUS-R02]**：原COMPILE_FINISHED把任意未知状态当编译成功；仅在现有分支加三行拒绝校验，保留Runner实际OK、无状态兼容与原编译失败别名。七个非法状态红测全失败；最小修复后四个受影响选择器98/98、零失败错误skip，拒绝不发布/落摘要/推进序号，同序号合法事件可继续。真实Python/C++正常三AC及编译失败→Java入库通过；不替代reader预算、平台容器或完整11验收，仍BLOCKED。
+- **待确认门槛**：TASK-00审批仍将256KiB/256条批次、128KiB行上限列为候选；事件累计字节、字段/深度上限亦未冻结。此前“事件各项预算已批准”是任务前置条件，不是实际数值授权；有界reader/生产配置待具体确认，已明确的协议归属校验可独立推进。
+- **剩余实现**：Linux/Windows仍全文件逐行读取/行游标；字节增量reader、字段/schema与深度限额、半行/UTF8跨块、并发替换与实际资源上界仍待。R02仅证明已见文件身份/缩短的静态边界，同inode内容覆盖未证明，不把去掉readAllLines调用当成有界读取。JSON整数/文本类型硬化已有R08证据，不重复搭同类复现；原R16/R20冻结产物不当作完整当前v2事件产品。11全量/必要真实reader验收留到交付，未关闭N2/DEF-06。
 - **需求/设计**：RQ-R03/AC-R03、RQ-R05/AC-R05/T-R03、T-R05，支撑RQ-R04；N2、DEF-06；D §4.4、§6.2、§9.2。
 - **依赖**：09、10；事件各项预算已批准。
 - **设计目标/预期效果**：读取成本随增量变化，内存受配置限制，重复/恶意/截断事件不导致伪结果或统计回放。
@@ -315,7 +339,13 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-12：显式轮询状态、预算与退出drain
 
-- **状态/角色**：NOT_STARTED；并发编排工程师。
+- **状态/角色**：BLOCKED（11整体前置及轮询/收尾预算未批准）；并发编排工程师。已修失败句柄归属、宿主轮询错误及无句柄未知启动的运行占用保留，未交付、不标DONE。
+- **未知启动保留**：[TASK-12-UNKNOWN-START-R02]；JudgeService仅用本次startRequested布尔值，在已调用start且未获句柄时复用原cleanupPending，保留全局/owner占用并阻止后继派发；实际源码写入在启动前失败则不保留，无新状态框架/接口/数值。原throw/null两参数证实running错误归零；修复后编排18/18、零失败/错误/skip、退出0，原AC统计与清理失败保留不退化。仅进程内保守隔离，真实未知启动对账、持久归属/进程重建及回收释放仍由12/14/19闭环。
+- **实际修复（TASK-12-R03）**：复用完整SandboxRunHandle作为本地失败缓存键，同/不同judge及attempt不覆盖；失败事件只消费一次，取消只释放本句柄缓存、后续轮询不访问虚构Worker run。运行中HTTP/解码/空值批次错误走既有宿主异常收尾，不再伪造runner事件或序号，InterruptedException恢复中断标记。保留v2身份、原失败wire值和幂等接口，无新状态框架。
+- **关键验证**：原R01五项全红，R02三套51/51；新增最小修复后R03 RemoteWorkerRunnerTest31、RemoteWorkerTlsTest18、JudgeSandboxOrchestrationTest9，共58/58、退出0、零失败/错误/skip，XML关键方法实际执行。真实隔离回环HTTPS验证错误响应/合法请求，不冒称外部Worker部署或实际资源回收。
+- **角色任务预算切片**：[TASK-12-ROLE-BUDGET-R01]；真实30秒角色突破8秒总预算的红测已修：编译/执行复用原monotonic和maxTaskRuntimeMillis，原执行器timeout取剩余任务预算，不误判TLE/编译失败，不改取消优先、参数或权限。Python定向10/10；当前Runner真实契约11/11，预算exit21/8.172秒且保留此前AC/WA，零失败/错误/skip。8秒仅夹具，未新增生产数值或通用框架。
+- **本地读流错误切片（2026-10-07 +08:00 / 2026-10-06 UTC）**：[TASK-12-LOCAL-READ-R01]；Linux/Windows复用原宿主异常收尾，不再将文件/JSON读取失败伪造为缺归属和序号的Runner事件；公开错误消息不附加私有数据，cause保留。四个参数化错误路径均执行通过，恢复合法v2首条事件后游标未误推进；受影响四套91项/89通过/0失败错误/2原环境skip，退出0。真实文件读取与解析、容器命令替身，不冒称平台容器验收；剩余状态/drain/deadline阻断不变。
+- **剩余阻断**：ACTIVE/EXITED/UNKNOWN、退出末批drain/flush、宿主启动/poll/drain/cleanup的单调总deadline与传输错误有限重试仍未完成；当前传输错误仍立即宿主失败关闭，缓存释放/cleanup调用不代表真实执行域已回收。不得据此关闭DEF-03或代替11/14/25/26验收。
 - **需求/设计**：RQ-R02/AC-R02/T-R02，联合RQ-R03/R05；DEF-03；D §4.3/4.4、§6.2。
 - **依赖**：11。
 - **设计目标/预期效果**：空批不早退，进程退出不丢末批事件，UNKNOWN不假成功，启动至收尾全程有界。
@@ -327,7 +357,13 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-13：在线输出限制与有界产物
 
-- **状态/角色**：NOT_STARTED；运行时资源工程师。
+- **状态/角色**：BLOCKED（12前置未交付、有限drain与资源验收未完成）；运行时资源工程师。Python在线捕获、Java合计预算及各角色OLE映射已修，未交付、不标DONE。
+- **最小修复（2026-10-06 UTC / 日志2026-10-07 +08:00）**：[TASK-13-COMBINED-R03]；复用run_process按stdout+stderr合计判断，恰等合法，超限返回前缀合计不超过原额度；不改超时/内存/取消优先序和编译64KiB旧值。真实验收暴露OLE无法成为宿主终态，补齐原JudgeStatus枚举及OLE别名，沿用原状态机/持久化/清理，不另建管理器。
+- **前阶段验证（历史）**：合计4097/限额4096误AC及OLE终态缺失先后得到真实红测；R03四套153/153及Python22/22通过。后续源码变动受影响部分由下条新证据替代，未受影响持久化/清理验证复用，失败历史保留。
+- **最新闭环（2026-10-06 UTC / 日志2026-10-07 +08:00）**：[TASK-13-STREAM-R02]；Python原函数并行read1/喂输入，锁内共享合计及前缀预算、累计饱和，首超额调用原终止器，不再communicate全收集；Java原捕获器共享原maxOutputBytes预算且保留maxErrorBytes次限额，不改接口/默认值/超时或清理机制。Python两套24/24及新增IO故障定向1/1；真实C++持管道超限→OLE→v2入库Artifact12/12；Java独立合计红测六参数两失败后，ProcessRunner15+Baseline44=59/59，包含内存/文件输出limit±1及恰等、真实NUL→WA。均零失败/错误/skip、退出0，标准报告见work同键，无全量/冻结/旧Probe重复。
+- **阶段OLE闭环（实际日志2026-10-07 +08:00 / 2026-10-07 UTC）**：[TASK-13-STAGE-R02]；生成器超限保留有界输入且不派发USER/答案/SPJ，答案/SPJ超限均记OLE；编译诊断仍按退出10/COMPILE_ERROR契约，但明确超限原因和角色、不伪造用例。Java答案/SPJ复用原失败分类。真实红测6项5失败后，Python两套27/27、Artifact16+Baseline46=62/62，零失败/错误/skip、退出0；四角色真C++与真g++诊断经v2验真/入库，未重复旧Probe/取消红测。非OLE的SPJ基础设施分类另归16，不扩13。
+- **捕获故障闭环**：[TASK-13-CAPTURE-IO-R03]；DirectProcessRunner复用原私有捕获结果及checked异常，IO失败立即调用原终止器，不再伪造OLE；等待错误与真实超输出区分，TLE/MLE/OLE优先保留。两参数原码全红；R02受影响64项63通过/1新增公开状态拼写断言失败，按原System Error契约修正并加强磁盘SYSTEM_ERROR断言后，R03仅真实C++新增项1/1，其余63项复用，零非预期skip。真实IO错误计systemError=1/OLE=0，不冒称全域回收；其余阻断不变，未交付。
+- **剩余阻断**：Python杀后wait及pump.join仍无界，后代持管道不能据此宣称清理成功；实际RSS/磁盘上界及适用平台验收未闭环。12的退出/drain预算、14的进程域治理和生产诊断额度仍按原卡，不新增默认参数；C01未提交，DEF-07不关闭。
 - **需求/设计**：RQ-R06/AC-R06a/T-R06、RQ-V01；DEF-07、关联N5；D §4.5、§8.2、§9.1/9.2。
 - **依赖**：10、12；DEC-01/07额度与合计规则批准。
 - **设计目标/预期效果**：双流在线计数，首超额字节触发停止，监督器与磁盘不随任意输出增长。
@@ -339,7 +375,10 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-14：全进程域治理与有界回收
 
-- **状态/角色**：NOT_STARTED；OS/沙箱资源工程师。
+- **状态/角色**：BLOCKED（12/13完整前置、目标域及清理预算未收敛）；OS/沙箱资源工程师。已修已返回句柄的统一收尾与未确认停止的容量保留，整域真实验收及恢复释放未完成，未C01、不标DONE。
+- **最小收尾切片**：[TASK-14-TERMINAL-CLEANUP-R03]；JudgeService将原句柄清理移入finally，正常AC/取消/预算与异常都收尾；清理失败不覆盖真实终态/统计，复用原cleanupPending保留运行占用及完整句柄。SandboxRunner默认取消返回不再假报清理成功，显式报未确认停止；只有不启动OS域的LocalFake及原高容量替身显式本地清理。七项原码全红；R02六套96项95过/一旧v1替身失败，最小补其v2句柄/序号后R03仅该项1/1，其余95项复用，均无错误/skip。真实回环HTTPS五种取消应答均不能替代停止确认；100/10000/100000例仅原模拟容量链路，不冒称真实Worker或OS域资源验收。
+- **后端归属检查**：[TASK-14-PROVIDER-GUARD-R02]；Linux/Windows/Remote取消入口拒绝空值和外来provider，外部命令/HTTPS请求前失败关闭，防止历史换配句柄送错后端。九参数原码全红；三套85项83过、零失败/错误、2环境skip（Linux缺默认镜像、Windows运行域为Linux），九项安全回归均执行通过；不冒称同provider代际验证或真实整域回收完成。
+- **剩余实现/验收**：真实主平台父退出/setsid/持管道整域停止、有限drain及残余PID/句柄为零，stage/holder/volume回收和回收后许可释放仍未闭环；默认未确认清理保守保留，不从取消应答、终态或空列表推导回收成功。无句柄启动UNKNOWN及fallback未区分已知未启动/未知由12接续，进程重建/就绪由19接续；不得据此关闭DEF-08。
 - **既有待收尾（来自TASK-10）**：可信取消已经合作停止并回收活USER阶段；Runner仍准确报告stage/holder/volume恢复pending，受管证据阻止目录删除。用现有持久身份、锁和剩余预算完成整域资源回收，真实确认后才能释放占用；当前v1卷删除未实现，不从cancel marker或空列表推导删除授权。
 - **需求/设计**：RQ-R06/AC-R06b及AC-R06a/T-R07、T-R06；DEF-08、联合DEF-07；D §4.1/4.3/4.5、§6.1。
 - **依赖**：12、13；目标域和清理预算批准。
@@ -352,7 +391,9 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-15：普通比较黄金向量与Java/API精度
 
-- **状态/角色**：BLOCKED；数值正确性/后端API工程师。2026-10-03核对01/09真实提交已满足，但TASK-00明确延期的token字节/指数上界及非法输入错误映射尚未批准；不将继续任务视为自动批准这些业务语义。
+- **状态/角色**：BLOCKED；数值正确性/后端API工程师。01/09真实提交已满足；2026-10-06已批准的整数/非有限文本切片完成最小修复：整数符号/前导零规范化后精确比较，NaN/Inf按大小写敏感文本比较。R01向量23项8失败，R02受影响基线32/32、零失败/错误/skip，含两例真实C++误判→WA。token字节/指数上界及非法输入错误映射仍待具体批准，未提交、不代表完整15或DEF-12关闭。
+- **词法/空白切片（2026-10-06 UTC / 日志2026-10-07 +08:00）**：[TASK-15-LEXICAL-R02]；原比较器按已批准六种ASCII空白提取token，不再trim吞掉NUL/其他控制字符；仅十进制词法进入原数值路径，Java专属hex及f/d后缀按文本精确比较。原共享fixture增加11条，R01有7条词法向量及真实C++ NUL输出误判AC，共8失败；最小修复后仅重验Baseline44/44、零失败错误skip、退出0，34条共享向量和真实NUL输出→WA→文件详情保留字节通过。无新比较框架、任意精度运算或业务参数。
+- **剩余实现**：有限小数/指数仍走旧double比较，API/页面precision仍有double/parseFloat损失；严格UTF8、解析预算及输入错误映射未闭环。本轮不在预算缺失时启用无界BigDecimal/BigInteger运算；跨语言验收仍归16，15未交付、不标DONE。
 - **需求/设计**：RQ-C01/AC-C01、AC-C02/T-C01、T-C02；DEF-11、DEF-12、DEC-03；D §5.1/5.2、§4.2、§8.1。
 - **依赖**：01、09；词法、空白、非有限规则、输入错误映射与解析上界批准。
 - **设计目标/预期效果**：Java不再double误判大整数/NaN，precision从API接收起不丢精度，统一可移植判定向量。
@@ -364,7 +405,9 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-16：Python/Worker跨路径比较贯通
 
-- **状态/角色**：NOT_STARTED；Python/跨语言契约工程师。
+- **状态/角色**：BLOCKED（12、14、15整体前置未交付）；Python/跨语言契约工程师。仅完成下列独立异常映射切片，未提交、不标DONE。
+- **SPJ最小修复**：[TASK-16-SPJ-R02]；Python run_special_judge的非SUCCESS基础设施状态按原spec/Java契约记System Error，不再误记WA；取消/预算先仲裁、OLE单独分类和SUCCESS非零退出仍为WA的原协议保持不变。仅补两行条件，不新增管理器、数值或比较模式。
+- **关键验证（实际日志2026-10-07 +08:00）**：同一既有Artifact夹具参数化真实SPJ成功、拒绝、超时、内存超限，R01四项两失败证明误WA；R02受影响Artifact20/20及Python StageDispatch16/16，零失败/错误/skip、退出0。真C++/Python、v2事件验真和入库均执行，标准XML确认四参数及原四角色OLE/编译诊断实际执行；Java未变化证据复用。未做Worker整链、跨语言精度或真实域清理，不能据此关闭DEF-11/12。
 - **需求/设计**：RQ-C01/AC-C01、AC-C02/T-C01、T-C02，RQ-R01能力要求；DEF-11、DEF-12；D §4.2、§5.1/5.2、§8.3。
 - **依赖**：08、12、14、15。
 - **设计目标/预期效果**：普通比较各支持路径相同，精度/模式不静默丢失，未知能力拒绝而不是退回trim比较。
@@ -376,11 +419,16 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-17：单一权威终态与崩溃一致提交
 
-- **状态/角色**：NOT_STARTED；后端持久化/一致性工程师。
+- **状态/角色**：BLOCKED（11/12前置未交付，完整交付验收未完成）；后端持久化/一致性工程师。终态字段/旧数据兼容已批准，原子final及定向恢复切片已验证；未交付、不标DONE。
+- **原子final闭环（2026-10-08）**：[TASK-17-ATOMIC-FINAL-R07]；保留JudgeProgress全部字段并加attemptId/revision/finalizedAt，复用原存储锁提交唯一final；内容force、同卷原子替换、POSIX目录force，终态不回退普通移动。Publisher/调度停止入口不再先写终态metadata；final优先冷读，投影失败可恢复，旧有效summary保持且不从事件补final。R05定向47/47并复用R03未受影响200项；nobody真实HTTP/C++9/9及四种STOMP4/4，零失败错误skip。取消3/2/1、预算17/9/8，final/HTTP/冷读及真实AC的WS整快照相等；失败与夹具修正历史见work。首次取消IO失败保持CREATED，原ID重试提交final，非伪终态。仅终态revision=1，不冒称完整23或Windows/provider/整进程重启验收。
+- **宿主失败摘要**：[TASK-17-HOST-ERROR-R02]；原作业异常/执行器拒绝仅写metadata，冷读优先summary导致缺摘要或仍RUNNING。两个原失败入口复用原停止摘要，保留实盘聚合/样本/进度及首个已存消息，不覆盖其他已存终态；无结果才真实零兜底。R01五参数2过/1失败/2缺摘要错误；最小修复后六个相关套件150/150、零失败错误skip，四个作业异常参数及拒绝分支实际执行，真实文件落盘/冷读与既有HTTP-C++停止/许可/摘要回归通过。不是原子final、缓存/WS或崩溃一致性验收，完整17仍BLOCKED。
+- **最近切片（2026-10-07 +08:00 / 2026-10-06 UTC）**：[TASK-17-STOPPING-R02]；执行中取消/预算定时器只发令牌，不提前终结；取消不再写100%无摘要缓存，调度收尾不改已有终态，必要兜底保留持久聚合。R01受影响60/60；测试夹具调整后R02调度器17/17、真实HTTP/C++4/4，零失败/错误/skip，复用R01其余43项。真实混合AC/WA后取消completed=3/ac=2/wa=1，超预算17/9/8；样本、firstFailedCase、停止原因、磁盘与清缓存HTTP一致。仅trusted-local直接执行证据，不冒称WS、重启或所有provider验收。
+- **终态不可覆盖/失败不伪报**：[TASK-17-TERMINAL-SNAPSHOT-R04]；复用原任务锁冻结首次已存终态的metadata/message/finishedAt/events和summary，发布与缓存使用真实已存快照；写盘失败传播且不发送成功，原错误清理移至finally。八参数原码全红；R03七套186项184过/2相关边界错误，强化不存在任务的异常断言且保留不得创建/启动原断言后R04编排18/18，其余168项复用、均零skip。真实C++取消3/2/1、预算17/9/8，样本与冷HTTP逐字段相等。未新增字段/接口/管理器；metadata/summary仍非原子final，完整崩溃一致性/兼容批准与WS验收未完成，不交付17或关闭DEF-21。
 - **需求/设计**：RQ-L03/AC-L03/T-L04，R §4可靠性；DEF-21；D §6.2、§4.4、§8.3。
-- **依赖**：11、12；终态字段与旧数据兼容方案批准。
+- **沙箱切片**：[TASK-17-SANDBOX-R02]；停止摘要改为现有可信聚合快照，同Session首个终态后重复/晚到回调不再写统计。R01三套76/76；必要真实Python/C++取消与预算验收exit20/21，均completed=2、AC=1、WA=1、首错2、宿主样本1/2，冷读逐字段一致；R02受影响Runner11/11。预算红测按12最小修复，未新增采样额度、终态字段或管理器；仍非完整17/DEF-21关闭。
+- **依赖**：11、12；终态字段与旧数据兼容方案已于2026-10-08批准，其余预算/平台批准不由此推定。
 - **设计目标/预期效果**：调度器不再用零统计覆盖真实结果，终态只提交一次，缓存/文件/重启读取相同权威快照。
-- **实施/文件**：新增小型TaskLifecycleService，FileTaskStore/TaskStore、JudgeService/JudgeScheduler、聚合/进度接入；任务互斥冻结summary，final临时写+flush+原子替换，metadata/summary投影可重建；拒绝晚到事件，真实摘要优先，只有无结果才零兜底。
+- **实施/文件**：复用FileTaskStore/TaskStore现有任务锁及JudgeService/JudgeScheduler聚合/进度入口，不另建通用生命周期框架；任务互斥冻结summary，final临时写+flush+原子替换，metadata/summary投影可重建；拒绝晚到事件，真实摘要优先，只有无结果才零兜底。
 - **严格测试**：FileTaskStoreTest、JudgeSchedulerTest、ResultAggregatorTest、SandboxEventIngestorTest、ProgressPublisherTest；AC/WA/样本后取消或预算超限、重复/相冲终态、晚到RUNNING；final写前/替换后/投影前故障，缓存清除/模拟重启/真实临时文件系统恢复；全量。
 - **严格验收**：分类和等于completed，样本/firstFailedCase/stoppedReason保留；final写失败不发布已持久成功，投影失败可重建；不声称多个JSON具有数据库事务，旧有效summary不清空。
 - **提示词**：你是持久化工程师，执行 TASK-17。终态单写者，scheduler只发信号不能重造结果；必须注入每个提交边界故障，证明原子快照与读优先级。不要顺便换数据库，按 §2提交汇报。
@@ -388,10 +436,18 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-18：CREATED取消/TTL与幂等启动
 
-- **状态/角色**：NOT_STARTED；任务生命周期/API工程师。
-- **关联待修（2026-10-06，R28）**：JudgeBaselineTest.runtimeErrorIsRecordedAsSingleCaseRe得到SYSTEM_ERROR/“Judge executor rejected the task”，而非RE。既有诊断指向逻辑调度槽释放先于工作线程退出的交接窗口，见docs/acceptance/TASK-10/scheduler-rejection.md；根因与交接/取消竞态留本任务验证，不扩大TASK-10、不禁用断言、不重复重跑期待偶然通过。
+- **状态/角色**：BLOCKED；任务生命周期/API工程师。CREATED首次/重复取消、已调度重复start、终态start409、执行器交接及请求侧15分钟TTL已修；14/17前置、独立TTL扫描/清理预算及完整三方竞态/持久化验收仍未闭环，未交付、不标DONE。
+- **实际修复（TASK-18-R01）**：复用JudgeScheduler既有monitor，在与enqueue同一锁内确认CREATED并持久化CANCELLED和真实零已执行摘要后才accepted=true；不分配执行槽、不运行代码。复用原TaskContext/摘要逻辑，运行中统计实现不扩改；JudgeService成功取消后释放pending并由持久摘要回答CREATED状态，重复取消accepted=false，不复活任务、不把其他任务占用误报成本任务running/queued。
+- **真实绿测**：TASK-04 R07的既有红测不重跑、不放宽。R01六套79/79、退出0、零失败/错误/skip；CreatedTaskCancellationHttpTest实际Cookie+CSRF完成创建→首次取消true/CANCELLED→读取total=1/completed=0→重复取消false/CANCELLED。调度器回归证明取消后不能入队、没有执行或槽位，原运行取消/预算及跨账户拒绝仍绿；不冒称浏览器、三方竞态、原子final或实际运行域清理验收。
+- **关联缺陷已修（TASK-18-R03）**：R28的执行器交接拒绝及既有确定性Probe不重跑。AsyncConfig仅为已获运行许可任务配置同现有并发数的有界交接缓冲，线程数/业务队列上限及AbortPolicy不变；Scheduler在同一锁内释放本任务并预留FIFO后继，避免新请求抢越旧队列。R02六套67/67，包含实际C++ RE原断言及Baseline32项；四参数向量用真实生产执行器验证并发1/2、队满重试、取消、FIFO和线程/队列上界，不以扩大线程或CallerRuns掩盖。
+- **启动语义补齐**：JudgeService pending缺失时只验证真实已调度任务，不重建执行；Scheduler锁内拒绝任何已持久化终态，Controller仅映射专用异常到409，保留200/429/授权隐藏。R03六套37/37、退出0、零失败/错误/skip：真实Cookie+CSRF取消→晚到start409/CANCELLED→重复取消false；受控Running重复start只启动一个Runner，原真实RE、权限及有界交接仍绿。原Baseline比较向量未变化直接复用R02，不重做全量/冻结；证据与剩余边界见work [TASK-18-R03]。
+- **排队取消竞态 [TASK-18-QUEUED-CANCEL-R03]**：原取消出队与终态落盘锁外窗口已有两参数红测；只在已有monitor内完成令牌、持久化及出队，写盘失败保留队列供重试，运行/回收占用策略不改。R02五套56项51过/5因Policy共享根遗留CREATED触发正确安全拒绝；仅复用现有隔离TaskStore修正该夹具，R03受影响Policy/真实HTTP-C++10/10，其余46项复用，当前56项有效绿色、零失败错误skip。三新调度回归实际执行；不冒称TTL三方竞争、原子final或全域停止，14/17及未批准预算仍阻断。
+- **交接窗口取消**：[TASK-18-HANDOFF-CANCEL-R02]；仅在原runTask开始及调用作业前复核现有取消令牌，已收到取消的预留/晋升任务不再调用作业，沿用原取消摘要、finally及FIFO/owner许可交接。直接预留/队列晋升×执行前/启动落盘后四参数原来全部误调用一次；修复后五个受影响套件60/60、零失败错误skip，四参数实际执行，真实HTTP取消/晚到start409及C++取消、预算、owner许可、摘要回归通过。仅闭合已观测交接窗口，不代替TTL三方竞态、原子final或运行域停止证明，完整18仍BLOCKED。
+- **请求侧TTL [TASK-18-TTL-REQUEST-R03]**：沿用已批准CREATED TTL15分钟，在原调度monitor内于start/cancel检查到期；仅未调度、无startedAt/运行句柄的CREATED转STALE并复用零已执行摘要。晚到start409，cancel返回false/STALE，JudgeService释放pending及通道缓存；不启动/停止Runner或增加扫描器。14/15/16分钟×两入口红测6项2过/4失败，修复后Scheduler41/Store67/Orchestration18/CreatedHTTP3/Policy5的R02共134项及Quota13/RunningHTTP5的R03共18项均通过（152项有效绿色、零失败错误skip）；真实Cookie/CSRF/HTTP证明两入口STALE、无启动句柄、pending释放且同owner配额可复用。R02另5项启动错误源于Quota共享根遗留未终结任务，仅两行复用现有IsolatedTaskStore隔离该夹具后重验受影响18项，不放宽恢复门禁、不删目录。独立扫描、无请求空闲回收及完整三方竞态未验收，DEF-13及完整18仍BLOCKED。
+- **终态取消重试 [TASK-18-TERMINAL-PENDING-R02]**：摘要落盘失败但metadata已CANCELLED时，原ID重试返回accepted=false却遗留pending；JudgeService仅复用原终态枚举清理该任务注册，不改运行许可、授权或终态写入。R01单项红测失败；R02编排20+调度41及nobody真实HTTP4共65/65，零失败错误skip。真实文件故障首次500，恢复空目录夹具后重试200/false/CANCELLED、pending释放、metadata不变、无启动句柄、晚到start409；摘要仍缺失，未伪造补齐，权威提交/恢复仍归17，完整18仍BLOCKED。
 - **需求/设计**：RQ-L01/AC-L01/T-L01、RQ-U01恢复契约；DEF-13、DEC-02/08；D §6.1、§6.2、§7.1、§8.1/8.2。
-- **依赖**：14、17；TTL/扫描间隔及重复调用语义批准。
+- **请求侧并发观测 [TASK-18-REQUEST-RACE-R01]**：原编排套件只补14/16分钟两项start/cancel/requireScheduled屏障竞争，2/2、零失败错误skip、退出0；实测分别CANCELLED/STALE、completed=0/Runner启动0，pending与调度占用归零，其他CREATED注册不变，重复cancel/start不改变metadata/summary字节。Runner为既有替身，不是独立扫描、全部竞争顺序或真实OS域验收，完整18仍BLOCKED；上轮65项有效结果复用。
+- **依赖**：14、17；CREATED TTL15分钟及重复调用语义已批准，扫描间隔/清理预算仍待具体批准。
 - **设计目标/预期效果**：创建未启动不永久占用，同任务启动/取消/过期竞争只产生一个合法转移，网络重试不重复执行。
 - **实施/文件**：JudgeService pending/start/cancel、JudgeController、TaskCleanupService、状态配置/DTO；CREATED可取消、TTL转STALE，独立扫描；start已运行/排队幂等200，终态按批准409；已终态取消按批准accepted语义返回原快照，无权/不存在仍404。
 - **严格测试**：JudgeSchedulerTest、FileTaskStoreTest、TaskCleanupServiceTest、JudgeControllerPolicyTest、QuotaAndAuthorizationTest；三方屏障竞争start/cancel/TTL、创建后刷新/不启动、重复start/cancel、队满429后原任务重试/取消；时钟驱动TTL，全量。
@@ -401,7 +457,11 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-19：覆盖全部非终态的重启恢复
 
-- **状态/角色**：NOT_STARTED；恢复/运行可靠性工程师。
+- **状态/角色**：BLOCKED（14/17/18完整前置及全部恢复验收未闭环）；恢复/运行可靠性工程师。已修已知句柄回收失败的启动门槛及状态保留，未C01、不标DONE。
+- **启动失败关闭**：[TASK-19-READINESS-R02]；TaskCleanupService复用原扫描/清理入口处理全部已存句柄（含非运行状态和已有终态），有失败先报错、不先写STALE；PostConstruct异常传播，不能仅警告后继续初始化。七状态原码全红；修复后恢复12、清理14、真实HTTP1共27/27、零失败/错误/skip、退出0。实际Spring初始化失败/上下文不活跃，metadata、句柄、状态及case数据保留；Runner失败仍为原替身注入，不冒称真实域已回收或进程重启已验收。
+- **全非终态及未知执行**：[TASK-19-NONTERMINAL-R02]；复用isTerminal覆盖五非终态，已知句柄清理返回后记录STALE/RESTART_INTERRUPTED；先预检所有缺句柄任务，非终态（含CREATED/QUEUED）、已有startedAt或受管证据均失败关闭，空runId不再跳过清理。15项原码全红；存储64、清理14、恢复26、真实HTTP1共105/105、零失败/错误/skip。真实Spring/磁盘验证五状态及再次初始化字节稳定，回收仍为原替身或无OS域LocalFake，不冒称产品进程重启/真实整域验收。
+- **孤立受管目录**：[TASK-19-ORPHAN-EVIDENCE-R02]；原loadAllTasks扫描复用受管证据校验，无metadata但有启动锁/attempt时抛错并阻止就绪，普通无受管证据的未完成创建仍保留原行为。原三参数1过/2失败；修复后存储64、清理14、恢复29、配额13共120/120，零失败/错误/skip，真实Spring/文件验证证据不删除、不伪造metadata或猜执行身份。
+- **剩余实现/验收**：UNKNOWN权威对账与持久占用重建、final修复/统计一致及真实进程重启未闭环；缺句柄非终态或已知受管孤立目录目前保守阻止就绪，不自行推定未启动或释放占用。14实际停止证明和17权威终态依赖仍未完成，未发现文件不能替代完整运行域对账，不把已有终态当资源停止证明。
 - **既有待收尾（来自TASK-10）**：复用LinuxAttemptDiscovery、stage闭门与CONFIRMED容器消费者；所有非终态及创建UNKNOWN仍须在真实运行代际/权威终结依据下收敛，无依据则继续容量隔离。不得用临时实验域结束冒充产品重启恢复。
 - **需求/设计**：RQ-L01/AC-L01/T-L02、RQ-L03统计保留；DEF-14、DEF-13、关联DEF-21；D §6.1/6.2、§8.3、§9.2。
 - **依赖**：14、17、18。
@@ -414,7 +474,14 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-20：用户原子创建配额与每日计量
 
-- **状态/角色**：NOT_STARTED；并发/配额工程师。
+- **状态/角色**：BLOCKED（18/19整体前置未满足）；并发/配额工程师。已完成创建竞态、失败回滚、最小每日计费及已保留运行占用的创建配额切片，未完整验收、未交付、不标DONE。
+- **创建切片（2026-10-07 +08:00 / 2026-10-06 UTC）**：[TASK-20-CREATE-R02]；QuotaService固定条带锁按原stableUserId归属，JudgeService原子区覆盖原配额检查、CREATED落盘和pending注册，不持锁执行编译/网络。四参数8会话争最后1额度，原码成功8/8/6/6导致4项红；修复后每项仅1成功、7个原429，真实磁盘和pending只新增成功任务，管理员不豁免、另一用户仍可创建。定向四套27/27、退出0、零失败错误skip，含既有真实Cookie/CSRF/TCP创建取消验收；未更改生产配额或每日计量口径。
+- **创建落盘回滚切片**：[TASK-20-ROLLBACK-R02]；FileTaskStore仅接管本次原子新建目录，已有目录/任务失败关闭且不覆盖；元数据move或事件append失败时，在原任务锁/lifecycle lease内复用原安全删除路径，清理本次目录、保留外部任务和storage锁身份，同ID可重试。managed证据仍拒绝删除，原失败携带suppressed回滚失败，不假报回收；无新管理器/权限/数值。五项原码全红，修复后受影响10套130/130、退出0、零失败错误skip，含现有真实HTTP与Python/C++→宿主落盘验收；未关闭完整20。
+- **回滚身份自审补齐**：[TASK-20-ROLLBACK-R03]；捕获创建时judgeId，失败路径不再读取可变输入对象决定删除目标；实际落盘失败接缝中变更输入ID仍只回滚原目录，另一运行任务逐字节不变。R03只重验存储54及真实HTTP1，共55/55、零失败错误skip、退出0；复用R02其余76项，不重跑Runner/全量/冻结，剩余阻断不变。
+- **pending注册切片（2026-10-06 UTC / 日志2026-10-07 +08:00）**：[TASK-20-PENDING-R02]；原create/lease内执行同步pending注册，注册前/后RuntimeException走同一落盘回滚；putIfAbsent拒绝覆盖已有注册，失败只移除本次同一实例，等值旧条目也保留。保留原create单参契约，无新事务管理器/数值/REST接口。三参数原码全红；修复后五套84/84、退出0、零失败错误skip，实测失败不留本次CREATED/pending、不占最后1个queued额度，可同ID重试且仅1条事件；既有真实HTTP创建取消通过。
+- **每日计费切片（2026-10-06 UTC / 日志2026-10-07 +08:00）**：[TASK-20-DAILY-R03]；成功创建生成提交标识，安全删除前原子保留当日最小计费凭据，失败创建回滚不计费；原stable owner仅保留SHA指纹，不复制会话凭证。live/retained同提交去重、同judgeId重建另计，损坏/符链/写失败拒删；沿用系统日期和请求case/估计runtime及legacy默认策略，累计饱和防溢出。凭据过期复用原配额查询/定时清理，无新TTL或调度框架。两参数退款红测后，R02七套114/114；接入清理后R03仅重验三套20/20，复用其余95项，均零失败错误skip、退出0，含真实Cookie/CSRF/TCP删后404及再创建429、真实磁盘TTL/冷读/日期参数回归。
+- **已保留占用的创建配额**：[TASK-20-HELD-QUOTA-R02]；创建原owner原子区内读取Scheduler可信owner的运行ID快照，与磁盘运行ID合并去重；终态但清理失败仍拒绝同owner创建，另一owner不受误伤，成功清理可创建，同ID不双计。只复用原monitor及局部Set，不另建许可表/锁/管理器。原三项回归2过1红；最小修复后八套128/128、零失败/错误/skip、退出0，含现有真实Cookie/CSRF/C++四任务AC。清理失败仍为Runner替身注入；回收后释放及进程恢复归14/19/21，不冒称闭环。
+- **剩余实现/验收**：18/19完整生命周期、进程重启及残余执行/占用重建仍未闭环；本次冷读不冒称完整进程恢复。启动429/重试链路及任务交付全量待前置收敛后验收，本地C01未交付。进程崩溃及回滚遇managed/路径/IO问题的残留不得当作已清理；21的实际派发用户许可留原任务。此切片不关闭完整DEF-15，不做冻结或重复旧Probe。
 - **需求/设计**：RQ-L02/AC-L02/T-L03；DEF-15；D §6.3、§8.1、§9.2。
 - **依赖**：18、19；每日计量口径按原契约保留。
 - **设计目标/预期效果**：同用户并发创建不能越额，创建失败不遗留占位，成功创建的每日额度不因取消/启动重试错误退款或重收。
@@ -426,8 +493,14 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-21：调度准入的用户运行许可
 
-- **状态/角色**：NOT_STARTED；调度/并发工程师。
+- **状态/角色**：BLOCKED（20整体前置未交付，全部执行域停止确认及回收后占用恢复未闭环）；调度/并发工程师。两级准入、已知句柄清理失败保留、预算及执行器拒绝收尾切片已修复、验证，未C01交付、不标DONE。
+- **执行器拒绝/落盘失败**：[TASK-21-REJECT-WRITE-R02]；只在原execute拒绝分支为终态落盘加finally释放，未接纳job时写盘失败不能泄漏全局/owner预留；异常仍传播，失败状态保持QUEUED，不冒称终态已持久化。原两参数1过1红（running仍1）；修复后Scheduler24/24、零失败/错误/skip、退出0，同owner双会话后继能取得预留、job调用0。正常执行/真实CPP及已知清理失败保留直接复用BUDGET-R02，拒绝分支之外不重跑。
+- **预算提交拒绝**：[TASK-21-BUDGET-R02]；scheduleBudget移入原runTask的try/finally，复用已有空Future及异常终态入口；预算执行器拒绝时job未调用，安全释放本实例的全局/owner预留并派发后继，不假造已启动域的停止确认。原单项红测退出1；修复后调度22、编排14、真实HTTP/C++1共37/37、零失败/错误/skip、退出0，四真C++均AC，原清理失败占用仍保留。创建识别该占用见20的HELD-QUOTA-R02；完整14/19恢复阻断不变。
+- **最小修复**：[TASK-21-ADMISSION-R03]；原monitor内的runningTasks同时充当全局/用户预留，立即执行与出队共用canStartLocked，按可信任务的稳定owner快照及原maxRunningTasksPerUser限额计数；匿名和缺ownership旧任务保守同组。出队选择最早可运行任务，跳过满额owner而不阻塞其他用户；重复释放同一实例不再派发。无用户计数Map、许可管理器、新锁、默认数值或公共接口变更，创建时running满仍拒绝的业务不变。
+- **前阶段验证（2026-10-07；历史）**：账户跨会话、用户限额1/2、匿名/旧数据四参数先四项越额红测；最小修复后真实生产ThreadPoolTaskExecutor和FileTaskStore验证两级峰值、双入口、队首公平及同任务只执行一次。R02七套62项60过/两项旧私有构造反射夹具错误；仅适配夹具并重验Orchestration13/13，另49项绿测复用。多用户真实C++由下条补验，完整DEF-15不关闭。
+- **真实C++闭环**：[TASK-21-CPP-R05]；R04 Cookie/CSRF/TCP验收发现全局2/每任务Case1仍共享单线程Case池，另一用户10秒内无法开始。仅修AsyncConfig原Case池容量为原全局任务上限×每任务Case上限，乘法溢出失败关闭；默认全局1行为、原队列/拒绝策略及CaseBatchRunner每任务在途限额不变，无新参数/抽象。R05 HTTP5+Batch9=14/14、零失败/错误/skip，四个真C++任务全部AC；同账号双Cookie共享1任务许可、两账号USER程序同时存活、跳过满额队首，旧同owner PID退出后新PID才出现，末尾实际调度占用归零。仅trusted-local/Linux证据，不代表恶意全域清理、清理失败保留或重启验收，20/14/19剩余阻断及C01未交付不变。
 - **需求/设计**：RQ-L02/AC-L02/T-L03；DEF-15；D §6.3、§6.2、§9.2。
+- **清理失败保留**：[TASK-21-RETENTION-R02]；已有poll异常红测证明cleanup失败仍running0。仅在原TaskContext标记已知清理失败，原runningTasks释放入口拒绝移除该实例，不另建锁/许可表；保留完整持久化句柄及全局/owner占用，后继不能取得新许可。R02五套58/58、零失败/错误/skip，成功/失败两参数与真实Cookie/CSRF/C++四任务AC实际执行；正常释放、取消/预算及公平出队不退化。该回归的清理失败由原Runner替身注入，不冒称真实域清理或回收后许可恢复，未知start、正常Runner终态统一清理及14/19/20边界仍待闭环。
 - **依赖**：20。
 - **设计目标/预期效果**：全局并发再高也不突破用户上限，所有退出路径只释放一次，单用户满额不阻塞其他用户。
 - **实施/文件**：JudgeScheduler立即执行/出队、QuotaService许可、TaskLifecycleService/清理回调；固定锁顺序或单调度临界区取得全局+用户许可，不持锁做编译/网络；仅实际执行域停止后释放，清理失败保留占用；支持跳过暂不可运行队首。
@@ -438,7 +511,21 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-22：前端错误恢复与Toast可见性
 
-- **状态/角色**：NOT_STARTED；前端/交互测试工程师。
+- **状态/角色**：BLOCKED（05/06/18整体前置未交付、必要真实验收未完成）；前端/交互测试工程师。源码已补原任务重试/取消、通道退出及提示兜底，未C01、不标DONE。
+- **最小修复/验证**：[TASK-22-START-R02]；复用原Toast DOM和showSuccess/showError，只将节点移至初始化脚本前，保留样式、转义与ARIA。原连接函数仅建立连接/注册订阅，启动POST收拢到原submit单一位置并检查response.ok，HTTP拒绝进入原失败按钮收尾，不再因连接降级重复启动或进入轮询；提交前显示准备中而非运行中。R01模板21/21；补启动修复后仅重验R02模板22/22，零失败/错误/skip。这些是源码契约回归，不代替浏览器可见性/网络交互证据。
+- **原ID恢复**：[TASK-22-RETRY-R04]；只在原currentJudgeId上标记待确认/启动，重试先查status，仅CREATED才再次start，已运行/终态只恢复查询；无ID创建响应未知明确提示、不自动重发。补JSON Accept以获得真实401，区分HTTP错误与请求阶段，查询429不误报尚未启动；刷新CREATED可重试，晚到start接受不覆盖已收到终态。R03/R04契约各29/29，主脚本语法及429三阶段消息函数直接执行通过，不替代浏览器网络证据。
+- **取消/通道**：[TASK-22-LIFECYCLE-R06]；原ID取消复用现有Cookie/CSRF接口并查询权威状态，accepted不等于已停止。原连接/轮询内加入实例及ID检查，切换/失败/终态/退出关闭旧通道，轮询串行、可abort，沿用原1秒间隔及现有重连退避/次数；Toast组件缺失用原DOM/textContent可见兜底。R05共32项31过/一项旧完整代码块断言失败，仅扩入真实QUEUED文案分支并单项R06通过，其他31项复用；语法检查通过，未建调度/测试框架。
+- **节流尾帧**：[TASK-22-THROTTLE-R07]；原300ms helper增加cancel并接入stopProgressTracking，新帧先取消旧延期，终态复用isTerminalProgress立即处理。既有三项实际JS红测（切任务旧尾帧污染、终态延迟、过期尾帧逆序）全部转绿；受影响FrontendTemplateContractTest 33/33、零失败/错误/skip，主脚本语法通过。纯函数与模板报告不替代真实浏览器/DOM验收，不重测未变后端。
+- **真实浏览器切片**：[TASK-22-BROWSER-R03]；复用现有classes、隔离临时存储与模板固定版本静态资产，用WSL Chromium149.0.7827.55（Playwright1.61.1、nobody、沙箱开启）真实验收。6/6检查通过、pageErrors=0、脚本退出0：访问码200/success=false可见且不建会话；空代码错误Toast不发create；真实创建后丢响应仅1次create/0次start、无虚构ID，刷新不重发；owner查询CREATED并实际取消；显式再提交后仅1次start、固定良性C++三例AC、4条真实SockJS/WS进度与HTTP整终态相等、成功摘要可见；真实登出后受保护HTTP401且浏览器返回登录页。R01历史协议误判及R02刷新后隐藏表单/孤立Promise夹具失败保留，仅修夹具，不改产品或业务断言。证据target/task22-browser-r03.json及对应截图；不冒称完整22/24验收。
+- **真实队满/原ID重试**：[TASK-22-START-RETRY-R04]；真实容量1的队满429保留CREATED/原ID并关闭通道。R03查明旧异步页面等待未等到占位任务完成，二次429不是产品重试缺陷；仅修夹具为有截止的真实HTTP等待。R04两项全PASS、pageErrors0、退出0：占位任务真实AC后仅1次create/2次同ID start，原任务一例真实AC，HTTP/WS整终态相等、成功Toast可见、连接峰值1/最终0；target/task22-start-retry-r04.json及截图。产品未变，已有受影响回归复用，不重复全量/冻结。
+- **网络未知/对账恢复**：[TASK-22-NETWORK-RECOVERY-R03]；真实start已返回200后丢响应，首次status也注入断网，保留原ID并可见提示未知、不重发create/start。R02真实红测发现对账为运行中后旧待启动取消按钮仍显示；只在handleProgress已有已接受状态入口隐藏该按钮，补原契约方法断言。受影响模板33/33、零失败错误skip；R03两项全PASS、pageErrors0、退出0：显式重试只查询/恢复轮询，1次create/1次start、一例真实AC，HTTP与浏览器整终态相等，查询并发峰值1、终态后停止，WS归零。target/task22-network-r03.json及截图；仅网络故障注入，不冒称服务端5xx证明。
+- **WS不可用/CSRF刷新恢复**：[TASK-22-WS-CSRF-R01]；复用原产物和验收入口，两场景各2项全PASS、pageErrors0、退出0。WS故障为明确网络注入：既有有限6次连接尝试后仅1次真实start，此前服务端CREATED/页面准备中且不轮询；HTTP降级一例真实AC、整终态与浏览器相等、单轮询终态停止。CSRF由真实服务端拒绝无效头403，原ID保持CREATED/提示可见/旧WS关闭；刷新不自动create/start，显式同ID重试403→200、一例真实AC、HTTP/WS整终态相等、连接峰值1/最终0。target/task22-ws-fallback-r01.json与target/task22-csrf-recovery-r01.json及截图；未改产品、不重复已有回归或冻结。
+- **断线/终态冲突**：[TASK-22-DISCONNECT-CONFLICT-R02]；现有入口disconnect/conflict各2项全PASS、pageErrors0、退出0。真实已连接WS客户端关闭后同ID HTTP降级，一例真实AC、整终态一致、查询并发峰值1/终态停止；不冒称服务端故障。真实owner先取消CREATED后start409，页面查询CANCELLED、不自动重启；显式新提交使用不同真实ID并AC，HTTP/WS整终态一致，连接峰值1/最终0。conflict R01仅夹具硬编码终态文案失败，保留退出1报告；R02改为匹配实际响应文案，不放宽业务断言。target/task22-ws-disconnect-r01.json、target/task22-conflict-r02.json及截图；产品未改，已有定向结果复用。
+- **HTTP错误恢复切片**：[TASK-22-HTTP-ERRORS-R02]；原入口参数化覆盖create401/503、start401/404/503、status401/404/503。R01创建两场景4项通过后，夹具未切回代码页导致按钮可见性断言失败，退出1报告保留；最小修夹具，R02只跑其余六场景12项全PASS、pageErrors0、退出0，已通过创建证据复用。401/404为实际匿名/不同owner Cookie及CSRF请求的真实服务端拒绝，不冒称真实会话撤销；503为明确HTTP注入。八场景均真实C++一例AC、浏览器/HTTP整终态一致、原ID重试或404显式新建无自动重发、轮询峰值≤1/终态停止、连接峰值1/最终0。target/task22-http-errors-r01.json、r02.json及四张关键截图；产品未改，不重跑33项契约/全量/冻结。
+- **真实会话恢复/旧提示清理**：[TASK-22-SESSION-RECOVERY-R05]；账户模式真实登出后下一次出站关闭旧WS、HTTP401停止跟踪并保留代码/原ID；同账户真实重登录仅查询原任务，不再create/start。R04核心两项通过，但实看截图发现恢复AC后仍显示旧401；仅showSuccess增加一行复用原错误Toast关闭控件，现有fallback契约补断言。受影响33/33、零失败错误skip；R05两项全PASS、pageErrors0、退出0，真实C++一例AC、原页面401→200/查询峰值1/终态停止、连接峰值1/最终0、旧错误隐藏。target/task22-session-recovery-r05.json及截图；R01～03夹具等待/异步计数失败保留，不放宽业务或权限断言、不全量/冻结。
+- **持续查询失败/限流恢复**：[TASK-22-STATUS-RECOVERY-R02]；原浏览器入口参数化补创建429及持续查询429/503/断网，HTTP拒绝与网络失败均明确注入。R01前三场景6项通过，持续查询断网真实页面却误报“启动结果未知”；仅在原消息函数补查询阶段文案，原模板契约补断言。受影响33/33、零失败错误skip；R02只复验失败断网分支，2项全PASS、pageErrors0、退出0，先前6项有效结果复用。查询失败按既有5次上限退避并停止/关闭通道，原ID和输入保留；显式重试只查原任务取得真实C++一例AC，create/start=1/1、查询峰值1、终态停止、旧错误隐藏。target/task22-status-recovery-r01.json保留红测，r02.json及两张绿测图已实看；不全量/冻结、不新增框架。
+- **连点/晚到响应/运行中刷新**：[TASK-22-INTERACTION-R02]；R01真实双击仅1次create/start，WS先于被延迟的真实启动200取得C++ AC，一项PASS。之后夹具额外等待Response.finished未推进；专项批准核对私有PID/cgroup后SIGTERM其浏览器，退出1报告保留，只移除该多余等待。R02复用连点证据，仅续验其余三项，全PASS、pageErrors0、12.858秒退出0：旧启动200晚到不污染新任务ID/缓存/按钮；刷新真实COMPILING任务保持输入/原ID、只恢复鉴权查询，无重复create/start；原任务真实AC、HTTP/浏览器整终态相同，查询峰值1、连接峰值1/最终0、终态停止。target/task22-interaction-r01.json、r02.json与完成图（已实看）；产品源码未改，最新33项及其他有效证据复用，不构建/全量/冻结。
+- **剩余阻断/验收**：浏览器基础能力已通过真实沙箱启动及上述应用切片解除，不再列“环境不可用”；CUA空列表、旧IAB/Edge失败历史仍保留，未重试或安装浏览器。双模式/多身份其余矩阵、其余创建/启动持续故障及网络未知边界、其余刷新/任务切换与重连/计时器交付回归仍待执行；上述已通过场景直接复用，05/06/18与C01门槛不变，DEF-16/17不关闭。
 - **需求/设计**：RQ-U01/AC-U01/T-U01、T-U02；DEF-16、DEF-17；D §7.1/7.2、§8.1。
 - **依赖**：05、06、18；批准幂等响应。
 - **设计目标/预期效果**：HTTP失败不会伪装运行，错误与成功可见，原任务可重试/取消，通道/计时器不重复。
@@ -450,7 +537,15 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-23：运行摘要与有界进度缓存
 
-- **状态/角色**：NOT_STARTED；后端实时进度工程师。
+- **状态/角色**：BLOCKED（17/21/22前置及缓存容量/TTL未冻结）；后端实时进度工程师。已完成direct运行摘要、保序和重复轮询缓存移除切片，未交付、不标DONE。
+- **实际修复（TASK-23-R03）**：JudgeService仅在原RUNNING发布点附带现有ResultAggregator.toSummary快照，结果回调/节流/统计源不变，不带全量results；复用原HTTP缓存和WS发布入口，不新建聚合器或消息框架。N8附录40例无摘要的真实红证据直接复用，不重跑旧红测。
+- **必要验证**：R01五个未受夹具影响套件54项全绿；两项真实HTTP初因未发送Accept而误读兼容纯文本ID，R02因夹具filesystem不兼容既有C++14而失败，均保留，未改产品/放宽断言。仅修夹具后R03两项真实40例AC/WA全绿、退出0、零失败/错误/skip，实际Cookie+CSRF与C++执行观察首例completed=1，后续计数单调、分类和等于completed、样本不超过测试冻结3/2、无全量results，终态completed=40；54项报告runLog已核验并直接复用。
+- **终态回收闭环**：[TASK-23-THROTTLE-RELEASE-R01]；复用原ConcurrentMap.compute序列化同judge的持久快照与节流决策，终态删除本键，不因重复/晚到或在途RUNNING重建永久条目；活跃任务及原节流保留，不新增TTL/容量数值。发布器17+真实HTTP4=21/21、零失败错误skip、退出0；六终态/别名各32任务、并发/发送故障已验证，真C++的AC/WA各40例及取消/预算本键均释放，原统计/冷HTTP相等断言保持。
+- **发送顺序最小修复**：[TASK-23-SEND-ORDER-R02]；原发布器在compute外发送，旧RUNNING可能被新终态抢越。仅将broker发送调用移入已有同judge的compute串行点，持久化先于对应通知，终态随后释放节流键，发送异常仍告警；不新增锁、队列、管理器或生产参数。受控并发AC/取消/系统错误顺序回归及原套件20/20、真实HTTP5/5；四入口40例真实C++/STOMP最终4/4，运行态无全量results、计数不倒退/分类和相等、HTTP/WS最终整快照相等。R01新夹具错误地禁止了非运行态兼容results，29项25过/4失败；仅纠正断言适用范围后R02四项通过，原业务/统计断言不放宽，25项复用。
+- **目录清理接入**：[TASK-23-CACHE-CLEANUP-R01]；原TaskCleanupService在FileTaskStore确认deleteTaskDirectory=true之后调用发布器删除本键；false/IOException/受管证据拒删均保留，不清其它活任务，不新增扫描、TTL或容量参数。旧构造入口保留，生产Spring入口接入现有发布器。发布器20、清理18、生产清理29、真实HTTP创建取消1，共68/68，零失败错误skip、退出0。四参数覆盖真实临时目录删除、false、异常和证据保留，迟到发布失败不能重建键、重复清理幂等；不据此声明进程域或受管卷已回收。
+- **出站保序闭环**：[TASK-23-OUTBOUND-ORDER-R02]；原发布器调用已串行，但默认clientOutboundChannel仍可抢越。产品仅在WebSocketConfig启用现有Spring setPreservePublishOrder(true)，无新队列实现/管理器或生产参数。复用原四transport/40例真实C++夹具，在既有出站执行器阻住首个非空RUNNING，待真实HTTP达到40 AC后检查后帧未抢越，再释放并保留原计数单调、分类和、无运行态全results及HTTP/STOMP整终态相等断言。R01四参数全红；R02四参数全绿、零失败错误skip，native/SockJS WS/XHR streaming/polling均实跑。不伪造终态；框架保序缓冲/积压上界仍待预算验收。
+- **轮询权威源最小修复**：[TASK-23-AUTHORITATIVE-POLL-R02]；受控并发红测证实原JudgeService重复缓存会被晚到RUNNING覆盖：磁盘AC/completed=1，查询却RUNNING/completed=0。仅删除judgeStatusMap及其投影/60分钟延迟任务，HTTP统一复用既有TaskStore摘要与metadata兜底；direct/沙箱发布、授权和持久化契约不变，不新增锁、管理器、TTL或revision字段。R01单项红测报告保留；R02受影响编排19/发布器20及nobody真实HTTP-C++5，共44/44、零失败错误skip。实际40例AC/WA、取消completed=3/ac2/wa1、预算completed=17/ac9/wa8，完整统计与文件/冷HTTP相同；原两级运行许可及队首跳过仍通过。标准报告target/surefire-reports/*-task23-cache-r02.xml；不代表完整23/DEF-21/22关闭。
+- **剩余阻断**：17/21/22完整前置、非终态TTL/容量、有限重试/发送与出站积压预算、完整非终态revision仍缺；受管目录删除依然按14/19/28保留证据与批准门槛。同会话broker进度出站串行已有R02定向证明，HTTP/重连交错、框架缓冲容量及发送阻塞上界未证明；不冒称生产provider、浏览器或完整N8/DEF-22关闭，未C01、不标DONE。
 - **需求/设计**：RQ-U02/AC-U02a、AC-U02b/T-U03、T-U04，RQ-L03；DEF-22、N8、关联DEF-21；D §7.2、§6.2。
 - **依赖**：17、21、22。
 - **设计目标/预期效果**：运行中HTTP/WS看到同源摘要，历史任务不会永久留节流状态，终态即时且不可被晚到消息覆盖。
@@ -462,7 +557,8 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-24：真实HTTP、WS与浏览器安全闭环验收
 
-- **状态/角色**：NOT_STARTED；独立安全测试 + 浏览器E2E工程师。
+- **状态/角色**：BLOCKED（02～08、18～23整体前置未交付，独立最终矩阵未执行）；独立安全测试 + 浏览器E2E工程师。
+- **环境事实**：[TASK-22-BROWSER-R03]已证明缓存Chromium沙箱及真实隔离应用可运行，访问码/Toast/丢响应/良性C++/SockJS终态/登出切片复用其报告；不重跑旧CUA/IAB/Edge失败路径，不将单模式切片当本任务交付。
 - **需求/设计**：RQ-A01～A07、RQ-U01/U02、相关RQ-L01/L03；T-A01～A13、T-U01～U04；D §3、§6、§7、§9。
 - **依赖**：02～08、18～23。
 - **设计目标/预期效果**：从真实入口验证身份、页面与任务状态，不以单测/mock/模板检查替代最终用户行为。
@@ -487,7 +583,8 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 
 ### TASK-26：Windows与Remote Worker能力矩阵验收
 
-- **状态/角色**：NOT_STARTED；跨平台/远程Worker集成验收工程师。
+- **状态/角色**：BLOCKED；跨平台/远程Worker集成验收工程师。已按DEC-07落实Windows/Remote生产失败关闭；完整08～21/23及发布/部署验收尚缺，未交付不DONE。
+- **已验证切片 [TASK-26-DISABLE-R02]**：Windows/Remote均DISABLED_UNVERIFIED；原启动验证器对非trusted-local的provider及执行profile双向拒绝，未知/空/交叉profile、probe开关、自报安全能力不能绕过，且验证器不调用禁用provider探针。认证、Worker配置与Linux真实安全探针保持；trusted-local仅开发可用。R01五套141项140过/1构造注入失败、零错误skip；只补Windows配置构造Autowired后，R02完整真实应用windows-prod/worker-prod启动均以DISABLED_UNVERIFIED拒绝，2/2、零失败错误skip，其余有效结果复用。不冒称Windows artifact/外部Worker部署通过，保留原平台验收边界。
 - **需求/设计**：RQ-R01～R06、RQ-C01、RQ-A07、R §4平台约束；相关T-R/T-C/T-A13；DEF-23及runner适用缺陷；D §3.6、§4/5、§8.3、§9。
 - **依赖**：08～21、23；DEC-05/07平台决定和外部交付可用。
 - **设计目标/预期效果**：每个宣称支持provider有自己的真实证据，不将Python/Linux结论泛化到native或外部Worker。
@@ -500,6 +597,7 @@ TASK-00 为 DEC-01～08 记录批准人/日期/结果；延期只阻断依赖该
 ### TASK-27：故障注入、并发与资源上界综合验收
 
 - **状态/角色**：NOT_STARTED；性能/可靠性工程师 + 安全复核人。
+- **阶段环境提示**：[TASK-23-AUTHORITATIVE-POLL-R02]真实测试的只读cwd使默认logs/judge-system.log未创建，控制台/XML结果有效但不能作文件日志验收；离线Maven前缀解析提示clean3.4.1/jar3.4.2描述符未缓存，不等于已完成打包。本项仍NOT_STARTED；最终验收使用已批准可写日志路径并核对实际打包依赖，不为补日志重跑已有效业务测试。
 - **既有待查（R14）**：JAVA-SUPERVISOR-R14故障注入报告“unreachable CLI changed actual container state”，未保存足以定位差异的四份原始快照；R15/R16后续成功不关闭该历史风险。核对故障不变量与状态观测边界，不放宽归属/安全断言。
 - **需求/设计**：RQ-A03、RQ-R02/R05/R06、RQ-L01～L03、RQ-U02、R §4；相关T-A04/05、T-R02/05/06/07、T-L01～04、T-U03/04；D §9.2/9.3、§4、§6/7。
 - **依赖**：24、25、26；容量阈值与测量方法在测试前批准。

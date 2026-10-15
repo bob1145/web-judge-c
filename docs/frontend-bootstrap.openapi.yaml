@@ -1,0 +1,35 @@
+openapi: 3.0.3
+info:
+  title: React frontend bootstrap extension
+  version: 1.0.0
+  description: Existing authentication and judge APIs are unchanged. This document describes the additive UI bootstrap endpoint only.
+paths:
+  /auth/bootstrap:
+    get:
+      summary: Retrieve CSRF credentials and authentication mode
+      operationId: frontendBootstrap
+      security: []
+      responses:
+        '200':
+          description: Same-origin bootstrap; token is session-bound and must not be cached.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: [no-store]
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [csrfToken, csrfHeader, accountAuthRequired]
+                properties:
+                  csrfToken:
+                    type: string
+                    description: Send on state-changing requests and STOMP CONNECT; refresh after authentication changes.
+                  csrfHeader:
+                    type: string
+                    example: X-CSRF-TOKEN
+                  accountAuthRequired:
+                    type: boolean
+                    description: True for username/password, false for access-code authentication.

@@ -14,6 +14,13 @@
 - **Java JDK 17+** - 运行Spring Boot应用
 - **Maven 3.6+** - 项目构建工具
 - **C++编译器** - g++或clang，需添加到系统PATH
+- **Node.js 22.12+ / npm** - 仅前端开发和重新构建需要；已同步的前端静态资源可直接由 Spring Boot 托管
+
+### React 前端
+
+前端源码位于 `frontend/`，使用 React、TypeScript、Vite、GSAP 和 CodeMirror。运行 `npm --prefix frontend ci` 后，可使用 `npm --prefix frontend run dev` 启动开发页面，或运行 `npm --prefix frontend run build` 将产物同步到 Spring Boot。默认开发代理连接本机 1234 端口。
+
+开发、构建和测试说明见 [前端 README](frontend/README.md)，接口兼容、设计决策与验收边界见 [前端迁移记录](docs/frontend-migration.md)。本次增加 `/auth/bootstrap`，因此已有后端进程需要重启才能完整使用新页面。
 
 ### 安装步骤
 
@@ -33,6 +40,8 @@
    mvn clean package
    java -jar target/demo18-0.0.1-SNAPSHOT.jar
    ```
+
+   本地重启会校验 `${java.io.tmpdir}/online-judge` 中的历史任务。已完成的 `trusted-local` 任务有合法 `final.json` 时会保留结果，不会仅因 `startedAt` 非空拒绝启动；未完成且无法确认停止、终态记录损坏或含沙箱残留的任务仍会拦截。无需通过清空任务目录绕过校验。
 
 3. **访问应用**
    ```
@@ -75,10 +84,11 @@
 - **多种判题状态**：AC、WA、TLE、RE、CE、SE
 
 ### 💻 现代化界面
-- 基于Bootstrap 5的响应式设计
-- 实时进度显示和状态更新
-- 直观的测试结果网格视图
-- 详细的错误分析弹窗
+- React + TypeScript 的浅色响应式工作台
+- GSAP 入场、插画交互和进度动效，支持减少动态效果
+- CodeMirror 代码编辑、草稿迁移、示例模板与键盘快捷键
+- 实时结果、失败筛选、分页和逐行输出对比
+- 本地 SVG 插画与原创 Logo，无外部 CDN 依赖
 
 ### ⚡ 高性能架构
 - **异步处理**：后台执行判题任务，不阻塞用户界面
@@ -87,7 +97,7 @@
 - **并发支持**：可同时处理多个判题请求
 
 ### 🔍 强大的调试功能
-- **差异高亮**：使用jsdiff库精确标记输出差异
+- **差异高亮**：按行比较后端返回的输出，支持仅显示差异与截断提示
 - **数据下载**：一键下载失败测试点的输入数据
 - **浮点数比较**：支持自定义精度的数值比较
 - **宽松匹配**：智能忽略空格和换行符差异
@@ -104,16 +114,18 @@
 - **Lombok** - 代码简化工具
 
 ### 前端技术栈
-- **Bootstrap 5** - 现代化UI框架
-- **JavaScript ES6** - 前端交互逻辑
+- **React 19 + TypeScript** - 组件与类型安全业务状态
+- **Vite** - 开发代理和生产构建
+- **GSAP + @gsap/react** - 可清理、支持减少动态效果的动画
+- **CodeMirror 6** - 按需加载的 C++ 编辑器
 - **WebSocket (STOMP)** - 实时通信协议
-- **jsdiff** - 文本差异对比库
+- **Vitest + Playwright** - 状态回归、浏览器交互与响应式验证
 
 ### 系统架构
 ```
 ┌─────────────────┐    WebSocket    ┌─────────────────┐
 │   前端界面      │ ←──────────────→ │   Spring Boot   │
-│   (Bootstrap)   │                 │   后端服务      │
+│     (React)     │                 │   后端服务      │
 └─────────────────┘                 └─────────────────┘
                                             │
                                             ▼

@@ -590,7 +590,8 @@ public class FileTaskStore implements TaskStore {
                         throw new IOException("Startup recovery requires trusted reconciliation for judgeId: "
                                 + task.getJudgeId(), ex);
                     }
-                    if (!task.getStatus().isTerminal() || task.getStartedAt() != null) {
+                    if (!task.getStatus().isTerminal()
+                            || (task.getStartedAt() != null && !hasValidatedTrustedLocalFinal(directory, task))) {
                         throw new IOException("Execution stop is unconfirmed for judgeId: " + task.getJudgeId());
                     }
                 }
@@ -611,6 +612,13 @@ public class FileTaskStore implements TaskStore {
             }
         }
         return staleTasks;
+    }
+
+    private boolean hasValidatedTrustedLocalFinal(Path directory, JudgeTask task) throws IOException {
+        return "trusted-local".equals(task.getMode())
+                && task.getPolicy() != null
+                && "trusted-local".equals(task.getPolicy().profile())
+                && readFinal(directory, task).isPresent();
     }
 
     protected void moveAtomically(Path tempFile, Path targetFile) throws IOException {

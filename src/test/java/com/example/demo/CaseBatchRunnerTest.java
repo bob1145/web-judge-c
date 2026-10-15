@@ -118,6 +118,53 @@ class CaseBatchRunnerTest {
         assertThat(results).extracting(TestCaseResult::getCaseNumber).containsExactly(1, 2);
     }
 
+    @Test
+    void stopPredicateCollectsEveryAlreadySubmittedResultBeforeReturning() {
+        ResolvedTaskPolicy policy = policy(100, 100, 4);
+        ResultAggregator aggregator = new ResultAggregator(false, 100, 10, 10);
+        CountDownLatch allStarted = new CountDownLatch(4);
+        CountDownLatch failureObserved = new CountDownLatch(1);
+        AtomicInteger startedCases = new AtomicInteger();
+        List<Integer> completionOrder = new ArrayList<>();
+        CaseBatchRunner runner = runner(Executors.newFixedThreadPool(4));
+
+        CaseBatchRunner.RunOutcome outcome = runner.run(
+                policy.requestedCases(), policy, new CancellationToken(),
+                caseNumber -> {
+                    startedCases.incrementAndGet();
+                    allStarted.countDown();
+                    if (!allStarted.await(5, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("cases did not start concurrently");
+                    }
+                    if (caseNumber != 2 && !failureObserved.await(5, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("failure was not consumed");
+                    }
+                    return new TestCaseResult(caseNumber, caseNumber == 2 ? "WA" : "AC", caseNumber, 1);
+                },
+                result -> {
+                    completionOrder.add(result.getCaseNumber());
+                    aggregator.accept(result);
+                    if (result.getCaseNumber() == 2) {
+                        failureObserved.countDown();
+                    }
+                },
+                result -> !"AC".equals(result.getStatus())
+        );
+
+        JudgeProgress finalProgress = aggregator.toFinalProgress();
+        assertThat(outcome.isStoppedAfterResult()).isTrue();
+        assertThat(outcome.isCancelled()).isFalse();
+        assertThat(outcome.getSubmittedCases()).isEqualTo(4);
+        assertThat(outcome.getCompletedCases()).isEqualTo(4);
+        assertThat(startedCases.get()).isEqualTo(4);
+        assertThat(completionOrder.get(0)).isEqualTo(2);
+        assertThat(finalProgress.getResults()).extracting(TestCaseResult::getCaseNumber).containsExactly(1, 2, 3, 4);
+        assertThat(finalProgress.getSummary().getCompletedCases()).isEqualTo(4);
+        assertThat(finalProgress.getSummary().getAc()).isEqualTo(3);
+        assertThat(finalProgress.getSummary().getWa()).isEqualTo(1);
+        assertThat(finalProgress.getSummary().getFirstFailedCase()).isEqualTo(2);
+    }
+
     @ParameterizedTest
     @ValueSource(ints = {1, 4, 5, 6, 100_000})
     void batchBoundariesExecuteEveryCaseExactlyOnce(int totalCases) {

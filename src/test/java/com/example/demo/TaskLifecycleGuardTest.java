@@ -248,7 +248,6 @@ class TaskLifecycleGuardTest {
 
     @Test
     void rejectsHardLinkedLock() throws Exception {
-        requirePosix();
         Path root = privateRoot();
         Path lock = privateFile(root.resolve(LOCK_NAME));
         Files.createLink(canonicalTemp().resolve("alias"), lock);
@@ -328,7 +327,6 @@ class TaskLifecycleGuardTest {
 
     @Test
     void replacementLockMakesCloseFailButReleasesOriginalLocks() throws Exception {
-        requirePosix();
         Path root = privateRoot();
         Path task = Files.createDirectory(root.resolve("task"));
         TaskLifecycleGuard.Lease lease = TaskLifecycleGuard.acquire(root, false);
@@ -356,8 +354,7 @@ class TaskLifecycleGuardTest {
         Path previous = canonicalTemp().resolve("previous-root");
         try {
             Files.move(root, previous);
-            Files.createDirectory(root, PosixFilePermissions.asFileAttribute(
-                    PosixFilePermissions.fromString("rwx------")));
+            assertThat(privateRoot()).isEqualTo(root);
         } finally {
             assertThatThrownBy(lease::close).isInstanceOf(IOException.class);
         }
@@ -374,9 +371,20 @@ class TaskLifecycleGuardTest {
     void lockMutationIsDetectedAndCloseStillReleasesAdmission() throws Exception {
         Path root = privateRoot();
         TaskLifecycleGuard.Lease lease = TaskLifecycleGuard.acquire(root, false);
-        Files.writeString(root.resolve(LOCK_NAME), "changed");
-        assertThatThrownBy(lease::close).isInstanceOf(IOException.class);
-        Files.write(root.resolve(LOCK_NAME), new byte[0], StandardOpenOption.TRUNCATE_EXISTING);
+        try {
+            if (System.getProperty("os.name").startsWith("Windows")) {
+                assertThatThrownBy(() -> Files.writeString(root.resolve(LOCK_NAME), "changed"))
+                        .isInstanceOf(IOException.class);
+                assertThat(Files.size(root.resolve(LOCK_NAME))).isZero();
+                lease.requireTaskDirectory(Files.createDirectory(root.resolve("retained-task")));
+            } else {
+                Files.writeString(root.resolve(LOCK_NAME), "changed");
+                assertThatThrownBy(lease::close).isInstanceOf(IOException.class);
+                Files.write(root.resolve(LOCK_NAME), new byte[0], StandardOpenOption.TRUNCATE_EXISTING);
+            }
+        } finally {
+            lease.close();
+        }
         try (TaskLifecycleGuard.Lease next = TaskLifecycleGuard.acquire(root, false)) {
             Path task = Files.createDirectory(root.resolve("task"));
             next.requireTaskDirectory(task);

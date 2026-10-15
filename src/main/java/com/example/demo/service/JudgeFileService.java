@@ -17,12 +17,10 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -31,7 +29,6 @@ import java.util.zip.ZipOutputStream;
 public class JudgeFileService {
 
     private static final Pattern SAFE_ENTRY_NAME = Pattern.compile("[1-9][0-9]*\\.(in|out|ans)");
-    private static final Pattern INPUT_FILE_NAME = Pattern.compile("[1-9][0-9]*\\.in");
 
     private final TaskStore taskStore;
     private final ExecutionProperties executionProperties;
@@ -75,27 +72,22 @@ public class JudgeFileService {
             throw new IOException("Full archive download is disabled for high-volume tasks; use per-case downloads");
         }
         Path workDir = requireWorkDir(task);
-        List<Path> inputFiles = listInputFiles(task, workDir);
-        if (inputFiles.isEmpty()) {
-            throw new IOException("No test case inputs available");
+        JudgeProgress progress = taskStore.findSummary(judgeId)
+                .orElseThrow(() -> new IOException("No completed test case results available"));
+        List<Integer> caseNumbers = progress.getResults() == null ? List.of() : progress.getResults().stream()
+                .map(TestCaseResult::getCaseNumber)
+                .distinct()
+                .sorted()
+                .toList();
+        if (caseNumbers.isEmpty()) {
+            throw new IOException("No completed test case results available");
         }
+        return streamCaseArtifacts(task, workDir, caseNumbers);
+    }
 
-        return outputStream -> {
-            try (ZipOutputStream zipStream = new ZipOutputStream(outputStream)) {
-                for (Path inputFile : inputFiles) {
-                    int caseNumber = parseCaseNumber(inputFile);
-                    addFileToZip(zipStream, inputFile, caseNumber + ".in");
-
-                    Path answerFile = caseFile(workDir, caseNumber, ".ans");
-                    if (!Files.isRegularFile(answerFile, LinkOption.NOFOLLOW_LINKS)) {
-                        answerFile = caseFile(workDir, caseNumber, ".out");
-                    }
-                    if (Files.isRegularFile(answerFile, LinkOption.NOFOLLOW_LINKS)) {
-                        addFileToZip(zipStream, answerFile, caseNumber + ".out");
-                    }
-                }
-            }
-        };
+    public StreamingResponseBody streamTestCaseArchive(String judgeId, int caseNumber) throws IOException {
+        JudgeTask task = requireTask(judgeId);
+        return streamCaseArtifacts(task, requireWorkDir(task), List.of(caseNumber));
     }
 
     public StreamingResponseBody streamFailedTestCasesArchive(String judgeId) throws IOException {
@@ -105,10 +97,22 @@ public class JudgeFileService {
         if (failedCases.isEmpty()) {
             throw new IOException("No non-AC test cases available");
         }
+        return streamCaseArtifacts(task, workDir, failedCases);
+    }
 
+    private StreamingResponseBody streamCaseArtifacts(JudgeTask task, Path workDir, List<Integer> caseNumbers) throws IOException {
+        for (int caseNumber : caseNumbers) {
+            validateCaseNumber(task, caseNumber);
+            Path inputFile = caseFile(workDir, caseNumber, ".in");
+            if (!Files.isRegularFile(inputFile, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException("Input file not found for caseNumber " + caseNumber);
+            }
+            caseFile(workDir, caseNumber, ".out");
+            caseFile(workDir, caseNumber, ".ans");
+        }
         return outputStream -> {
             try (ZipOutputStream zipStream = new ZipOutputStream(outputStream)) {
-                for (int caseNumber : failedCases) {
+                for (int caseNumber : caseNumbers) {
                     addFileToZip(zipStream, caseFile(workDir, caseNumber, ".in"), caseNumber + ".in");
                     addOptionalFileToZip(zipStream, caseFile(workDir, caseNumber, ".out"), caseNumber + ".out");
                     addOptionalFileToZip(zipStream, caseFile(workDir, caseNumber, ".ans"), caseNumber + ".ans");
@@ -215,24 +219,6 @@ public class JudgeFileService {
         return new FilePreview(new String(bytes, StandardCharsets.UTF_8), size > safeLimit);
     }
 
-    private List<Path> listInputFiles(JudgeTask task, Path workDir) throws IOException {
-        try (Stream<Path> stream = Files.list(workDir)) {
-            List<Path> candidates = stream
-                    .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
-                    .filter(path -> INPUT_FILE_NAME.matcher(path.getFileName().toString()).matches())
-                    .filter(path -> {
-                        int caseNumber = parseCaseNumber(path);
-                        return caseNumber >= 1 && caseNumber <= task.getRequestedCases();
-                    })
-                    .sorted(Comparator.comparingInt(this::parseCaseNumber))
-                    .toList();
-            List<Path> safeFiles = new java.util.ArrayList<>(candidates.size());
-            for (Path candidate : candidates) {
-                safeFiles.add(caseFile(workDir, parseCaseNumber(candidate), ".in"));
-            }
-            return safeFiles;
-        }
-    }
 
     private void addFileToZip(ZipOutputStream zipStream, Path file, String entryName) throws IOException {
         if (!SAFE_ENTRY_NAME.matcher(entryName).matches()) {
@@ -294,16 +280,6 @@ public class JudgeFileService {
                 .replace('-', '_');
     }
 
-    private int parseCaseNumber(Path file) {
-        String name = file.getFileName().toString();
-        int dotIndex = name.indexOf('.');
-        String numberPart = dotIndex >= 0 ? name.substring(0, dotIndex) : name;
-        try {
-            return Integer.parseInt(numberPart);
-        } catch (NumberFormatException ex) {
-            return Integer.MAX_VALUE;
-        }
-    }
 
     private record FilePreview(String content, boolean truncated) {
     }

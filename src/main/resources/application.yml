@@ -13,13 +13,13 @@ app:
 
 judge:
   auth:
-    access-code: ""
+    access-code: "fmZwmQHNH01StSuYRDVs"
     account-auth-enabled: false
     accounts: []
     session-timeout: 30d
     normal-session-timeout: 24h
-    max-attempts: 5
-    attempt-reset-hours: 1
+    max-attempts: 50
+    attempt-reset-hours: 2
   
   memory:
     default-limit: 268435456  # 256MB
@@ -28,16 +28,16 @@ judge:
 
   execution:
     profile: trusted-local
-    max-cases-per-task: 10000
+    max-cases-per-task: 1000000
     large-mode-threshold: 5000
-    task-queue-capacity: 10
-    max-concurrent-tasks: 1
-    max-concurrent-cases-per-task: 4
+    task-queue-capacity: 20
+    max-concurrent-tasks: 2
+    max-concurrent-cases-per-task: 12
     batch-size: 100
-    max-daily-cases-per-user: 200000
-    max-daily-runtime-millis-per-user: 1000000000
-    max-running-tasks-per-user: 1
-    max-queued-tasks-per-user: 5
+    max-daily-cases-per-user: 200000000
+    max-daily-runtime-millis-per-user: 100000000000
+    max-running-tasks-per-user: 2
+    max-queued-tasks-per-user: 13
     cleanup-interval: 30m
     progress-cache-max-entries: 1024
     progress-cache-ttl: 30m

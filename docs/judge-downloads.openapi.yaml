@@ -1,0 +1,138 @@
+openapi: 3.0.3
+info:
+  title: 对拍测试点下载
+  version: 1.1.0
+  description: |
+    此文档描述现有输入下载、全部已判数据与失败数据下载，以及新增的单点 ZIP。
+    ZIP 中 .in 是输入，.out 始终是待测程序输出，.ans 始终是参考程序答案。
+    输入文件必须存在；输出或答案尚未生成时不打包对应文件，也不以其他文件替代。
+    所有接口只读，复用任务所有者或已授权管理员访问检查，不更改任务记录。
+security:
+  - SessionCookie: []
+  - SessionHeader: []
+paths:
+  /download/{judgeId}/{caseNumber}:
+    parameters:
+      - $ref: '#/components/parameters/JudgeId'
+      - $ref: '#/components/parameters/CaseNumber'
+    get:
+      operationId: downloadInput
+      summary: 仅下载单点输入（保留兼容）
+      responses:
+        '200':
+          description: 原始完整输入，Content-Disposition 文件名为 caseNumber.in。
+          content:
+            text/plain:
+              schema:
+                type: string
+                format: binary
+        '302':
+          $ref: '#/components/responses/LoginRedirect'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /download/{judgeId}/{caseNumber}/archive:
+    parameters:
+      - $ref: '#/components/parameters/JudgeId'
+      - $ref: '#/components/parameters/CaseNumber'
+    get:
+      operationId: downloadTestCaseArchive
+      summary: 下载单点完整测试数据
+      description: |
+        Content-Disposition 文件名为 caseNumber.zip。
+        不受详情预览截断限制；大批量任务也允许逐点下载。
+      responses:
+        '200':
+          $ref: '#/components/responses/ZipArchive'
+        '302':
+          $ref: '#/components/responses/LoginRedirect'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /download/{judgeId}/all:
+    parameters:
+      - $ref: '#/components/parameters/JudgeId'
+    get:
+      operationId: downloadAllTestCases
+      summary: 下载全部已判测试点
+      description: |
+        以已保存的 results 为准，按编号去重、递增打包，不扫描未记录的目录残留文件。
+        不是提交时请求的全部测试数量，也不受前端筛选、排序与分页影响。
+        无判定记录或 highVolume 策略开启时返回 404，后者应逐点下载。
+        文件名为 testcases-{judgeId}.zip，judgeId 中不安全的文件名字符替换为下划线。
+      responses:
+        '200':
+          $ref: '#/components/responses/ZipArchive'
+        '302':
+          $ref: '#/components/responses/LoginRedirect'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /download/{judgeId}/failed:
+    parameters:
+      - $ref: '#/components/parameters/JudgeId'
+    get:
+      operationId: downloadFailedTestCases
+      summary: 下载已记录的非 AC 测试数据
+      description: |
+        使用 results 中的非 AC 结果；缺少该列表时依次使用 failureSamples、firstFailedCase。
+        大批量任务只包含已保存的失败样本，不承诺覆盖未保留的失败点。
+        文件名为 failed-testcases-{judgeId}.zip，judgeId 中不安全的文件名字符替换为下划线。
+      responses:
+        '200':
+          $ref: '#/components/responses/ZipArchive'
+        '302':
+          $ref: '#/components/responses/LoginRedirect'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: JUDGE_SESSION
+      description: 浏览器同源下载使用会话 Cookie。若同时发送会话请求头，两者必须一致。
+    SessionHeader:
+      type: apiKey
+      in: header
+      name: X-Session-ID
+  parameters:
+    JudgeId:
+      name: judgeId
+      in: path
+      required: true
+      schema:
+        type: string
+    CaseNumber:
+      name: caseNumber
+      in: path
+      required: true
+      description: 从 1 开始，不得大于任务 requestedCases。
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+  responses:
+    ZipArchive:
+      description: 流式 ZIP；保留输入、待测输出与参考答案各自的真实文件名和完整内容。
+      headers:
+        Content-Disposition:
+          schema:
+            type: string
+          example: attachment; filename="2.zip"
+      content:
+        application/zip:
+          schema:
+            type: string
+            format: binary
+    LoginRedirect:
+      description: 未认证的普通浏览器请求跳转至 /auth，并携带原始路径。
+    Unauthorized:
+      description: 未认证的 AJAX 或 Accept 为 application/json 的请求返回 401。
+    NotFound:
+      description: 任务不存在、无访问权限、编号越界、文件缺失、无可归档数据或策略禁止下载；不暴露任务是否属于他人。
